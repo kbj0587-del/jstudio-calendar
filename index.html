@@ -15,6 +15,20 @@
 </head>
 <body>
 
+<!-- ══════════════════ 초대코드 화면 ══════════════════ -->
+<div id="inviteScreen" class="app-lock-screen hidden">
+  <div class="app-lock-card">
+    <img src="./icons/icon-192.png" class="lock-logo" alt="J.STUDIO" />
+    <h2 class="lock-title">제이스튜디오 캘린더</h2>
+    <p class="lock-sub">이 기기에서 처음 접근합니다.<br>관리자에게 받은 초대코드를 입력하세요.</p>
+    <div class="invite-badge">🔐 초대코드 필요</div>
+    <input type="text" id="inviteInput" class="lock-input" placeholder="초대코드 입력"
+           autocomplete="off" autocorrect="off" spellcheck="false" />
+    <p id="inviteError" class="lock-error hidden">초대코드가 올바르지 않습니다.</p>
+    <button id="btnInviteVerify" class="lock-btn">입장하기</button>
+  </div>
+</div>
+
 <!-- ══════════════════ 앱 잠금 화면 ══════════════════ -->
 <div id="appLockScreen" class="app-lock-screen hidden">
   <div class="app-lock-card">
@@ -37,6 +51,7 @@
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
     </svg>
   </button>
+  <span id="headerSyncDot" class="header-sync-dot" title="동기화 상태"></span>
   <button id="btnAddHeader" class="btn-add-header">＋ 일정 추가</button>
 </header>
 
@@ -203,6 +218,46 @@
           <input type="password" id="settingsNewPw" placeholder="삭제하려면 빈칸으로 저장" />
         </div>
         <p class="setting-hint">설정 진입 시 비밀번호를 확인합니다.</p>
+      </div>
+
+      <!-- 초대코드 관리 -->
+      <div class="settings-section">
+        <h3 class="settings-section-title">🔐 초대코드 관리</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">초대코드 설정</div>
+            <div class="setting-desc">이 코드를 가진 기기만 앱에 접근할 수 있습니다</div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label>초대코드</label>
+          <input type="text" id="settingsInviteCode"
+                 placeholder="비워두면 누구나 접근 가능"
+                 autocomplete="off" autocorrect="off" spellcheck="false" />
+        </div>
+        <p class="setting-hint">⚠️ 코드를 변경하면 기존 등록 기기는 새 코드 재입력이 필요합니다.</p>
+        <button id="btnRevokeAll" class="btn-revoke">모든 기기 접근 취소</button>
+      </div>
+
+      <!-- 동기화 상태 -->
+      <div class="settings-section">
+        <h3 class="settings-section-title">📡 데이터 동기화</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">동기화 상태</div>
+            <div class="setting-desc" id="syncStatusText">확인 중…</div>
+          </div>
+          <span id="syncDot" class="sync-dot"></span>
+        </div>
+        <p class="setting-hint">컴퓨터·휴대폰 어디서나 동일한 일정을 볼 수 있습니다.<br>
+        서버 재시작 시 데이터가 초기화될 수 있으니 정기적으로 내보내기를 권장합니다.</p>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button id="btnExportData" class="btn-revoke" style="flex:1">⬇ 백업 내보내기</button>
+          <label class="btn-revoke" style="flex:1;text-align:center;cursor:pointer;margin:0">
+            ⬆ 백업 불러오기
+            <input type="file" id="importFile" accept=".json" style="display:none" />
+          </label>
+        </div>
       </div>
 
       <!-- 카테고리 -->

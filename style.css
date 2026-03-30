@@ -726,6 +726,67 @@ body {
 .lock-btn:hover { opacity: 0.9; }
 .lock-btn:active { transform: scale(0.98); }
 
+/* ── 초대코드 배지 ── */
+.invite-badge {
+  background: rgba(200,150,12,0.18);
+  color: #e6b020;
+  border: 1px solid rgba(200,150,12,0.4);
+  border-radius: 20px;
+  padding: 5px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* ── 헤더 동기화 점 ── */
+.header-sync-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: #888;
+  flex-shrink: 0;
+  transition: background 0.4s;
+}
+.header-sync-dot.online  { background: #2e9e4f; }
+.header-sync-dot.offline { background: #888; }
+.header-sync-dot.syncing {
+  background: #c88a00;
+  animation: syncPulse 1s ease-in-out infinite;
+}
+.header-sync-dot.error { background: #e03050; }
+
+/* 설정 패널 동기화 점 */
+.sync-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #888;
+  flex-shrink: 0;
+  transition: background 0.4s;
+}
+.sync-dot.online  { background: #2e9e4f; }
+.sync-dot.offline { background: #888; }
+.sync-dot.error   { background: #e03050; }
+
+@keyframes syncPulse {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0.3; }
+}
+
+/* ── 취소/백업 버튼 ── */
+.btn-revoke {
+  display: inline-block;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--tr);
+  margin-top: 6px;
+}
+.btn-revoke:hover { background: var(--border); }
+
 @keyframes lockShake {
   0%,100% { transform: translateX(0); }
   20%     { transform: translateX(-10px); }

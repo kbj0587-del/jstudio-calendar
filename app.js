@@ -22,6 +22,40 @@ const EMOJI_LIST = [
   '🔴','🟡','🟢','🔵','⭐','🔥','💬','📢','🚫','✔️',
 ];
 
+// ── 동기화 상태 ───────────────────────────────────
+let storedInviteCode = '';  // localStorage에 저장된 초대코드
+let syncEnabled      = false; // 서버 동기화 가능 여부
+let syncTimer        = null;  // 디바운스 타이머
+
+function setSyncStatus(state, text) {
+  const dot  = document.getElementById('headerSyncDot');
+  const sdot = document.getElementById('syncDot');
+  const stxt = document.getElementById('syncStatusText');
+  if (dot)  { dot.className  = 'header-sync-dot ' + state; }
+  if (sdot) { sdot.className = 'sync-dot ' + state; }
+  if (stxt && text) stxt.textContent = text;
+}
+
+// ── 서버 API 헬퍼 ─────────────────────────────────
+async function apiGet(path) {
+  const resp = await fetch(path, {
+    headers: storedInviteCode ? { 'x-invite-code': storedInviteCode } : {}
+  });
+  return resp;
+}
+
+async function apiPost(path, body) {
+  const resp = await fetch(path, {
+    method:  'POST',
+    headers: {
+      'Content-Type':   'application/json',
+      'x-invite-code':  storedInviteCode,
+    },
+    body: JSON.stringify(body),
+  });
+  return resp;
+}
+
 // ── 상태 ──────────────────────────────────────────
 let currentYear, currentMonth;
 let miniCalYear   = 0;
@@ -55,7 +89,10 @@ function loadAll() {
     }
   } catch {}
 }
-function saveEvents()   { localStorage.setItem('cc_events',   JSON.stringify(events));   }
+function saveEvents() {
+  localStorage.setItem('cc_events', JSON.stringify(events));
+  syncEventsToServer();
+}
 function saveSettings() { localStorage.setItem('cc_settings', JSON.stringify(settings)); }
 
 // ── 테마 ──────────────────────────────────────────
@@ -87,23 +124,129 @@ function esc(s) {
 // ═════════════════════════════════════════════════
 // 초기화
 // ═════════════════════════════════════════════════
-function init() {
-  const now    = new Date();
-  currentYear  = now.getFullYear();
-  currentMonth = now.getMonth();
-  miniCalYear  = currentYear;
+async function init() {
+  const now   = new Date();
+  currentYear = now.getFullYear();
+  currentMonth= now.getMonth();
+  miniCalYear = currentYear;
 
+  // 로컬 데이터 먼저 로드 (오프라인 대비)
   loadAll();
   applyTheme(settings.darkMode);
 
-  // 비밀번호가 설정되어 있으면 앱 잠금 화면 표시
-  if (settings.password) {
-    showAppLock();
-  }
-
+  // UI 먼저 그리기
   renderCalendar();
   bindStaticEvents();
   setupRichEditor();
+
+  // 저장된 초대코드 불러오기
+  storedInviteCode = localStorage.getItem('cc_invite') || '';
+
+  // 서버 동기화 시도
+  setSyncStatus('syncing', '서버 연결 중…');
+  try {
+    const resp = await apiGet('/api/sync');
+
+    if (resp.status === 401) {
+      // 초대코드 필요
+      setSyncStatus('error', '초대코드 필요');
+      showInviteScreen();
+      return;
+    }
+
+    if (resp.ok) {
+      const data = await resp.json();
+      syncEnabled = true;
+
+      // 서버 데이터로 덮어쓰기
+      events = data.events || [];
+      settings.categories = data.categories || settings.categories;
+      settings.darkMode   = data.darkMode   ?? settings.darkMode;
+      // 초대코드 갱신 (관리자 확인용)
+      if (data.inviteCode !== undefined)
+        localStorage.setItem('cc_invite_current', data.inviteCode);
+
+      saveEvents();
+      saveSettings();
+      applyTheme(settings.darkMode);
+      renderCalendar();
+      setSyncStatus('online', '✅ 동기화됨 — 모든 기기에서 동일한 데이터');
+    }
+  } catch {
+    // 오프라인 → 로컬 데이터 사용
+    syncEnabled = false;
+    setSyncStatus('offline', '⚠️ 오프라인 — 로컬 데이터 사용 중');
+  }
+
+  // 비밀번호 잠금
+  if (settings.password) showAppLock();
+}
+
+// ── 초대코드 화면 ─────────────────────────────────
+function showInviteScreen() {
+  document.getElementById('inviteScreen').classList.remove('hidden');
+  setTimeout(() => document.getElementById('inviteInput').focus(), 150);
+}
+
+async function verifyInvite() {
+  const code  = document.getElementById('inviteInput').value.trim();
+  const error = document.getElementById('inviteError');
+  if (!code) return;
+
+  try {
+    const resp = await fetch('/api/invite/verify', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ code }),
+    });
+    const { valid } = await resp.json();
+
+    if (valid) {
+      storedInviteCode = code;
+      localStorage.setItem('cc_invite', code);
+      document.getElementById('inviteScreen').classList.add('hidden');
+      // 승인 후 재초기화
+      await init();
+    } else {
+      error.classList.remove('hidden');
+      document.getElementById('inviteInput').value = '';
+      document.getElementById('inviteInput').focus();
+      const card = document.querySelector('#inviteScreen .app-lock-card');
+      card.style.animation = 'none';
+      card.offsetHeight;
+      card.style.animation = 'lockShake 0.4s ease';
+    }
+  } catch {
+    showToast('서버에 연결할 수 없습니다.');
+  }
+}
+
+// ── 서버 동기화 저장 (디바운스) ───────────────────
+function syncEventsToServer() {
+  if (!syncEnabled) return;
+  clearTimeout(syncTimer);
+  setSyncStatus('syncing', '동기화 중…');
+  syncTimer = setTimeout(async () => {
+    try {
+      await apiPost('/api/sync/events', { events });
+      setSyncStatus('online', '✅ 동기화됨');
+    } catch {
+      setSyncStatus('offline', '⚠️ 동기화 실패');
+    }
+  }, 800);
+}
+
+async function syncSettingsToServer(draft) {
+  if (!syncEnabled) return;
+  try {
+    await apiPost('/api/sync/settings', {
+      categories: draft.categories,
+      darkMode:   draft.darkMode,
+      inviteCode: draft.inviteCode,
+    });
+  } catch {
+    setSyncStatus('offline', '⚠️ 설정 동기화 실패');
+  }
 }
 
 function showAppLock() {
@@ -522,6 +665,21 @@ function openSettings() {
   document.getElementById('darkModeToggle').checked  = settingsDraft.darkMode;
   document.getElementById('settingsCurrentPw').value = '';
   document.getElementById('settingsNewPw').value     = '';
+
+  // 초대코드 표시 (서버에서 가져온 값)
+  const inviteField = document.getElementById('settingsInviteCode');
+  if (inviteField) {
+    inviteField.value = localStorage.getItem('cc_invite_current') || storedInviteCode || '';
+  }
+
+  // 동기화 상태 표시
+  const sdot = document.getElementById('syncDot');
+  const stxt = document.getElementById('syncStatusText');
+  if (sdot) sdot.className = 'sync-dot ' + (syncEnabled ? 'online' : 'offline');
+  if (stxt) stxt.textContent = syncEnabled
+    ? '✅ 서버 연결됨 — 모든 기기 동일 데이터'
+    : '⚠️ 오프라인 — 로컬 데이터만 저장됨';
+
   renderCategoryList();
   document.getElementById('settingsOverlay').classList.remove('hidden');
 }
@@ -579,10 +737,22 @@ function saveSettingsData() {
     settingsDraft.password = newPw; // 빈칸이면 비밀번호 삭제
   }
 
-  settingsDraft.darkMode = document.getElementById('darkModeToggle').checked;
+  settingsDraft.darkMode   = document.getElementById('darkModeToggle').checked;
+  settingsDraft.inviteCode = (document.getElementById('settingsInviteCode')?.value ?? '').trim();
+
   settings = settingsDraft;
   saveSettings();
   applyTheme(settings.darkMode);
+
+  // 서버에 공유 설정 동기화 (초대코드 포함)
+  syncSettingsToServer(settings);
+
+  // 초대코드가 바뀌면 이 기기의 승인도 갱신
+  if (settings.inviteCode) {
+    storedInviteCode = settings.inviteCode;
+    localStorage.setItem('cc_invite', settings.inviteCode);
+  }
+
   renderCalendar();
   showToast('설정이 저장되었습니다.');
   document.getElementById('settingsOverlay').classList.add('hidden');
@@ -676,6 +846,12 @@ function setupRichEditor() {
 // ═════════════════════════════════════════════════
 function bindStaticEvents() {
 
+  // ── 초대코드 화면 ──
+  document.getElementById('btnInviteVerify').addEventListener('click', verifyInvite);
+  document.getElementById('inviteInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') verifyInvite();
+  });
+
   // ── 앱 잠금 화면 ──
   document.getElementById('btnAppLockVerify').addEventListener('click', verifyAppLock);
   document.getElementById('appLockInput').addEventListener('keydown', e => {
@@ -734,6 +910,47 @@ function bindStaticEvents() {
   document.getElementById('btnCancelSettings').addEventListener('click', closeSettings);
   document.getElementById('btnSaveSettings').addEventListener('click', saveSettingsData);
   document.getElementById('btnAddCategory').addEventListener('click', addCategory);
+
+  // ── 모든 기기 접근 취소 ──
+  document.getElementById('btnRevokeAll').addEventListener('click', () => {
+    if (!confirm('모든 기기의 초대코드 승인을 취소할까요?\n기존 기기는 새 초대코드를 입력해야 합니다.')) return;
+    const newCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+    document.getElementById('settingsInviteCode').value = newCode;
+    showToast(`새 초대코드: ${newCode} — 저장 후 적용됩니다.`);
+  });
+
+  // ── 데이터 백업 내보내기 ──
+  document.getElementById('btnExportData').addEventListener('click', () => {
+    const backup = { events, settings: { categories: settings.categories, darkMode: settings.darkMode }, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `jstudio_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    showToast('백업 파일이 다운로드되었습니다.');
+  });
+
+  // ── 데이터 백업 불러오기 ──
+  document.getElementById('importFile').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      try {
+        const backup = JSON.parse(ev.target.result);
+        if (!Array.isArray(backup.events)) throw new Error();
+        if (!confirm(`백업 파일에서 일정 ${backup.events.length}건을 불러올까요?\n현재 데이터는 덮어씌워집니다.`)) return;
+        events = backup.events;
+        if (backup.settings?.categories) settings.categories = backup.settings.categories;
+        saveEvents();
+        saveSettings();
+        renderCalendar();
+        showToast('백업 데이터를 불러왔습니다.');
+      } catch { showToast('올바른 백업 파일이 아닙니다.'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
   document.getElementById('settingsOverlay').addEventListener('click', e => {
     if (e.target.id === 'settingsOverlay') closeSettings();
   });
