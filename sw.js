@@ -1,7 +1,8 @@
-const CACHE_NAME = 'jstudio-calendar-v4';
+const CACHE_NAME = 'jstudio-calendar-v5';
 const ASSETS = [
   './',
   './index.html',
+  './invite.html',
   './style.css',
   './app.js',
   './manifest.json',

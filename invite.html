@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>제이스튜디오 캘린더 초대</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px 60px;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.97);
+      border-radius: 24px;
+      padding: 40px 32px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.4);
+    }
+
+    /* ── 헤더 ── */
+    .header { text-align: center; margin-bottom: 28px; }
+    .logo {
+      width: 80px; height: 80px;
+      border-radius: 20px;
+      box-shadow: 0 6px 20px rgba(200,150,12,0.4);
+      margin-bottom: 14px;
+    }
+    .app-name { font-size: 20px; font-weight: 800; color: #1a1d2e; }
+    .app-sub  { font-size: 13px; color: #888; margin-top: 4px; }
+
+    /* ── 초대 배너 ── */
+    .invite-banner {
+      background: linear-gradient(135deg, #c8960c, #e6b020);
+      border-radius: 16px;
+      padding: 20px 24px;
+      text-align: center;
+      margin-bottom: 28px;
+      color: #fff;
+    }
+    .invite-banner p { font-size: 13px; opacity: 0.85; margin-bottom: 8px; }
+    .invite-banner h2 { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+    .code-box {
+      background: rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 12px 20px;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+    .code-text {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+    }
+    .btn-copy {
+      background: rgba(255,255,255,0.25);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: #fff;
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+    }
+    .btn-copy:hover { background: rgba(255,255,255,0.4); }
+
+    /* ── 안내 섹션 ── */
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 14px;
+    }
+
+    /* ── 플랫폼 탭 ── */
+    .platform-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 20px;
+      background: #f0f2f5;
+      border-radius: 12px;
+      padding: 4px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 8px 0;
+      border: none;
+      background: transparent;
+      border-radius: 9px;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 600;
+      color: #888;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: #fff;
+      color: #1a1d2e;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    /* ── 설치 단계 ── */
+    .steps-panel { display: none; }
+    .steps-panel.active { display: block; }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .step-num {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #c8960c, #e6b020);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(200,150,12,0.4);
+    }
+    .step-content { flex: 1; }
+    .step-title { font-size: 14px; font-weight: 700; color: #1a1d2e; margin-bottom: 3px; }
+    .step-desc  { font-size: 13px; color: #666; line-height: 1.5; }
+    .step-img   {
+      margin-top: 8px;
+      background: #f7f8fa;
+      border: 1px solid #e8eaf0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #888;
+      font-style: italic;
+    }
+    .step-tag {
+      display: inline-block;
+      background: #f0f2f5;
+      color: #444;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      margin: 2px 2px 0 0;
+    }
+    .step-tag.gold {
+      background: rgba(200,150,12,0.12);
+      color: #c8960c;
+    }
+
+    /* ── 앱 열기 버튼 ── */
+    .divider {
+      border: none; border-top: 1px solid #eee;
+      margin: 24px 0;
+    }
+    .btn-open {
+      display: block;
+      width: 100%;
+      background: linear-gradient(135deg, #c8960c, #e6b020);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      padding: 16px;
+      font-size: 16px;
+      font-weight: 800;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      box-shadow: 0 6px 20px rgba(200,150,12,0.45);
+      transition: transform 0.15s, box-shadow 0.15s;
+      margin-bottom: 12px;
+    }
+    .btn-open:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(200,150,12,0.5);
+    }
+    .open-hint {
+      text-align: center;
+      font-size: 12px;
+      color: #aaa;
+      line-height: 1.5;
+    }
+
+    /* ── 토스트 ── */
+    .toast {
+      position: fixed;
+      bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: #1a1d2e;
+      color: #fff;
+      border-radius: 20px;
+      padding: 10px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+
+  <!-- 헤더 -->
+  <div class="header">
+    <img src="./icons/icon-192.png" class="logo" alt="J.STUDIO" />
+    <div class="app-name">제이스튜디오 캘린더</div>
+    <div class="app-sub">플라잉요가 &amp; 번지피지오</div>
+  </div>
+
+  <!-- 초대코드 배너 -->
+  <div class="invite-banner">
+    <p>🎉 앱 이용 초대를 받으셨습니다</p>
+    <h2>아래 초대코드로 입장하세요</h2>
+    <div class="code-box">
+      <div class="code-text" id="displayCode">—</div>
+    </div>
+    <br/>
+    <button class="btn-copy" onclick="copyCode()">📋 코드 복사</button>
+  </div>
+
+  <!-- 플랫폼 탭 -->
+  <div class="section-title">📱 기기별 설치 방법</div>
+  <div class="platform-tabs">
+    <button class="tab-btn active" onclick="switchTab('iphone', this)">🍎 아이폰</button>
+    <button class="tab-btn" onclick="switchTab('android', this)">🤖 안드로이드</button>
+    <button class="tab-btn" onclick="switchTab('pc', this)">💻 컴퓨터</button>
+  </div>
+
+  <!-- 아이폰 안내 -->
+  <div id="panel-iphone" class="steps-panel active">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Safari로 앱 주소 열기</div>
+        <div class="step-desc">아래 <strong>앱 열기</strong> 버튼을 클릭하거나, Safari 브라우저에서 직접 주소를 입력하세요.<br/>
+        ⚠️ 크롬이 아닌 <strong>Safari</strong>를 사용해야 홈 화면에 추가할 수 있습니다.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">초대코드 입력</div>
+        <div class="step-desc">앱이 열리면 초대코드 입력 화면이 나타납니다.<br/>
+        위에 표시된 코드를 입력하고 <span class="step-tag gold">입장하기</span> 를 누르세요.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">홈 화면에 추가</div>
+        <div class="step-desc">Safari 하단 가운데 <span class="step-tag">⎙ 공유</span> 버튼 클릭<br/>
+        → 스크롤 내려서 <span class="step-tag">홈 화면에 추가</span> 선택<br/>
+        → <span class="step-tag gold">추가</span> 클릭</div>
+        <div class="step-img">✅ 이제 홈 화면에 앱 아이콘이 생성됩니다!</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">홈 화면 아이콘으로 실행</div>
+        <div class="step-desc">다음부터는 Safari 없이 홈 화면의 앱 아이콘을 눌러서 바로 실행하세요.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 안드로이드 안내 -->
+  <div id="panel-android" class="steps-panel">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Chrome으로 앱 주소 열기</div>
+        <div class="step-desc">아래 <strong>앱 열기</strong> 버튼을 클릭하거나, Chrome 브라우저에서 직접 주소를 입력하세요.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">초대코드 입력</div>
+        <div class="step-desc">앱이 열리면 초대코드 입력 화면이 나타납니다.<br/>
+        위에 표시된 코드를 입력하고 <span class="step-tag gold">입장하기</span> 를 누르세요.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">앱 설치 (홈 화면 추가)</div>
+        <div class="step-desc">Chrome 주소창 오른쪽 <span class="step-tag">⊕ 설치</span> 아이콘 클릭<br/>
+        또는 우상단 메뉴 <span class="step-tag">⋮</span> → <span class="step-tag">앱 설치</span> 선택<br/>
+        → <span class="step-tag gold">설치</span> 클릭</div>
+        <div class="step-img">✅ 홈 화면 &amp; 앱 서랍에 아이콘이 추가됩니다!</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">앱 아이콘으로 실행</div>
+        <div class="step-desc">다음부터는 홈 화면의 앱 아이콘을 눌러서 바로 실행하세요.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PC 안내 -->
+  <div id="panel-pc" class="steps-panel">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Chrome에서 앱 열기</div>
+        <div class="step-desc">아래 <strong>앱 열기</strong> 버튼을 클릭하거나, Chrome 주소창에 직접 입력하세요.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">초대코드 입력</div>
+        <div class="step-desc">앱이 열리면 초대코드 입력 화면이 나타납니다.<br/>
+        위에 표시된 코드를 입력하고 <span class="step-tag gold">입장하기</span> 를 누르세요.</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">앱 설치 (바탕화면에 추가)</div>
+        <div class="step-desc">Chrome 주소창 오른쪽 끝 <span class="step-tag">⊕</span> 설치 아이콘 클릭<br/>
+        또는 주소창 우측 메뉴 <span class="step-tag">⋮</span> → <span class="step-tag">제이스튜디오 캘린더 설치</span><br/>
+        → <span class="step-tag gold">설치</span> 클릭</div>
+        <div class="step-img">✅ 바탕화면 &amp; 시작 메뉴에 앱이 설치됩니다!</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">앱 아이콘으로 실행</div>
+        <div class="step-desc">다음부터는 바탕화면의 앱 아이콘을 더블클릭해서 실행하세요.<br/>
+        브라우저 없이 독립 앱처럼 실행됩니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- 앱 열기 버튼 -->
+  <a id="btnOpenApp" href="#" class="btn-open">🚀 앱 열기 (코드 자동 입력)</a>
+  <p class="open-hint">버튼을 누르면 초대코드가 자동으로 입력됩니다.<br/>이후 화면 안내에 따라 설치를 완료하세요.</p>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── URL에서 초대코드 읽기 ──────────────────────────
+  const params = new URLSearchParams(window.location.search);
+  const code   = params.get('code') || '';
+
+  document.getElementById('displayCode').textContent = code || '(코드 없음)';
+
+  // 앱 열기 버튼에 코드 포함
+  const appBase = window.location.origin + '/';
+  document.getElementById('btnOpenApp').href = appBase + (code ? '?invite=' + encodeURIComponent(code) : '');
+
+  // ── 코드 복사 ──────────────────────────────────────
+  function copyCode() {
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => toast('초대코드를 복사했습니다!'));
+  }
+
+  // ── 탭 전환 ───────────────────────────────────────
+  function switchTab(platform, btn) {
+    document.querySelectorAll('.steps-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + platform).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // ── 토스트 ────────────────────────────────────────
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2200);
+  }
+</script>
+</body>
+</html>

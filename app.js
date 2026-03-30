@@ -139,6 +139,14 @@ async function init() {
   bindStaticEvents();
   setupRichEditor();
 
+  // URL 파라미터로 넘어온 초대코드 자동 처리 (초대 페이지 → 앱 열기 버튼)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlInvite = urlParams.get('invite');
+  if (urlInvite) {
+    localStorage.setItem('cc_invite', urlInvite);
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
   // 저장된 초대코드 불러오기
   storedInviteCode = localStorage.getItem('cc_invite') || '';
 
@@ -910,6 +918,20 @@ function bindStaticEvents() {
   document.getElementById('btnCancelSettings').addEventListener('click', closeSettings);
   document.getElementById('btnSaveSettings').addEventListener('click', saveSettingsData);
   document.getElementById('btnAddCategory').addEventListener('click', addCategory);
+
+  // ── 초대 링크 복사 ──
+  document.getElementById('btnCopyInviteLink').addEventListener('click', () => {
+    const code = (document.getElementById('settingsInviteCode')?.value || '').trim()
+              || (localStorage.getItem('cc_invite_current') || '');
+    if (!code) {
+      showToast('먼저 초대코드를 입력하고 저장하세요.');
+      return;
+    }
+    const inviteUrl = `${location.origin}/invite.html?code=${encodeURIComponent(code)}`;
+    navigator.clipboard.writeText(inviteUrl).then(() => {
+      showToast('초대 링크가 복사되었습니다! 카카오톡·이메일로 보내세요.');
+    });
+  });
 
   // ── 모든 기기 접근 취소 ──
   document.getElementById('btnRevokeAll').addEventListener('click', () => {
