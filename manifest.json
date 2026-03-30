@@ -1,0 +1,24 @@
+{
+  "name": "제이스튜디오 일정 캘린더",
+  "short_name": "J.STUDIO",
+  "description": "제이스튜디오 수업 노쇼, 보강, 중요 일정 관리",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#c8960c",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

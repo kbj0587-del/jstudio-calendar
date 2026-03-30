@@ -1,0 +1,19 @@
+{
+  "name": "jstudio-calendar-pwa",
+  "version": "1.0.0",
+  "description": "제이스튜디오 플라잉요가 & 번지피지오 일정 관리 PWA",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "keywords": ["pwa", "calendar", "jstudio"],
+  "license": "UNLICENSED",
+  "private": true
+}

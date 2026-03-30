@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#c8960c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="J.STUDIO" />
+  <title>제이스튜디오 캘린더</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icons/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+<!-- ══════════════════ 앱 잠금 화면 ══════════════════ -->
+<div id="appLockScreen" class="app-lock-screen hidden">
+  <div class="app-lock-card">
+    <img src="./icons/icon-192.png" class="lock-logo" alt="J.STUDIO" />
+    <h2 class="lock-title">제이스튜디오 캘린더</h2>
+    <p class="lock-sub">계속하려면 비밀번호를 입력하세요</p>
+    <input type="password" id="appLockInput" class="lock-input" placeholder="비밀번호" />
+    <p id="appLockError" class="lock-error hidden">비밀번호가 올바르지 않습니다.</p>
+    <button id="btnAppLockVerify" class="lock-btn">잠금 해제</button>
+  </div>
+</div>
+
+<!-- ══════════════════ 헤더 ══════════════════ -->
+<header class="app-header">
+  <img src="./icons/icon-192.png" class="header-logo" alt="J.STUDIO" />
+  <h1>제이스튜디오 캘린더</h1>
+  <button id="btnSettings" class="btn-icon" title="설정">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  </button>
+  <button id="btnAddHeader" class="btn-add-header">＋ 일정 추가</button>
+</header>
+
+<!-- ══════════════════ 캘린더 ══════════════════ -->
+<div class="app-body">
+  <div class="calendar-wrap">
+    <div class="month-nav">
+      <button id="btnPrev"   class="nav-arrow">‹</button>
+      <button id="monthTitle" class="month-title-btn">2026년 3월</button>
+      <button id="btnNext"   class="nav-arrow">›</button>
+      <button id="btnToday"  class="btn-today">오늘</button>
+    </div>
+    <div class="weekday-row">
+      <span>일</span><span>월</span><span>화</span>
+      <span>수</span><span>목</span><span>금</span><span>토</span>
+    </div>
+    <div id="calGrid" class="calendar-grid"></div>
+  </div>
+</div>
+
+<!-- ══════════════════ 미니 달력 팝업 ══════════════════ -->
+<div id="miniCalPopup" class="mini-cal-popup hidden">
+  <div class="mini-cal-nav">
+    <button id="miniPrevYear" class="mini-nav-btn">‹</button>
+    <span id="miniCalYear" class="mini-cal-year-label">2026년</span>
+    <button id="miniNextYear" class="mini-nav-btn">›</button>
+  </div>
+  <div id="miniMonthGrid" class="mini-month-grid"></div>
+</div>
+
+<!-- ══════════════════ 날짜 팝업 모달 ══════════════════ -->
+<div id="dayOverlay" class="modal-overlay hidden">
+  <div class="modal day-modal">
+
+    <!-- 공통 헤더 (뷰 전환 시 내용만 바뀜) -->
+    <div class="day-modal-header">
+      <div class="hd-side hd-left">
+        <button id="btnDayBack" class="btn-back hidden">‹ 뒤로</button>
+      </div>
+      <span id="dayModalTitle" class="day-modal-title"></span>
+      <div class="hd-side hd-right">
+        <button id="btnDayClose" class="btn-modal-close">×</button>
+      </div>
+    </div>
+
+    <!-- ── 뷰 1 : 목록 ── -->
+    <div id="viewList" class="day-view">
+      <div id="listBody" class="view-body"></div>
+      <div class="view-footer">
+        <button id="btnListAdd" class="btn-save btn-full-w">＋ 일정 추가</button>
+      </div>
+    </div>
+
+    <!-- ── 뷰 2 : 상세 ── -->
+    <div id="viewDetail" class="day-view">
+      <div id="detailBody" class="view-body"></div>
+      <div class="view-footer">
+        <button id="btnDetailDelete" class="btn-danger">삭제</button>
+        <div class="flex-spacer"></div>
+        <button id="btnDetailEdit" class="btn-save">수정하기</button>
+      </div>
+    </div>
+
+    <!-- ── 뷰 3 : 폼 (추가 / 수정) ── -->
+    <div id="viewForm" class="day-view">
+      <div class="view-body">
+        <div class="form-inner">
+
+          <!-- 일정 유형 -->
+          <div class="form-group">
+            <label>일정 유형</label>
+            <div id="typeBtns" class="type-btns"></div>
+          </div>
+
+          <!-- 날짜 & 시간 -->
+          <div class="form-row">
+            <div class="form-group">
+              <label for="fDate">날짜 <span class="required">*</span></label>
+              <input type="date" id="fDate" />
+            </div>
+            <div class="form-group">
+              <label for="fTime">시간</label>
+              <input type="time" id="fTime" />
+            </div>
+          </div>
+
+          <!-- 제목 -->
+          <div class="form-group">
+            <label for="fTitle">제목 <span class="required">*</span></label>
+            <input type="text" id="fTitle" placeholder="제목을 입력하세요" />
+          </div>
+
+          <!-- 리치 텍스트 메모 -->
+          <div class="form-group">
+            <label>메모</label>
+            <div class="rich-toolbar">
+              <button type="button" class="tool-btn" data-cmd="bold" title="굵게 (선택 후)"><b>B</b></button>
+              <div class="color-picker-wrap">
+                <button type="button" class="tool-btn color-btn" title="텍스트 색상 (선택 후)">
+                  <span class="color-btn-a">A</span>
+                  <span class="color-btn-bar" id="colorBtnBar"></span>
+                </button>
+                <div class="color-palette hidden"></div>
+              </div>
+              <div class="emoji-picker-wrap">
+                <button type="button" class="tool-btn emoji-trigger" title="이모지 삽입">😊</button>
+                <div class="emoji-palette hidden"></div>
+              </div>
+              <div class="toolbar-sep"></div>
+              <span class="toolbar-hint">선택 후 서식 적용</span>
+            </div>
+            <div id="fDesc" class="rich-editor" contenteditable="true" data-placeholder="메모를 입력하세요…"></div>
+          </div>
+
+        </div><!-- /form-inner -->
+      </div><!-- /view-body -->
+      <div class="view-footer">
+        <button id="btnFormCancel" class="btn-cancel">취소</button>
+        <button id="btnFormSave"   class="btn-save">저장</button>
+      </div>
+    </div><!-- /viewForm -->
+
+  </div><!-- /day-modal -->
+</div><!-- /dayOverlay -->
+
+<!-- ══════════════════ 설정 오버레이 ══════════════════ -->
+<div id="settingsOverlay" class="modal-overlay hidden">
+  <div class="modal settings-modal">
+    <div class="modal-header">
+      <h2>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>설정
+      </h2>
+      <button id="btnSettingsClose" class="btn-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- 색상 모드 -->
+      <div class="settings-section">
+        <h3 class="settings-section-title">색상 모드</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">다크 모드</div>
+            <div class="setting-desc">화면을 어둡게 표시합니다</div>
+          </div>
+          <label class="apple-toggle">
+            <input type="checkbox" id="darkModeToggle" />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 접근 비밀번호 -->
+      <div class="settings-section">
+        <h3 class="settings-section-title">접근 비밀번호</h3>
+        <div class="form-group">
+          <label for="settingsCurrentPw">현재 비밀번호</label>
+          <input type="password" id="settingsCurrentPw" placeholder="없으면 빈칸" />
+        </div>
+        <div class="form-group">
+          <label for="settingsNewPw">새 비밀번호</label>
+          <input type="password" id="settingsNewPw" placeholder="삭제하려면 빈칸으로 저장" />
+        </div>
+        <p class="setting-hint">설정 진입 시 비밀번호를 확인합니다.</p>
+      </div>
+
+      <!-- 카테고리 -->
+      <div class="settings-section">
+        <h3 class="settings-section-title">카테고리 관리</h3>
+        <div id="categoryList" class="category-list"></div>
+        <div class="add-category-row">
+          <input type="text"  id="newCatName"  placeholder="새 카테고리 이름" />
+          <input type="color" id="newCatColor" value="#4f8ef7" />
+          <button id="btnAddCategory" class="btn-add-cat">＋ 추가</button>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button id="btnCancelSettings" class="btn-cancel">취소</button>
+      <button id="btnSaveSettings"   class="btn-save">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ 비밀번호 확인 ══════════════════ -->
+<div id="passwordOverlay" class="modal-overlay hidden">
+  <div class="modal password-modal">
+    <div class="modal-header"><h2>🔒 설정 잠금</h2></div>
+    <div class="modal-body">
+      <p class="pw-desc">설정에 접근하려면 비밀번호를 입력하세요.</p>
+      <input type="password" id="passwordInput" class="pw-input" placeholder="비밀번호" />
+      <p id="passwordError" class="pw-error hidden">비밀번호가 올바르지 않습니다.</p>
+    </div>
+    <div class="modal-footer">
+      <button id="btnPasswordCancel" class="btn-cancel">취소</button>
+      <button id="btnPasswordVerify" class="btn-save">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ 토스트 ══════════════════ -->
+<div id="toastContainer" class="toast-container"></div>
+
+<script src="./app.js"></script>
+</body>
+</html>
