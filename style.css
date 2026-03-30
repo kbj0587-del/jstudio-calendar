@@ -787,6 +787,199 @@ body {
 }
 .btn-revoke:hover { background: var(--border); }
 
+/* ── 대기 화면 스피너/힌트 ── */
+.pending-spinner {
+  font-size: 48px;
+  margin: 8px 0;
+  animation: pendingSpin 2s linear infinite;
+}
+@keyframes pendingSpin {
+  0%,100% { transform: rotate(0deg);  opacity: 1; }
+  50%      { transform: rotate(180deg); opacity: 0.6; }
+}
+.pending-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 10px;
+}
+
+/* ── 관리자 열기 버튼 (헤더) ── */
+.btn-admin-open {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  color: var(--text);
+  transition: background var(--tr);
+}
+.btn-admin-open:hover { background: var(--surface2); }
+
+/* ── 관리자 배지 ── */
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e03050;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  position: absolute;
+  top: -2px;
+  right: -4px;
+}
+
+/* ── 관리자 탭 ── */
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+.admin-tab-btn {
+  position: relative;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--tr), border-color var(--tr);
+  margin-bottom: -1px;
+}
+.admin-tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.admin-tab-content { display: block; }
+.admin-tab-content.hidden { display: none; }
+
+/* ── 사용자 카드 ── */
+.admin-user-list,
+.admin-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.admin-user-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin: 8px 0 4px;
+}
+.admin-user-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-user-card .user-name {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+}
+.admin-user-card .user-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.admin-user-card .user-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.btn-approve {
+  background: rgba(46,158,79,.15);
+  color: #2e9e4f;
+  border: 1px solid rgba(46,158,79,.3);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-approve:hover { background: rgba(46,158,79,.28); }
+.btn-reject {
+  background: rgba(224,48,80,.12);
+  color: #e03050;
+  border: 1px solid rgba(224,48,80,.25);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-reject:hover { background: rgba(224,48,80,.24); }
+.btn-user-del {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btn-user-del:hover { color: #e03050; border-color: #e03050; }
+
+/* ── 활동 기록 ── */
+.activity-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.activity-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+.activity-body { flex: 1; min-width: 0; }
+.activity-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.activity-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── 이벤트 카드 등록자 표시 ── */
+.event-creator {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 @keyframes lockShake {
   0%,100% { transform: translateX(0); }
   20%     { transform: translateX(-10px); }

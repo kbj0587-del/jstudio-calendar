@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   센터 캘린더 v3 – app.js
+   센터 캘린더 v4 – app.js
    ═══════════════════════════════════════════════ */
 
 // ── 상수 ──────────────────────────────────────────
@@ -22,10 +22,16 @@ const EMOJI_LIST = [
   '🔴','🟡','🟢','🔵','⭐','🔥','💬','📢','🚫','✔️',
 ];
 
+// ── 사용자 인증 상태 ───────────────────────────────
+let currentUser  = null;   // { id, name }
+let isAdminMode  = false;  // 관리자 모드 여부
+let adminPw      = '';     // 관리자 비밀번호
+let pendingBadge = 0;      // 대기 중 사용자 수
+
 // ── 동기화 상태 ───────────────────────────────────
-let storedInviteCode = '';  // localStorage에 저장된 초대코드
-let syncEnabled      = false; // 서버 동기화 가능 여부
-let syncTimer        = null;  // 디바운스 타이머
+let storedInviteCode = '';
+let syncEnabled      = false;
+let syncTimer        = null;
 
 function setSyncStatus(state, text) {
   const dot  = document.getElementById('headerSyncDot');
@@ -37,39 +43,56 @@ function setSyncStatus(state, text) {
 }
 
 // ── 서버 API 헬퍼 ─────────────────────────────────
+function buildHeaders(extra) {
+  const h = { 'Content-Type': 'application/json' };
+  if (isAdminMode && adminPw) {
+    h['x-admin-password'] = adminPw;
+  } else if (currentUser) {
+    h['x-user-id'] = currentUser.id;
+  }
+  // 기존 초대코드 호환
+  if (storedInviteCode) h['x-invite-code'] = storedInviteCode;
+  return Object.assign(h, extra || {});
+}
+
 async function apiGet(path) {
-  const resp = await fetch(path, {
-    headers: storedInviteCode ? { 'x-invite-code': storedInviteCode } : {}
-  });
-  return resp;
+  const h = {};
+  if (isAdminMode && adminPw) {
+    h['x-admin-password'] = adminPw;
+  } else if (currentUser) {
+    h['x-user-id'] = currentUser.id;
+  }
+  if (storedInviteCode) h['x-invite-code'] = storedInviteCode;
+  return fetch(path, { headers: h });
 }
 
 async function apiPost(path, body) {
-  const resp = await fetch(path, {
+  return fetch(path, {
     method:  'POST',
-    headers: {
-      'Content-Type':   'application/json',
-      'x-invite-code':  storedInviteCode,
-    },
-    body: JSON.stringify(body),
+    headers: buildHeaders(),
+    body:    JSON.stringify(body),
   });
-  return resp;
+}
+
+async function apiDelete(path) {
+  return fetch(path, {
+    method:  'DELETE',
+    headers: buildHeaders(),
+  });
 }
 
 // ── 상태 ──────────────────────────────────────────
 let currentYear, currentMonth;
 let miniCalYear   = 0;
 
-// 날짜 팝업 상태
-let modalDate      = null;   // 현재 팝업에 표시 중인 날짜
-let viewingEventId = null;   // 상세 뷰에서 보고 있는 이벤트 ID
-let editingEventId = null;   // 폼 뷰에서 수정 중인 이벤트 ID
-let formPrevView   = 'list'; // 폼에서 취소 시 돌아갈 뷰
+let modalDate      = null;
+let viewingEventId = null;
+let editingEventId = null;
+let formPrevView   = 'list';
 
-// 설정 상태
 let settingsUnlocked = false;
 let settingsDraft    = null;
-let savedSel         = null;  // 리치 에디터 selection 복원용
+let savedSel         = null;
 
 let events   = [];
 let settings = {
@@ -121,6 +144,17 @@ function esc(s) {
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── 날짜/시간 포맷 ────────────────────────────────
+function formatShortDateTime(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${mo}/${da} ${hh}:${mm}`;
+}
+
 // ═════════════════════════════════════════════════
 // 초기화
 // ═════════════════════════════════════════════════
@@ -130,24 +164,39 @@ async function init() {
   currentMonth= now.getMonth();
   miniCalYear = currentYear;
 
-  // 로컬 데이터 먼저 로드 (오프라인 대비)
   loadAll();
   applyTheme(settings.darkMode);
 
-  // UI 먼저 그리기
   renderCalendar();
   bindStaticEvents();
   setupRichEditor();
 
-  // URL 파라미터로 넘어온 초대코드 자동 처리 (초대 페이지 → 앱 열기 버튼)
+  // URL 파라미터 처리
   const urlParams = new URLSearchParams(window.location.search);
   const urlInvite = urlParams.get('invite');
+  const urlUid    = urlParams.get('uid');
+
   if (urlInvite) {
     localStorage.setItem('cc_invite', urlInvite);
     window.history.replaceState({}, '', window.location.pathname);
   }
+  if (urlUid) {
+    localStorage.setItem('cc_user_id', urlUid);
+    window.history.replaceState({}, '', window.location.pathname);
+  }
 
-  // 저장된 초대코드 불러오기
+  // 저장된 사용자 정보 로드
+  const savedUserId   = localStorage.getItem('cc_user_id')   || '';
+  const savedUserName = localStorage.getItem('cc_user_name') || '';
+  if (savedUserId) {
+    currentUser = { id: savedUserId, name: savedUserName };
+  }
+
+  // 관리자 비밀번호 로드
+  adminPw = localStorage.getItem('cc_admin_pw') || '';
+  if (adminPw) isAdminMode = true;
+
+  // 초대코드 로드
   storedInviteCode = localStorage.getItem('cc_invite') || '';
 
   // 서버 동기화 시도
@@ -156,23 +205,47 @@ async function init() {
     const resp = await apiGet('/api/sync');
 
     if (resp.status === 401) {
-      // 초대코드 필요
+      const data = await resp.json().catch(() => ({}));
+      if (data.error === 'needsRegistration') {
+        setSyncStatus('error', '등록 필요');
+        showRegistrationScreen();
+        return;
+      }
       setSyncStatus('error', '초대코드 필요');
       showInviteScreen();
       return;
+    }
+
+    if (resp.status === 403) {
+      const data = await resp.json().catch(() => ({}));
+      if (data.error === 'pending') {
+        setSyncStatus('error', '승인 대기 중');
+        showPendingScreen();
+        return;
+      }
+      if (data.error === 'rejected') {
+        setSyncStatus('error', '접근 거절됨');
+        showRejectedScreen();
+        return;
+      }
     }
 
     if (resp.ok) {
       const data = await resp.json();
       syncEnabled = true;
 
-      // 서버 데이터로 덮어쓰기
       events = data.events || [];
       settings.categories = data.categories || settings.categories;
       settings.darkMode   = data.darkMode   ?? settings.darkMode;
-      // 초대코드 갱신 (관리자 확인용)
+
       if (data.inviteCode !== undefined)
         localStorage.setItem('cc_invite_current', data.inviteCode);
+
+      // 대기 중 배지 설정 (관리자 모드)
+      if (isAdminMode && data.pendingCount > 0) {
+        pendingBadge = data.pendingCount;
+        updateAdminBadge();
+      }
 
       saveEvents();
       saveSettings();
@@ -181,16 +254,130 @@ async function init() {
       setSyncStatus('online', '✅ 동기화됨 — 모든 기기에서 동일한 데이터');
     }
   } catch {
-    // 오프라인 → 로컬 데이터 사용
     syncEnabled = false;
     setSyncStatus('offline', '⚠️ 오프라인 — 로컬 데이터 사용 중');
   }
 
-  // 비밀번호 잠금
   if (settings.password) showAppLock();
 }
 
-// ── 초대코드 화면 ─────────────────────────────────
+// ── 관리자 배지 ───────────────────────────────────
+function updateAdminBadge() {
+  const headerBtn = document.getElementById('btnAdminPanelOpen');
+  const badge     = document.getElementById('adminBadge');
+  const tabBadge  = document.getElementById('pendingBadgeTab');
+
+  // 관리자 모드면 헤더 버튼 표시
+  if (headerBtn) {
+    if (isAdminMode) headerBtn.classList.remove('hidden');
+    else headerBtn.classList.add('hidden');
+  }
+
+  // 배지 숫자
+  [badge, tabBadge].forEach(el => {
+    if (!el) return;
+    if (pendingBadge > 0) {
+      el.textContent = pendingBadge;
+      el.style.display = 'inline-flex';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+}
+
+// ── 등록 화면 ─────────────────────────────────────
+function showRegistrationScreen() {
+  const sc = document.getElementById('registrationScreen');
+  if (sc) {
+    sc.classList.remove('hidden');
+    setTimeout(() => {
+      const inp = document.getElementById('regNameInput');
+      if (inp) inp.focus();
+    }, 150);
+  }
+}
+
+async function submitRegistration() {
+  const nameEl = document.getElementById('regNameInput');
+  const errEl  = document.getElementById('regScreenError');
+  const name   = nameEl?.value.trim();
+  if (!name) {
+    if (errEl) { errEl.textContent = '이름을 입력해주세요.'; errEl.classList.remove('hidden'); }
+    return;
+  }
+  if (errEl) errEl.classList.add('hidden');
+
+  const btn = document.getElementById('btnRegSubmit');
+  if (btn) { btn.disabled = true; btn.textContent = '요청 중…'; }
+
+  try {
+    const resp = await fetch('/api/invite/register', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, userId: currentUser?.id }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      if (errEl) { errEl.textContent = data.message || '오류가 발생했습니다.'; errEl.classList.remove('hidden'); }
+      if (btn) { btn.disabled = false; btn.textContent = '접근 요청하기'; }
+      return;
+    }
+
+    const user = data.user;
+    localStorage.setItem('cc_user_id',   user.id);
+    localStorage.setItem('cc_user_name', user.name);
+    currentUser = { id: user.id, name: user.name };
+
+    const sc = document.getElementById('registrationScreen');
+    if (sc) sc.classList.add('hidden');
+
+    if (user.status === 'approved') {
+      await init();
+    } else {
+      showPendingScreen();
+    }
+  } catch {
+    if (errEl) { errEl.textContent = '서버에 연결할 수 없습니다.'; errEl.classList.remove('hidden'); }
+    if (btn) { btn.disabled = false; btn.textContent = '접근 요청하기'; }
+  }
+}
+
+// ── 승인 대기 화면 ─────────────────────────────────
+function showPendingScreen() {
+  document.getElementById('registrationScreen')?.classList.add('hidden');
+  const sc = document.getElementById('pendingScreen');
+  if (sc) sc.classList.remove('hidden');
+}
+
+async function refreshPendingStatus() {
+  if (!currentUser) return;
+  try {
+    const resp = await fetch('/api/user/' + currentUser.id + '/status');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.user.status === 'approved') {
+      document.getElementById('pendingScreen')?.classList.add('hidden');
+      await init();
+    } else if (data.user.status === 'rejected') {
+      document.getElementById('pendingScreen')?.classList.add('hidden');
+      showRejectedScreen();
+    } else {
+      showToast('아직 승인 대기 중입니다.');
+    }
+  } catch {
+    showToast('서버에 연결할 수 없습니다.');
+  }
+}
+
+// ── 접근 거절 화면 ─────────────────────────────────
+function showRejectedScreen() {
+  document.getElementById('pendingScreen')?.classList.add('hidden');
+  const sc = document.getElementById('rejectedScreen');
+  if (sc) sc.classList.remove('hidden');
+}
+
+// ── 초대코드 화면 (기존 유지) ─────────────────────
 function showInviteScreen() {
   document.getElementById('inviteScreen').classList.remove('hidden');
   setTimeout(() => document.getElementById('inviteInput').focus(), 150);
@@ -213,7 +400,6 @@ async function verifyInvite() {
       storedInviteCode = code;
       localStorage.setItem('cc_invite', code);
       document.getElementById('inviteScreen').classList.add('hidden');
-      // 승인 후 재초기화
       await init();
     } else {
       error.classList.remove('hidden');
@@ -230,13 +416,14 @@ async function verifyInvite() {
 }
 
 // ── 서버 동기화 저장 (디바운스) ───────────────────
-function syncEventsToServer() {
+function syncEventsToServer(opts) {
   if (!syncEnabled) return;
   clearTimeout(syncTimer);
   setSyncStatus('syncing', '동기화 중…');
+  const payload = { events, ...(opts || {}) };
   syncTimer = setTimeout(async () => {
     try {
-      await apiPost('/api/sync/events', { events });
+      await apiPost('/api/sync/events', payload);
       setSyncStatus('online', '✅ 동기화됨');
     } catch {
       setSyncStatus('offline', '⚠️ 동기화 실패');
@@ -274,10 +461,9 @@ function verifyAppLock() {
     error.classList.remove('hidden');
     input.value = '';
     input.focus();
-    // 화면 흔들기 애니메이션
     const card = document.querySelector('.app-lock-card');
     card.style.animation = 'none';
-    card.offsetHeight; // reflow
+    card.offsetHeight;
     card.style.animation = 'lockShake 0.4s ease';
   }
 }
@@ -323,7 +509,6 @@ function renderCalendar() {
       + (dayEvts.length > 0 && !other ? ' has-event' : '');
     cell.dataset.date = dateStr;
 
-    // 날짜 숫자
     const numEl = document.createElement('div');
     numEl.className = 'day-num';
     numEl.textContent = d;
@@ -332,7 +517,6 @@ function renderCalendar() {
     else if (dow === 6)       numEl.style.color = 'var(--saturday)';
     cell.appendChild(numEl);
 
-    // 이벤트 칩
     dayEvts.slice(0, 3).forEach(ev => {
       const cat  = getCat(ev.type);
       const chip = document.createElement('div');
@@ -398,8 +582,6 @@ function renderMiniCal() {
 // ═════════════════════════════════════════════════
 // 날짜 팝업 – 뷰 시스템
 // ═════════════════════════════════════════════════
-
-/** 날짜 팝업 열기 (기본: 목록 뷰) */
 function openDayModal(dateStr) {
   modalDate      = dateStr;
   viewingEventId = null;
@@ -408,7 +590,6 @@ function openDayModal(dateStr) {
   switchDayView('list');
 }
 
-/** 날짜 팝업 닫기 */
 function closeDayModal() {
   document.getElementById('dayOverlay').classList.add('hidden');
   modalDate      = null;
@@ -416,9 +597,7 @@ function closeDayModal() {
   editingEventId = null;
 }
 
-/** 뷰 전환 핵심 함수 */
 function switchDayView(view) {
-  // 모든 뷰 숨기고 대상만 활성화
   ['list','detail','form'].forEach(v => {
     const el = document.getElementById('view' + cap(v));
     el.classList.toggle('active', v === view);
@@ -443,7 +622,6 @@ function switchDayView(view) {
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-/** 뒤로 / 취소 버튼 공통 핸들러 */
 function handleDayBack() {
   const active = document.querySelector('.day-view.active')?.id;
   if (active === 'viewDetail') {
@@ -516,6 +694,18 @@ function renderDetailView() {
   const cat   = getCat(ev.type);
   const alpha = isDark() ? 0.22 : 0.15;
 
+  // 등록자 정보
+  let creatorHtml = '';
+  if (ev.createdBy) {
+    const createdStr = formatShortDateTime(ev.createdAt);
+    creatorHtml = `<div class="event-creator">등록: ${esc(ev.createdBy.name)}${createdStr ? ' · ' + createdStr : ''}`;
+    if (ev.updatedBy) {
+      const updatedStr = formatShortDateTime(ev.updatedAt);
+      creatorHtml += `<br>수정: ${esc(ev.updatedBy.name)}${updatedStr ? ' · ' + updatedStr : ''}`;
+    }
+    creatorHtml += '</div>';
+  }
+
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-top-row">
@@ -534,12 +724,11 @@ function renderDetailView() {
     <div class="detail-section">
       <div class="detail-label">메모</div>
       <div class="detail-desc">${ev.desc}</div>
-    </div>` : ''}`;
+    </div>` : ''}
+    ${creatorHtml ? `<div class="detail-section">${creatorHtml}</div>` : ''}`;
 }
 
 // ── 뷰 3 : 폼 ────────────────────────────────────
-
-/** 새 일정 추가 폼 열기 */
 function openFormAdd(dateStr) {
   editingEventId = null;
   formPrevView   = 'list';
@@ -552,7 +741,6 @@ function openFormAdd(dateStr) {
   setTimeout(() => document.getElementById('fTitle').focus(), 80);
 }
 
-/** 기존 일정 수정 폼 열기 */
 function openFormEdit(id) {
   const ev = events.find(e => e.id === id);
   if (!ev) return;
@@ -566,7 +754,6 @@ function openFormEdit(id) {
   switchDayView('form');
 }
 
-/** 유형 버튼 렌더링 */
 function renderTypeBtns(activeId) {
   const wrap = document.getElementById('typeBtns');
   wrap.innerHTML = '';
@@ -610,23 +797,67 @@ function saveEvent() {
 
   if (!date || !title) { showToast('날짜와 제목을 입력해주세요.'); return; }
 
+  const now      = new Date().toISOString();
+  const byUser   = currentUser || { id: 'admin', name: '관리자' };
+  let   action   = '';
+  let   changedEv = null;
+
   if (editingEventId) {
     const idx = events.findIndex(e => e.id === editingEventId);
-    if (idx !== -1) events[idx] = { ...events[idx], date, title, time, desc, type };
+    if (idx !== -1) {
+      const old = events[idx];
+      events[idx] = {
+        ...old,
+        date, title, time, desc, type,
+        updatedBy: byUser,
+        updatedAt: now,
+      };
+      changedEv = events[idx];
+    }
+    action = 'update';
     showToast('일정이 수정되었습니다.');
     viewingEventId = editingEventId;
     editingEventId = null;
-    modalDate      = date;   // 날짜가 바뀌었을 수도 있으므로 갱신
-    switchDayView('detail'); // 수정 후 → 상세로 이동
+    modalDate      = date;
+    switchDayView('detail');
   } else {
-    events.push({ id: crypto.randomUUID(), date, title, time, desc, type });
+    const newEv = {
+      id:        crypto.randomUUID(),
+      date, title, time, desc, type,
+      createdBy: byUser,
+      createdAt: now,
+      updatedBy: null,
+      updatedAt: null,
+    };
+    events.push(newEv);
+    changedEv = newEv;
+    action = 'add';
     showToast('일정이 추가되었습니다.');
     editingEventId = null;
     modalDate      = date;
-    switchDayView('list');   // 추가 후 → 목록으로 이동
+    switchDayView('list');
   }
 
-  saveEvents();
+  // 이벤트 저장 + 활동 로그 전송
+  localStorage.setItem('cc_events', JSON.stringify(events));
+  if (syncEnabled) {
+    clearTimeout(syncTimer);
+    setSyncStatus('syncing', '동기화 중…');
+    const payload = {
+      events,
+      action,
+      changedEvent: changedEv,
+      detail: `${title} (${date})`,
+    };
+    syncTimer = setTimeout(async () => {
+      try {
+        await apiPost('/api/sync/events', payload);
+        setSyncStatus('online', '✅ 동기화됨');
+      } catch {
+        setSyncStatus('offline', '⚠️ 동기화 실패');
+      }
+    }, 300);
+  }
   renderCalendar();
 }
 
@@ -634,12 +865,34 @@ function saveEvent() {
 function deleteCurrentEvent() {
   if (!viewingEventId) return;
   if (!confirm('이 일정을 삭제할까요?')) return;
+
+  const ev = events.find(e => e.id === viewingEventId);
   events = events.filter(e => e.id !== viewingEventId);
+  const deletedEv = ev;
+
   viewingEventId = null;
-  saveEvents();
   renderCalendar();
   switchDayView('list');
   showToast('일정이 삭제되었습니다.');
+
+  localStorage.setItem('cc_events', JSON.stringify(events));
+  if (syncEnabled && deletedEv) {
+    clearTimeout(syncTimer);
+    const payload = {
+      events,
+      action:       'delete',
+      changedEvent: deletedEv,
+      detail:       `${deletedEv.title} (${deletedEv.date})`,
+    };
+    syncTimer = setTimeout(async () => {
+      try {
+        await apiPost('/api/sync/events', payload);
+        setSyncStatus('online', '✅ 동기화됨');
+      } catch {
+        setSyncStatus('offline', '⚠️ 동기화 실패');
+      }
+    }, 300);
+  }
 }
 
 // ═════════════════════════════════════════════════
@@ -674,13 +927,11 @@ function openSettings() {
   document.getElementById('settingsCurrentPw').value = '';
   document.getElementById('settingsNewPw').value     = '';
 
-  // 초대코드 표시 (서버에서 가져온 값)
   const inviteField = document.getElementById('settingsInviteCode');
   if (inviteField) {
     inviteField.value = localStorage.getItem('cc_invite_current') || storedInviteCode || '';
   }
 
-  // 동기화 상태 표시
   const sdot = document.getElementById('syncDot');
   const stxt = document.getElementById('syncStatusText');
   if (sdot) sdot.className = 'sync-dot ' + (syncEnabled ? 'online' : 'offline');
@@ -689,6 +940,20 @@ function openSettings() {
     : '⚠️ 오프라인 — 로컬 데이터만 저장됨';
 
   renderCategoryList();
+
+  // 관리자 패널 초기 상태
+  const adminSection = document.getElementById('adminSection');
+  if (adminSection) {
+    const savedPw = localStorage.getItem('cc_admin_pw') || '';
+    const pwInput = document.getElementById('adminPwInput');
+    if (pwInput) pwInput.value = savedPw;
+    if (savedPw) {
+      showAdminPanel();
+    } else {
+      hideAdminPanel();
+    }
+  }
+
   document.getElementById('settingsOverlay').classList.remove('hidden');
 }
 
@@ -696,7 +961,7 @@ function closeSettings() {
   document.getElementById('settingsOverlay').classList.add('hidden');
   settingsDraft    = null;
   settingsUnlocked = false;
-  applyTheme(settings.darkMode); // 미리보기 취소 시 원래 테마 복원
+  applyTheme(settings.darkMode);
 }
 
 function renderCategoryList() {
@@ -735,14 +1000,13 @@ function addCategory() {
 }
 
 function saveSettingsData() {
-  // 비밀번호 처리
   const curPw = document.getElementById('settingsCurrentPw').value;
   const newPw = document.getElementById('settingsNewPw').value;
   if (curPw !== '' || newPw !== '') {
     if (settings.password && curPw !== settings.password) {
       showToast('현재 비밀번호가 올바르지 않습니다.'); return;
     }
-    settingsDraft.password = newPw; // 빈칸이면 비밀번호 삭제
+    settingsDraft.password = newPw;
   }
 
   settingsDraft.darkMode   = document.getElementById('darkModeToggle').checked;
@@ -751,11 +1015,8 @@ function saveSettingsData() {
   settings = settingsDraft;
   saveSettings();
   applyTheme(settings.darkMode);
-
-  // 서버에 공유 설정 동기화 (초대코드 포함)
   syncSettingsToServer(settings);
 
-  // 초대코드가 바뀌면 이 기기의 승인도 갱신
   if (settings.inviteCode) {
     storedInviteCode = settings.inviteCode;
     localStorage.setItem('cc_invite', settings.inviteCode);
@@ -766,6 +1027,220 @@ function saveSettingsData() {
   document.getElementById('settingsOverlay').classList.add('hidden');
   settingsDraft    = null;
   settingsUnlocked = false;
+}
+
+// ═════════════════════════════════════════════════
+// 관리자 패널
+// ═════════════════════════════════════════════════
+async function verifyAdminPanel() {
+  const pw = document.getElementById('adminPwInput')?.value?.trim();
+  if (!pw) return;
+
+  try {
+    const resp = await fetch('/api/admin/verify', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ password: pw }),
+    });
+    if (resp.ok) {
+      adminPw     = pw;
+      isAdminMode = true;
+      localStorage.setItem('cc_admin_pw', pw);
+      showAdminPanel();
+      loadAdminUsers();
+      showToast('관리자 패널이 열렸습니다.');
+    } else {
+      showToast('비밀번호가 올바르지 않습니다.');
+    }
+  } catch {
+    showToast('서버에 연결할 수 없습니다.');
+  }
+}
+
+function lockAdminPanel() {
+  adminPw     = '';
+  isAdminMode = false;
+  localStorage.removeItem('cc_admin_pw');
+  hideAdminPanel();
+  showToast('관리자 패널이 잠겼습니다.');
+}
+
+function showAdminPanel() {
+  document.getElementById('adminPanelLock')?.classList.add('hidden');
+  document.getElementById('adminPanelContent')?.classList.remove('hidden');
+  loadAdminUsers();
+}
+
+function hideAdminPanel() {
+  document.getElementById('adminPanelLock')?.classList.remove('hidden');
+  document.getElementById('adminPanelContent')?.classList.add('hidden');
+}
+
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.admin-tab-btn[data-tab="${tab}"]`)?.classList.add('active');
+  document.getElementById('adminTab' + cap(tab))?.classList.add('active');
+
+  if (tab === 'users') loadAdminUsers();
+  else if (tab === 'activity') loadAdminActivity();
+}
+
+async function loadAdminUsers() {
+  const container = document.getElementById('adminTabUsers');
+  if (!container) return;
+  container.innerHTML = '<div class="admin-loading">불러오는 중…</div>';
+
+  try {
+    const resp = await fetch('/api/admin/users', {
+      headers: { 'x-admin-password': adminPw }
+    });
+    if (!resp.ok) { container.innerHTML = '<div class="admin-error">불러오기 실패</div>'; return; }
+    const data = await resp.json();
+    renderAdminUsers(data.users || []);
+  } catch {
+    container.innerHTML = '<div class="admin-error">서버 오류</div>';
+  }
+}
+
+function renderAdminUsers(users) {
+  const container = document.getElementById('adminTabUsers');
+  const pending   = users.filter(u => u.status === 'pending');
+  const approved  = users.filter(u => u.status === 'approved');
+
+  // 배지 업데이트
+  pendingBadge = pending.length;
+  updateAdminBadge();
+  const badge = document.querySelector('.admin-tab-btn[data-tab="users"] .tab-badge');
+  if (badge) {
+    badge.textContent   = pending.length || '';
+    badge.style.display = pending.length ? 'inline-flex' : 'none';
+  }
+
+  let html = '';
+
+  if (pending.length) {
+    html += `<div class="admin-group-title">⏳ 승인 대기 (${pending.length}명)</div>`;
+    pending.forEach(u => {
+      const dt = u.registeredAt ? formatShortDateTime(u.registeredAt) : '';
+      html += `
+        <div class="admin-user-card pending">
+          <div class="admin-user-info">
+            <div class="admin-user-name">${esc(u.name)}</div>
+            <div class="admin-user-meta">등록: ${dt}</div>
+          </div>
+          <div class="admin-user-actions">
+            <button class="btn-approve" onclick="approveUser('${u.id}')">승인</button>
+            <button class="btn-reject"  onclick="rejectUser('${u.id}')">거절</button>
+          </div>
+        </div>`;
+    });
+  }
+
+  if (approved.length) {
+    html += `<div class="admin-group-title" style="margin-top:16px">✅ 승인된 사용자 (${approved.length}명)</div>`;
+    approved.forEach(u => {
+      const dt = u.approvedAt ? formatShortDateTime(u.approvedAt) : '';
+      html += `
+        <div class="admin-user-card approved">
+          <div class="admin-user-info">
+            <div class="admin-user-name">${esc(u.name)}</div>
+            <div class="admin-user-meta">승인: ${dt}</div>
+          </div>
+          <div class="admin-user-actions">
+            <button class="btn-delete-user" onclick="deleteUser('${u.id}')">삭제</button>
+          </div>
+        </div>`;
+    });
+  }
+
+  if (!pending.length && !approved.length) {
+    html = '<div class="admin-empty">등록된 사용자가 없습니다.</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+async function approveUser(id) {
+  try {
+    const resp = await fetch('/api/admin/users/' + id + '/approve', {
+      method:  'POST',
+      headers: { 'x-admin-password': adminPw },
+    });
+    if (resp.ok) { showToast('승인되었습니다.'); loadAdminUsers(); }
+    else showToast('승인 실패');
+  } catch { showToast('서버 오류'); }
+}
+
+async function rejectUser(id) {
+  if (!confirm('이 사용자의 접근을 거절할까요?')) return;
+  try {
+    const resp = await fetch('/api/admin/users/' + id + '/reject', {
+      method:  'POST',
+      headers: { 'x-admin-password': adminPw },
+    });
+    if (resp.ok) { showToast('거절되었습니다.'); loadAdminUsers(); }
+    else showToast('거절 실패');
+  } catch { showToast('서버 오류'); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('이 사용자를 삭제할까요?')) return;
+  try {
+    const resp = await fetch('/api/admin/users/' + id, {
+      method:  'DELETE',
+      headers: { 'x-admin-password': adminPw },
+    });
+    if (resp.ok) { showToast('삭제되었습니다.'); loadAdminUsers(); }
+    else showToast('삭제 실패');
+  } catch { showToast('서버 오류'); }
+}
+
+async function loadAdminActivity() {
+  const container = document.getElementById('adminTabActivity');
+  if (!container) return;
+  container.innerHTML = '<div class="admin-loading">불러오는 중…</div>';
+
+  try {
+    const resp = await fetch('/api/admin/activity', {
+      headers: { 'x-admin-password': adminPw }
+    });
+    if (!resp.ok) { container.innerHTML = '<div class="admin-error">불러오기 실패</div>'; return; }
+    const data = await resp.json();
+    renderAdminActivity(data.logs || []);
+  } catch {
+    container.innerHTML = '<div class="admin-error">서버 오류</div>';
+  }
+}
+
+function renderAdminActivity(logs) {
+  const container = document.getElementById('adminTabActivity');
+
+  if (!logs.length) {
+    container.innerHTML = '<div class="admin-empty">활동 기록이 없습니다.</div>';
+    return;
+  }
+
+  const actionLabel = { add: '추가', update: '수정', delete: '삭제' };
+
+  const html = logs.map(log => {
+    const dt    = formatShortDateTime(log.timestamp);
+    const label = actionLabel[log.action] || log.action;
+    return `
+      <div class="activity-log-item">
+        <div class="activity-log-dot action-${log.action}"></div>
+        <div class="activity-log-body">
+          <div class="activity-log-text">
+            <strong>${esc(log.userName)}</strong>님이
+            <span class="action-badge action-${log.action}">${label}</span>
+            ${log.eventTitle ? `"${esc(log.eventTitle)}"` : ''}
+          </div>
+          <div class="activity-log-meta">${dt}${log.eventDate ? ' · ' + log.eventDate : ''}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = html;
 }
 
 // ═════════════════════════════════════════════════
@@ -792,14 +1267,12 @@ function setupRichEditor() {
   editor.addEventListener('mouseup', saveSelection);
   editor.addEventListener('keyup',   saveSelection);
 
-  // Bold
   document.querySelector('[data-cmd="bold"]').addEventListener('mousedown', e => {
     e.preventDefault();
     restoreSelection();
     document.execCommand('bold');
   });
 
-  // 색상 팔레트 생성
   PALETTE_COLORS.forEach(color => {
     const sw = document.createElement('button');
     sw.type = 'button'; sw.className = 'color-swatch';
@@ -817,7 +1290,6 @@ function setupRichEditor() {
   });
   colorBtnBar.style.background = activeColor;
 
-  // 색상 버튼 토글
   document.querySelector('.color-btn').addEventListener('mousedown', e => {
     e.preventDefault();
     saveSelection();
@@ -825,7 +1297,6 @@ function setupRichEditor() {
     emojiPalette.classList.add('hidden');
   });
 
-  // 이모지 팔레트 생성
   EMOJI_LIST.forEach(emoji => {
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'emoji-btn'; btn.textContent = emoji;
@@ -840,7 +1311,6 @@ function setupRichEditor() {
     emojiPalette.appendChild(btn);
   });
 
-  // 이모지 버튼 토글
   document.querySelector('.emoji-trigger').addEventListener('mousedown', e => {
     e.preventDefault();
     saveSelection();
@@ -853,6 +1323,26 @@ function setupRichEditor() {
 // 정적 이벤트 바인딩
 // ═════════════════════════════════════════════════
 function bindStaticEvents() {
+
+  // ── 등록 화면 ──
+  const btnRegSubmit = document.getElementById('btnRegSubmit');
+  if (btnRegSubmit) btnRegSubmit.addEventListener('click', submitRegistration);
+  const regNameInput = document.getElementById('regNameInput');
+  if (regNameInput) regNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitRegistration(); });
+
+  // ── 승인 대기 화면 ──
+  const btnCheckStatus = document.getElementById('btnCheckStatus');
+  if (btnCheckStatus) btnCheckStatus.addEventListener('click', refreshPendingStatus);
+
+  // ── 관리자 헤더 버튼 ──
+  const btnAdminPanelOpen = document.getElementById('btnAdminPanelOpen');
+  if (btnAdminPanelOpen) btnAdminPanelOpen.addEventListener('click', () => {
+    // 설정 패널 열고 관리자 섹션으로 스크롤
+    openSettingsWithAuth();
+    setTimeout(() => {
+      document.getElementById('adminSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 400);
+  });
 
   // ── 초대코드 화면 ──
   document.getElementById('btnInviteVerify').addEventListener('click', verifyInvite);
@@ -901,14 +1391,9 @@ function bindStaticEvents() {
     if (e.target.id === 'dayOverlay') closeDayModal();
   });
 
-  // 목록 뷰 – 추가 버튼
   document.getElementById('btnListAdd').addEventListener('click', () => openFormAdd(modalDate));
-
-  // 상세 뷰 – 수정 / 삭제
   document.getElementById('btnDetailEdit').addEventListener('click', () => openFormEdit(viewingEventId));
   document.getElementById('btnDetailDelete').addEventListener('click', deleteCurrentEvent);
-
-  // 폼 뷰 – 취소 / 저장
   document.getElementById('btnFormCancel').addEventListener('click', handleDayBack);
   document.getElementById('btnFormSave').addEventListener('click', saveEvent);
 
@@ -918,6 +1403,19 @@ function bindStaticEvents() {
   document.getElementById('btnCancelSettings').addEventListener('click', closeSettings);
   document.getElementById('btnSaveSettings').addEventListener('click', saveSettingsData);
   document.getElementById('btnAddCategory').addEventListener('click', addCategory);
+
+  // ── 관리자 패널 ──
+  const btnAdminVerify = document.getElementById('btnAdminVerify');
+  if (btnAdminVerify) btnAdminVerify.addEventListener('click', verifyAdminPanel);
+  const btnAdminLock = document.getElementById('btnAdminLock');
+  if (btnAdminLock) btnAdminLock.addEventListener('click', lockAdminPanel);
+  const adminPwInput = document.getElementById('adminPwInput');
+  if (adminPwInput) adminPwInput.addEventListener('keydown', e => { if (e.key === 'Enter') verifyAdminPanel(); });
+
+  // 관리자 탭 전환
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchAdminTab(btn.dataset.tab));
+  });
 
   // ── 초대 링크 복사 ──
   document.getElementById('btnCopyInviteLink').addEventListener('click', () => {
@@ -973,6 +1471,7 @@ function bindStaticEvents() {
     reader.readAsText(file);
     e.target.value = '';
   });
+
   document.getElementById('settingsOverlay').addEventListener('click', e => {
     if (e.target.id === 'settingsOverlay') closeSettings();
   });
@@ -1010,13 +1509,11 @@ function bindStaticEvents() {
 
   // ── 팝업 외부 클릭 닫기 ──
   document.addEventListener('click', e => {
-    // 미니 달력
     if (!document.getElementById('miniCalPopup').classList.contains('hidden') &&
         !e.target.closest('#miniCalPopup') &&
         e.target.id !== 'monthTitle') {
       closeMiniCal();
     }
-    // 팔레트들
     if (!e.target.closest('.emoji-picker-wrap'))
       document.querySelector('.emoji-palette')?.classList.add('hidden');
     if (!e.target.closest('.color-picker-wrap'))
