@@ -346,16 +346,40 @@
           <!-- 탭 -->
           <div class="admin-tabs">
             <button class="admin-tab-btn active" data-tab="users">
-              👤 사용자 관리
+              👤 사용자
               <span id="pendingBadgeTab" class="admin-badge" style="display:none">0</span>
             </button>
-            <button class="admin-tab-btn" data-tab="activity">📋 활동 기록</button>
+            <button class="admin-tab-btn" data-tab="invites">🎫 초대장</button>
+            <button class="admin-tab-btn" data-tab="activity">📋 기록</button>
           </div>
 
           <!-- 사용자 관리 탭 -->
           <div id="adminTabUsers" class="admin-tab-content">
             <div id="adminUserList" class="admin-user-list">
               <p class="setting-hint">불러오는 중…</p>
+            </div>
+          </div>
+
+          <!-- 초대장 관리 탭 -->
+          <div id="adminTabInvites" class="admin-tab-content hidden">
+            <div class="invite-generate-area">
+              <p class="setting-hint" style="margin-bottom:10px">
+                🔒 초대장은 <strong>1회만 사용 가능</strong>합니다.<br>
+                등록 완료 즉시 해당 코드는 영구 만료됩니다.
+              </p>
+              <button id="btnGenerateInvite" class="btn-save" style="width:100%">
+                🎫 새 초대장 생성
+              </button>
+              <div id="generatedInviteResult" class="generated-invite-box hidden">
+                <p class="setting-hint" style="margin-bottom:6px">👇 아래 링크를 공유하세요 (자동 복사됨)</p>
+                <div id="generatedInviteUrl" class="invite-url-text"></div>
+                <button id="btnCopyGenerated" class="btn-approve" style="width:100%;margin-top:8px">
+                  📋 다시 복사
+                </button>
+              </div>
+            </div>
+            <div id="adminInviteList" class="admin-user-list" style="margin-top:12px">
+              <p class="setting-hint">초대장을 생성하면 여기에 표시됩니다.</p>
             </div>
           </div>
 
