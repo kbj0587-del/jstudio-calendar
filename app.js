@@ -96,9 +96,10 @@ let savedSel         = null;
 
 let events   = [];
 let settings = {
-  password:   '',
-  darkMode:   false,
-  categories: DEFAULT_CATS.map(c => ({ ...c })),
+  password:     '',
+  lockDisabled: false,
+  darkMode:     false,
+  categories:   DEFAULT_CATS.map(c => ({ ...c })),
 };
 
 // ── 저장 / 로드 ───────────────────────────────────
@@ -258,7 +259,7 @@ async function init() {
     setSyncStatus('offline', '⚠️ 오프라인 — 로컬 데이터 사용 중');
   }
 
-  if (settings.password) showAppLock();
+  if (settings.password && !settings.lockDisabled) showAppLock();
 }
 
 // ── 관리자 배지 ───────────────────────────────────
@@ -923,9 +924,10 @@ function verifyPassword() {
 
 function openSettings() {
   settingsDraft = JSON.parse(JSON.stringify(settings));
-  document.getElementById('darkModeToggle').checked  = settingsDraft.darkMode;
-  document.getElementById('settingsCurrentPw').value = '';
-  document.getElementById('settingsNewPw').value     = '';
+  document.getElementById('darkModeToggle').checked      = settingsDraft.darkMode;
+  document.getElementById('lockDisabledToggle').checked  = settingsDraft.lockDisabled ?? false;
+  document.getElementById('settingsCurrentPw').value     = '';
+  document.getElementById('settingsNewPw').value         = '';
 
   const inviteField = document.getElementById('settingsInviteCode');
   if (inviteField) {
@@ -1009,8 +1011,9 @@ function saveSettingsData() {
     settingsDraft.password = newPw;
   }
 
-  settingsDraft.darkMode   = document.getElementById('darkModeToggle').checked;
-  settingsDraft.inviteCode = (document.getElementById('settingsInviteCode')?.value ?? '').trim();
+  settingsDraft.darkMode     = document.getElementById('darkModeToggle').checked;
+  settingsDraft.lockDisabled = document.getElementById('lockDisabledToggle')?.checked ?? false;
+  settingsDraft.inviteCode   = (document.getElementById('settingsInviteCode')?.value ?? '').trim();
 
   settings = settingsDraft;
   saveSettings();
@@ -1042,7 +1045,8 @@ async function verifyAdminPanel() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ password: pw }),
     });
-    if (resp.ok) {
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
       adminPw     = pw;
       isAdminMode = true;
       localStorage.setItem('cc_admin_pw', pw);
@@ -1093,7 +1097,7 @@ function switchAdminTab(tab) {
 // ── 초대장 관리 함수 ────────────────────────────────
 async function generateInvite() {
   const btn = document.getElementById('btnGenerateInvite');
-  if (btn) { btn.disabled = true; btn.textContent = '생성 중…'; }
+  if (btn) { btn.disabled = true; btn.textContent = '생성 중…'; btn.style.opacity = '0.7'; }
 
   try {
     const resp = await apiPost('/api/admin/invites/generate', {});
@@ -1117,7 +1121,7 @@ async function generateInvite() {
   } catch {
     showToast('서버에 연결할 수 없습니다.');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🎫 새 초대장 생성'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔗 초대 링크 복사'; btn.style.opacity = ''; }
   }
 }
 
