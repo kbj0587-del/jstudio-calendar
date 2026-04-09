@@ -198,6 +198,7 @@ async function init() {
 
 // 잠금 해제 또는 비밀번호 미설정 시 캘린더 렌더링 + 서버 동기화
 async function launchApp() {
+  document.getElementById('appMain').classList.remove('hidden');
   renderCalendar();
 
   setSyncStatus('syncing', '서버 연결 중…');
