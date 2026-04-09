@@ -168,12 +168,13 @@ async function init() {
   loadAll();
   applyTheme(settings.darkMode);
 
-  // ── 잠금 화면: 네트워크 이전에 즉시 표시 ──────────────
-  if (settings.password && !settings.lockDisabled) showAppLock();
-
+  // 캘린더를 먼저 렌더링해야 backdrop-filter 블러가 실제 컨텐츠를 블러 처리함
   renderCalendar();
   bindStaticEvents();
   setupRichEditor();
+
+  // ── 잠금 화면: 캘린더 렌더링 직후 즉시 표시 (같은 프레임에서 처리됨) ──
+  if (settings.password && !settings.lockDisabled) showAppLock();
 
   // URL 파라미터 처리
   const urlParams = new URLSearchParams(window.location.search);
@@ -1644,7 +1645,17 @@ function showToast(msg) {
 }
 
 // ── 시작 ──────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  // 잠금 화면 즉시 체크: init() 보다 먼저, 동기적으로 실행
+  try {
+    const _s = JSON.parse(localStorage.getItem('cc_settings') || '{}');
+    if (_s.password && !_s.lockDisabled) {
+      const lockEl = document.getElementById('appLockScreen');
+      if (lockEl) lockEl.classList.remove('hidden');
+    }
+  } catch {}
+  init();
+});
 
 // ── 서비스워커 ────────────────────────────────────
 if ('serviceWorker' in navigator) {
