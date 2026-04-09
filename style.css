@@ -40,8 +40,15 @@
 /* ── 리셋 ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* 높이 체인 : html → body → app-body → calendar-wrap → grid */
+/* 높이 체인 : html → body → #appMain → app-body → calendar-wrap → grid */
 html, body { height: 100%; }
+
+#appMain {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 body {
   font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
