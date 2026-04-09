@@ -168,43 +168,38 @@ async function init() {
   loadAll();
   applyTheme(settings.darkMode);
 
-  // 캘린더를 먼저 렌더링해야 backdrop-filter 블러가 실제 컨텐츠를 블러 처리함
-  renderCalendar();
-  bindStaticEvents();
-  setupRichEditor();
-
-  // ── 잠금 화면: 캘린더 렌더링 직후 즉시 표시 (같은 프레임에서 처리됨) ──
-  if (settings.password && !settings.lockDisabled) showAppLock();
-
-  // URL 파라미터 처리
+  // URL 파라미터 먼저 처리 (localStorage 저장)
   const urlParams = new URLSearchParams(window.location.search);
   const urlInvite = urlParams.get('invite');
   const urlUid    = urlParams.get('uid');
+  if (urlInvite) { localStorage.setItem('cc_invite', urlInvite); window.history.replaceState({}, '', window.location.pathname); }
+  if (urlUid)    { localStorage.setItem('cc_user_id', urlUid);   window.history.replaceState({}, '', window.location.pathname); }
 
-  if (urlInvite) {
-    localStorage.setItem('cc_invite', urlInvite);
-    window.history.replaceState({}, '', window.location.pathname);
-  }
-  if (urlUid) {
-    localStorage.setItem('cc_user_id', urlUid);
-    window.history.replaceState({}, '', window.location.pathname);
-  }
-
-  // 저장된 사용자 정보 로드
+  // 사용자·관리자 정보 로드
   const savedUserId   = localStorage.getItem('cc_user_id')   || '';
   const savedUserName = localStorage.getItem('cc_user_name') || '';
-  if (savedUserId) {
-    currentUser = { id: savedUserId, name: savedUserName };
-  }
-
-  // 관리자 비밀번호 로드
+  if (savedUserId) currentUser = { id: savedUserId, name: savedUserName };
   adminPw = localStorage.getItem('cc_admin_pw') || '';
   if (adminPw) isAdminMode = true;
-
-  // 초대코드 로드
   storedInviteCode = localStorage.getItem('cc_invite') || '';
 
-  // 서버 동기화 시도
+  // 이벤트 바인딩 (잠금 화면 버튼 작동에 필요)
+  bindStaticEvents();
+  setupRichEditor();
+
+  // ── 비밀번호가 설정된 경우: 잠금 화면만 표시, 캘린더는 렌더링하지 않음 ──
+  if (settings.password && !settings.lockDisabled) {
+    showAppLock();
+    return; // launchApp()은 verifyAppLock()에서 비밀번호 확인 후 호출됨
+  }
+
+  await launchApp();
+}
+
+// 잠금 해제 또는 비밀번호 미설정 시 캘린더 렌더링 + 서버 동기화
+async function launchApp() {
+  renderCalendar();
+
   setSyncStatus('syncing', '서버 연결 중…');
   try {
     const resp = await apiGet('/api/sync');
@@ -246,7 +241,6 @@ async function init() {
       if (data.inviteCode !== undefined)
         localStorage.setItem('cc_invite_current', data.inviteCode);
 
-      // 대기 중 배지 설정 (관리자 모드)
       if (isAdminMode && data.pendingCount > 0) {
         pendingBadge = data.pendingCount;
         updateAdminBadge();
@@ -262,7 +256,6 @@ async function init() {
     syncEnabled = false;
     setSyncStatus('offline', '⚠️ 오프라인 — 로컬 데이터 사용 중');
   }
-
 }
 
 // ── 관리자 배지 ───────────────────────────────────
@@ -461,14 +454,17 @@ function verifyAppLock() {
     document.getElementById('appLockScreen').classList.add('hidden');
     input.value = '';
     error.classList.add('hidden');
+    launchApp(); // 비밀번호 확인 후 캘린더 렌더링 + 서버 동기화
   } else {
     error.classList.remove('hidden');
     input.value = '';
     input.focus();
-    const card = document.querySelector('.app-lock-card');
-    card.style.animation = 'none';
-    card.offsetHeight;
-    card.style.animation = 'lockShake 0.4s ease';
+    const card = document.querySelector('#appLockScreen .app-lock-card');
+    if (card) {
+      card.style.animation = 'none';
+      card.offsetHeight;
+      card.style.animation = 'lockShake 0.4s ease';
+    }
   }
 }
 
@@ -1645,17 +1641,7 @@ function showToast(msg) {
 }
 
 // ── 시작 ──────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  // 잠금 화면 즉시 체크: init() 보다 먼저, 동기적으로 실행
-  try {
-    const _s = JSON.parse(localStorage.getItem('cc_settings') || '{}');
-    if (_s.password && !_s.lockDisabled) {
-      const lockEl = document.getElementById('appLockScreen');
-      if (lockEl) lockEl.classList.remove('hidden');
-    }
-  } catch {}
-  init();
-});
+document.addEventListener('DOMContentLoaded', init);
 
 // ── 서비스워커 ────────────────────────────────────
 if ('serviceWorker' in navigator) {
