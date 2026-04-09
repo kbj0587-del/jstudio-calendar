@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jstudio-calendar-v7';
+const CACHE_NAME = 'jstudio-calendar-v8';
 const ASSETS = [
   './',
   './index.html',

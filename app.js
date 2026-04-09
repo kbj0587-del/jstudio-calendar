@@ -168,6 +168,9 @@ async function init() {
   loadAll();
   applyTheme(settings.darkMode);
 
+  // ── 잠금 화면: 네트워크 이전에 즉시 표시 ──────────────
+  if (settings.password && !settings.lockDisabled) showAppLock();
+
   renderCalendar();
   bindStaticEvents();
   setupRichEditor();
@@ -259,7 +262,6 @@ async function init() {
     setSyncStatus('offline', '⚠️ 오프라인 — 로컬 데이터 사용 중');
   }
 
-  if (settings.password && !settings.lockDisabled) showAppLock();
 }
 
 // ── 관리자 배지 ───────────────────────────────────
@@ -1524,18 +1526,13 @@ function bindStaticEvents() {
     btn.addEventListener('click', () => switchAdminTab(btn.dataset.tab));
   });
 
-  // ── 초대 링크 복사 ──
-  document.getElementById('btnCopyInviteLink').addEventListener('click', () => {
-    const code = (document.getElementById('settingsInviteCode')?.value || '').trim()
-              || (localStorage.getItem('cc_invite_current') || '');
-    if (!code) {
-      showToast('먼저 초대코드를 입력하고 저장하세요.');
+  // ── 초대 링크 복사 (새 토큰 자동 생성) ──
+  document.getElementById('btnCopyInviteLink').addEventListener('click', async () => {
+    if (!isAdminMode) {
+      showToast('초대장은 관리자만 생성할 수 있습니다.');
       return;
     }
-    const inviteUrl = `${location.origin}/invite.html?code=${encodeURIComponent(code)}`;
-    navigator.clipboard.writeText(inviteUrl).then(() => {
-      showToast('초대 링크가 복사되었습니다! 카카오톡·이메일로 보내세요.');
-    });
+    await generateInvite();
   });
 
   // ── 모든 기기 접근 취소 ──
