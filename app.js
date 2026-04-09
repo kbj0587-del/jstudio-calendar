@@ -1072,14 +1072,14 @@ function lockAdminPanel() {
 }
 
 function showAdminPanel() {
-  document.getElementById('adminPanelLock')?.classList.add('hidden');
-  document.getElementById('adminPanelContent')?.classList.remove('hidden');
+  document.getElementById('adminLoginArea')?.classList.add('hidden');
+  document.getElementById('adminPanelArea')?.classList.remove('hidden');
   loadAdminUsers();
 }
 
 function hideAdminPanel() {
-  document.getElementById('adminPanelLock')?.classList.remove('hidden');
-  document.getElementById('adminPanelContent')?.classList.add('hidden');
+  document.getElementById('adminLoginArea')?.classList.remove('hidden');
+  document.getElementById('adminPanelArea')?.classList.add('hidden');
 }
 
 function switchAdminTab(tab) {
