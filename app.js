@@ -177,19 +177,73 @@ async function init() {
   bindStaticEvents();
   setupRichEditor();
 
-  // ── 자격증명 없으면 즉시 로그인 화면 (캘린더 렌더 전) ──
+  // ── 자격증명 없으면 저장된 username/pin으로 자동 로그인 시도 ──
   if (!currentUser && !isAdminMode) {
-    showAuthScreen('login');
-    return; // launchApp()은 submitLogin()에서 로그인 성공 후 호출됨
+    const savedUsername = localStorage.getItem('cc_username');
+    const savedPin      = localStorage.getItem('cc_pin');
+    if (savedUsername && savedPin) {
+      // 저장된 자격증명으로 자동 로그인 시도 (로딩 중 표시)
+      showAutoLoginScreen();
+      try {
+        const resp = await fetch('/api/auth/login', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ username: savedUsername, pin: savedPin }),
+        });
+        hideAutoLoginScreen();
+        if (resp.ok) {
+          const data = await resp.json();
+          localStorage.setItem('cc_user_id',   data.user.id);
+          localStorage.setItem('cc_user_name', data.user.name);
+          currentUser = { id: data.user.id, name: data.user.name };
+          // 자동 로그인 성공 → 바로 진행
+        } else if (resp.status === 403) {
+          const d = await resp.json().catch(() => ({}));
+          if (d.error === 'pending') { showPendingScreen(); return; }
+          if (d.error === 'rejected') { showRejectedScreen(); return; }
+          showAuthScreen('login'); return;
+        } else {
+          // 자동 로그인 실패 → 수동 로그인
+          showAuthScreen('login'); return;
+        }
+      } catch {
+        hideAutoLoginScreen();
+        showAuthScreen('login'); return;
+      }
+    } else {
+      showAuthScreen('login');
+      return;
+    }
   }
 
   // ── 앱 잠금 비밀번호가 설정된 경우 ──
   if (settings.password && !settings.lockDisabled) {
     showAppLock();
-    return; // launchApp()은 verifyAppLock()에서 비밀번호 확인 후 호출됨
+    return;
   }
 
   await launchApp();
+}
+
+function showAutoLoginScreen() {
+  let el = document.getElementById('autoLoginScreen');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'autoLoginScreen';
+    el.className = 'app-lock-screen';
+    el.innerHTML = `
+      <div class="app-lock-card" style="text-align:center;padding:40px 32px">
+        <img src="./icons/icon-192.png" class="lock-logo" alt="J.STUDIO" />
+        <h2 class="lock-title">제이스튜디오 캘린더</h2>
+        <p class="lock-sub" style="margin-top:8px">로그인 중…</p>
+        <div class="pending-spinner" style="margin-top:16px">⏳</div>
+      </div>`;
+    document.body.appendChild(el);
+  }
+  el.classList.remove('hidden');
+}
+function hideAutoLoginScreen() {
+  document.getElementById('autoLoginScreen')?.classList.add('hidden');
 }
 
 // 앱이 다시 포그라운드로 올 때 자동 재동기화 (모바일 탭 전환 대응)
