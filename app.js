@@ -1119,108 +1119,24 @@ function switchAdminTab(tab) {
   });
 
   if (tab === 'users')    loadAdminUsers();
-  if (tab === 'invites')  loadAdminInvites();
   if (tab === 'activity') loadAdminActivity();
 }
 
-// ── 초대장 관리 함수 ────────────────────────────────
-async function generateInvite() {
-  const btn = document.getElementById('btnGenerateInvite');
-  if (btn) { btn.disabled = true; btn.textContent = '생성 중…'; btn.style.opacity = '0.7'; }
+// ── 앱 링크 복사 ────────────────────────────────────
+function copyAppLink() {
+  const url      = location.origin;
+  const resultEl = document.getElementById('generatedInviteResult');
+  const urlEl    = document.getElementById('generatedInviteUrl');
+  if (resultEl) resultEl.classList.remove('hidden');
+  if (urlEl)    urlEl.textContent = url;
 
-  try {
-    const resp = await apiPost('/api/admin/invites/generate', {});
-    if (!resp.ok) { showToast('초대장 생성 실패'); return; }
-    const { invite } = await resp.json();
-
-    const url      = `${location.origin}/invite.html?code=${invite.token}`;
-    const resultEl = document.getElementById('generatedInviteResult');
-    const urlEl    = document.getElementById('generatedInviteUrl');
-    if (resultEl) resultEl.classList.remove('hidden');
-    if (urlEl)    urlEl.textContent = url;
-
-    // 자동 클립보드 복사
-    navigator.clipboard.writeText(url).then(() => {
-      showToast('🎫 초대 링크가 클립보드에 복사되었습니다!');
-    }).catch(() => {
-      showToast('초대장이 생성되었습니다. 링크를 직접 복사하세요.');
-    });
-
-    loadAdminInvites();
-  } catch {
-    showToast('서버에 연결할 수 없습니다.');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔗 초대 링크 복사'; btn.style.opacity = ''; }
-  }
-}
-
-async function loadAdminInvites() {
-  const el = document.getElementById('adminInviteList');
-  if (!el) return;
-  el.innerHTML = '<p class="setting-hint">불러오는 중…</p>';
-
-  try {
-    const resp = await apiGet('/api/admin/invites');
-    if (!resp.ok) { el.innerHTML = '<p class="setting-hint">불러오기 실패</p>'; return; }
-    const { invites } = await resp.json();
-    renderAdminInvites(invites || []);
-  } catch {
-    el.innerHTML = '<p class="setting-hint">서버 오류</p>';
-  }
-}
-
-function renderAdminInvites(invites) {
-  const el = document.getElementById('adminInviteList');
-  if (!el) return;
-
-  if (!invites.length) {
-    el.innerHTML = '<p class="setting-hint">생성된 초대장이 없습니다.</p>';
-    return;
-  }
-
-  el.innerHTML = '';
-  invites.forEach(inv => {
-    const card     = document.createElement('div');
-    const isActive = inv.status === 'active';
-    card.className = 'invite-card invite-' + inv.status;
-
-    const icon       = isActive ? '🟢' : inv.status === 'used' ? '🔴' : '⚫';
-    const statusText = isActive
-      ? '활성 — 미사용'
-      : inv.status === 'used'
-        ? `만료됨 · ${esc(inv.usedByName || '')} 사용`
-        : '취소됨';
-    const date = formatShortDateTime(inv.createdAt);
-
-    card.innerHTML = `
-      <span class="invite-status-icon">${icon}</span>
-      <div class="invite-info">
-        <span class="invite-token">${esc(inv.token)}</span>
-        <span class="invite-meta">${statusText} · ${date}</span>
-      </div>
-      ${isActive ? `
-        <div class="invite-actions">
-          <button class="btn-approve btn-copy-inv" data-token="${esc(inv.token)}">복사</button>
-          <button class="btn-reject btn-cancel-inv" data-token="${esc(inv.token)}">취소</button>
-        </div>` : ''}
-    `;
-
-    // 복사
-    card.querySelector('.btn-copy-inv')?.addEventListener('click', () => {
-      const url = `${location.origin}/invite.html?code=${inv.token}`;
-      navigator.clipboard.writeText(url).then(() => showToast('초대 링크가 복사되었습니다!'));
-    });
-    // 취소
-    card.querySelector('.btn-cancel-inv')?.addEventListener('click', async () => {
-      if (!confirm('이 초대장을 취소할까요?\n이미 공유된 링크는 더 이상 사용할 수 없게 됩니다.')) return;
-      const r = await apiDelete(`/api/admin/invites/${inv.token}`);
-      if (r.ok) { showToast('초대장이 취소되었습니다.'); loadAdminInvites(); }
-      else showToast('취소 실패');
-    });
-
-    el.appendChild(card);
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('📋 앱 링크가 클립보드에 복사되었습니다!');
+  }).catch(() => {
+    showToast('링크를 직접 복사하세요.');
   });
 }
+
 
 async function loadAdminUsers() {
   const container = document.getElementById('adminTabUsers');
@@ -1557,22 +1473,9 @@ function bindStaticEvents() {
     btn.addEventListener('click', () => switchAdminTab(btn.dataset.tab));
   });
 
-  // ── 초대 링크 복사 (새 토큰 자동 생성) ──
-  document.getElementById('btnCopyInviteLink').addEventListener('click', async () => {
-    if (!isAdminMode) {
-      showToast('초대장은 관리자만 생성할 수 있습니다.');
-      return;
-    }
-    await generateInvite();
-  });
-
-  // ── 모든 기기 접근 취소 ──
-  // ── 초대장 생성 ──
-  document.getElementById('btnGenerateInvite')?.addEventListener('click', generateInvite);
-  document.getElementById('btnCopyGenerated')?.addEventListener('click', () => {
-    const url = document.getElementById('generatedInviteUrl')?.textContent || '';
-    if (url) navigator.clipboard.writeText(url).then(() => showToast('복사됨!'));
-  });
+  // ── 앱 링크 복사 ──
+  document.getElementById('btnCopyAppLink')?.addEventListener('click', copyAppLink);
+  document.getElementById('btnGenerateInvite')?.addEventListener('click', copyAppLink);
 
   document.getElementById('btnRevokeAll').addEventListener('click', () => {
     if (!confirm('모든 기기의 초대코드 승인을 취소할까요?\n기존 기기는 새 초대코드를 입력해야 합니다.')) return;

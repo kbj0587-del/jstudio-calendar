@@ -289,28 +289,13 @@
         <p class="setting-hint">앱 접근 시 잠금 화면이 표시됩니다. 비밀번호를 삭제하려면 새 비밀번호를 빈칸으로 저장하세요.</p>
       </div>
 
-      <!-- 초대코드 관리 -->
+      <!-- 앱 공유 -->
       <div class="settings-section">
-        <h3 class="settings-section-title">🔐 초대코드 관리</h3>
-        <div class="setting-row">
-          <div>
-            <div class="setting-label">초대코드 설정</div>
-            <div class="setting-desc">이 코드를 가진 기기만 앱에 접근할 수 있습니다</div>
-          </div>
-        </div>
-        <div class="form-group" style="margin-top:10px">
-          <label>초대코드</label>
-          <input type="text" id="settingsInviteCode"
-                 placeholder="비워두면 누구나 접근 가능"
-                 autocomplete="off" autocorrect="off" spellcheck="false" />
-        </div>
-        <p class="setting-hint">⚠️ 코드를 변경하면 기존 등록 기기는 새 코드 재입력이 필요합니다.</p>
-        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-          <button id="btnCopyInviteLink" class="btn-save" style="flex:1;min-width:130px;font-size:13px">
-            🔗 초대 링크 복사
-          </button>
-          <button id="btnRevokeAll" class="btn-revoke" style="flex:1;min-width:130px">모든 기기 접근 취소</button>
-        </div>
+        <h3 class="settings-section-title">🔗 앱 공유</h3>
+        <p class="setting-hint" style="margin-bottom:10px">앱 주소를 공유하면 상대방이 회원가입 후 관리자 승인을 받아 사용할 수 있습니다.</p>
+        <button id="btnCopyAppLink" class="btn-save" style="width:100%;font-size:13px">
+          📋 앱 링크 복사
+        </button>
       </div>
 
       <!-- 동기화 상태 -->
@@ -375,7 +360,7 @@
               👤 사용자
               <span id="pendingBadgeTab" class="admin-badge" style="display:none">0</span>
             </button>
-            <button class="admin-tab-btn" data-tab="invites">🎫 초대장</button>
+            <button class="admin-tab-btn" data-tab="invites">🔗 앱 공유</button>
             <button class="admin-tab-btn" data-tab="activity">📋 기록</button>
           </div>
 
@@ -386,26 +371,18 @@
             </div>
           </div>
 
-          <!-- 초대장 관리 탭 -->
+          <!-- 앱 공유 탭 -->
           <div id="adminTabInvites" class="admin-tab-content hidden">
-            <div class="invite-generate-area">
-              <p class="setting-hint" style="margin-bottom:10px">
-                🔒 초대장은 <strong>1회만 사용 가능</strong>합니다.<br>
-                등록 완료 즉시 해당 코드는 영구 만료됩니다.
-              </p>
-              <button id="btnGenerateInvite" class="btn-save" style="width:100%">
-                🔗 초대 링크 복사
-              </button>
-              <div id="generatedInviteResult" class="generated-invite-box hidden">
-                <p class="setting-hint" style="margin-bottom:6px">✅ 클립보드에 복사됨 — 아래 링크를 공유하세요</p>
-                <div id="generatedInviteUrl" class="invite-url-text"></div>
-                <button id="btnCopyGenerated" class="btn-approve" style="width:100%;margin-top:8px">
-                  📋 다시 복사
-                </button>
-              </div>
-            </div>
-            <div id="adminInviteList" class="admin-user-list" style="margin-top:12px">
-              <p class="setting-hint">초대장을 생성하면 여기에 표시됩니다.</p>
+            <p class="setting-hint" style="margin-bottom:10px">
+              앱 주소를 공유하면 상대방이 직접 회원가입하고,<br>
+              관리자가 승인하면 사용할 수 있습니다.
+            </p>
+            <button id="btnGenerateInvite" class="btn-save" style="width:100%">
+              📋 앱 링크 복사
+            </button>
+            <div id="generatedInviteResult" class="generated-invite-box hidden" style="margin-top:10px">
+              <p class="setting-hint" style="margin-bottom:4px">✅ 클립보드에 복사됐습니다</p>
+              <div id="generatedInviteUrl" class="invite-url-text"></div>
             </div>
           </div>
 
