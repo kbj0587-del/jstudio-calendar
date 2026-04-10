@@ -199,6 +199,18 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// 화면 크기 변경 시 캘린더 재렌더 (PC↔모바일 표시 전환)
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (document.getElementById('appMain') &&
+        !document.getElementById('appMain').classList.contains('hidden')) {
+      renderCalendar();
+    }
+  }, 200);
+});
+
 // 잠금 해제 또는 비밀번호 미설정 시 캘린더 렌더링 + 서버 동기화
 async function launchApp() {
   document.getElementById('appMain').classList.remove('hidden');
@@ -209,7 +221,38 @@ async function launchApp() {
     const resp = await apiGet('/api/sync');
 
     if (resp.status === 401) {
-      // 저장된 자격증명이 만료됨 → 초기화 후 로그인 화면
+      // 서버 재시작 등으로 사용자 정보 소실 → 저장된 자격증명으로 재로그인 시도
+      const savedUsername = localStorage.getItem('cc_username');
+      const savedPin      = localStorage.getItem('cc_pin');
+      if (savedUsername && savedPin) {
+        try {
+          const relogin = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: savedUsername, pin: savedPin }),
+          });
+          if (relogin.ok) {
+            const rdata = await relogin.json();
+            localStorage.setItem('cc_user_id',   rdata.user.id);
+            localStorage.setItem('cc_user_name', rdata.user.name);
+            currentUser = { id: rdata.user.id, name: rdata.user.name };
+            // 재시도
+            const resp2 = await apiGet('/api/sync');
+            if (resp2.ok) {
+              const data2 = await resp2.json();
+              syncEnabled = true;
+              events = data2.events || [];
+              settings.categories = data2.categories || settings.categories;
+              settings.darkMode   = data2.darkMode   ?? settings.darkMode;
+              localStorage.setItem('cc_events', JSON.stringify(events));
+              saveSettings(); applyTheme(settings.darkMode);
+              renderCalendar();
+              setSyncStatus('online', '✅ 동기화됨');
+              return;
+            }
+          }
+        } catch { /* 재로그인 실패 시 아래 로그아웃 처리 */ }
+      }
       localStorage.removeItem('cc_user_id');
       localStorage.removeItem('cc_user_name');
       currentUser = null;
@@ -545,6 +588,8 @@ function verifyAppLock() {
 // ═════════════════════════════════════════════════
 // 달력 렌더링
 // ═════════════════════════════════════════════════
+const isMobile = () => window.innerWidth <= 768;
+
 function renderCalendar() {
   const y = currentYear, m = currentMonth;
   document.getElementById('monthTitle').textContent = `${y}년 ${m + 1}월`;
@@ -554,6 +599,7 @@ function renderCalendar() {
   const prevLast = new Date(y, m, 0).getDate();
   const todayStr = toDateStr(new Date());
   const alpha    = isDark() ? 0.22 : 0.13;
+  const mobile   = isMobile();
 
   const grid = document.getElementById('calGrid');
   grid.innerHTML = '';
@@ -591,19 +637,42 @@ function renderCalendar() {
     else if (dow === 6)       numEl.style.color = 'var(--saturday)';
     cell.appendChild(numEl);
 
-    dayEvts.slice(0, 3).forEach(ev => {
-      const cat  = getCat(ev.type);
-      const chip = document.createElement('div');
-      chip.className = 'event-chip';
-      chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:${cat.color};border-left:2px solid ${cat.color};`;
-      chip.textContent   = (ev.time ? ev.time + ' ' : '') + ev.title;
-      cell.appendChild(chip);
-    });
-    if (dayEvts.length > 3) {
-      const more = document.createElement('div');
-      more.className   = 'more-events';
-      more.textContent = `+${dayEvts.length - 3}개 더`;
-      cell.appendChild(more);
+    if (mobile) {
+      // 모바일: 컬러 도트로 일정 표시 (최대 3개)
+      if (dayEvts.length > 0 && !other) {
+        const dotRow = document.createElement('div');
+        dotRow.className = 'mobile-dot-row';
+        dayEvts.slice(0, 3).forEach(ev => {
+          const cat = getCat(ev.type);
+          const dot = document.createElement('span');
+          dot.className = 'mobile-dot';
+          dot.style.background = cat.color;
+          dotRow.appendChild(dot);
+        });
+        if (dayEvts.length > 3) {
+          const more = document.createElement('span');
+          more.className = 'mobile-dot-more';
+          more.textContent = '+' + (dayEvts.length - 3);
+          dotRow.appendChild(more);
+        }
+        cell.appendChild(dotRow);
+      }
+    } else {
+      // PC: 기존 텍스트 칩 표시
+      dayEvts.slice(0, 3).forEach(ev => {
+        const cat  = getCat(ev.type);
+        const chip = document.createElement('div');
+        chip.className = 'event-chip';
+        chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:${cat.color};border-left:2px solid ${cat.color};`;
+        chip.textContent   = (ev.time ? ev.time + ' ' : '') + ev.title;
+        cell.appendChild(chip);
+      });
+      if (dayEvts.length > 3) {
+        const more = document.createElement('div');
+        more.className   = 'more-events';
+        more.textContent = `+${dayEvts.length - 3}개 더`;
+        cell.appendChild(more);
+      }
     }
 
     cell.addEventListener('click', () => openDayModal(dateStr));
@@ -1523,15 +1592,6 @@ function bindStaticEvents() {
   document.getElementById('monthTitle').addEventListener('click', openMiniCal);
   document.getElementById('miniPrevYear').addEventListener('click', () => { miniCalYear--; renderMiniCal(); });
   document.getElementById('miniNextYear').addEventListener('click', () => { miniCalYear++; renderMiniCal(); });
-
-  // ── 헤더 일정 추가 ──
-  document.getElementById('btnAddHeader').addEventListener('click', () => {
-    modalDate      = toDateStr(new Date());
-    viewingEventId = null;
-    editingEventId = null;
-    document.getElementById('dayOverlay').classList.remove('hidden');
-    openFormAdd(modalDate);
-  });
 
   // ── 날짜 팝업 ──
   document.getElementById('btnDayClose').addEventListener('click', closeDayModal);
