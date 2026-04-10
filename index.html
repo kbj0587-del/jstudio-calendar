@@ -48,6 +48,17 @@
       <p id="regError" class="lock-error hidden"></p>
       <button id="btnRegSubmit" class="lock-btn">가입 요청하기</button>
     </div>
+
+    <!-- 관리자 로그인 (숨김 토글) -->
+    <div style="text-align:center;margin-top:14px">
+      <button id="btnShowAdminLogin" style="background:none;border:none;font-size:11px;color:rgba(255,255,255,0.3);cursor:pointer;padding:4px 8px">관리자</button>
+    </div>
+    <div id="adminLoginPanel" class="hidden" style="margin-top:6px">
+      <input type="password" id="adminLoginPwInput" class="lock-input" placeholder="관리자 비밀번호"
+             autocomplete="off" />
+      <p id="adminLoginError" class="lock-error hidden">비밀번호가 올바르지 않습니다.</p>
+      <button id="btnAdminLoginSubmit" class="lock-btn" style="background:#555">관리자 로그인</button>
+    </div>
   </div>
 </div>
 

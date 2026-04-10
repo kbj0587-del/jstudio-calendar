@@ -29,7 +29,7 @@ let adminPw      = '';     // 관리자 비밀번호
 let pendingBadge = 0;      // 대기 중 사용자 수
 
 // ── 동기화 상태 ───────────────────────────────────
-let storedInviteCode = '';
+let storedInviteCode = ''; // 하위 호환 — 실제로 사용 안 함
 let syncEnabled      = false;
 let syncTimer        = null;
 
@@ -51,7 +51,6 @@ function buildHeaders(extra) {
     h['x-user-id'] = currentUser.id;
   }
   // 기존 초대코드 호환
-  if (storedInviteCode) h['x-invite-code'] = storedInviteCode;
   return Object.assign(h, extra || {});
 }
 
@@ -62,7 +61,6 @@ async function apiGet(path) {
   } else if (currentUser) {
     h['x-user-id'] = currentUser.id;
   }
-  if (storedInviteCode) h['x-invite-code'] = storedInviteCode;
   return fetch(path, { headers: h });
 }
 
@@ -236,9 +234,6 @@ async function launchApp() {
       settings.categories = data.categories || settings.categories;
       settings.darkMode   = data.darkMode   ?? settings.darkMode;
 
-      if (data.inviteCode !== undefined)
-        localStorage.setItem('cc_invite_current', data.inviteCode);
-
       if (isAdminMode && data.pendingCount > 0) {
         pendingBadge = data.pendingCount;
         updateAdminBadge();
@@ -282,6 +277,38 @@ function updateAdminBadge() {
 
 // ── 등록 화면 ─────────────────────────────────────
 // ── 로그인/회원가입 화면 ───────────────────────────
+async function submitAdminLogin() {
+  const pw    = document.getElementById('adminLoginPwInput').value.trim();
+  const errEl = document.getElementById('adminLoginError');
+  const btn   = document.getElementById('btnAdminLoginSubmit');
+  if (!pw) return;
+
+  btn.disabled = true; btn.textContent = '확인 중…';
+  try {
+    const resp = await fetch('/api/admin/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      localStorage.setItem('cc_admin_pw', pw);
+      adminPw = pw;
+      isAdminMode = true;
+      document.getElementById('authScreen').classList.add('hidden');
+      await launchApp();
+    } else {
+      errEl.classList.remove('hidden');
+      document.getElementById('adminLoginPwInput').value = '';
+      document.getElementById('adminLoginPwInput').focus();
+    }
+  } catch {
+    errEl.textContent = '서버에 연결할 수 없습니다.';
+    errEl.classList.remove('hidden');
+  }
+  btn.disabled = false; btn.textContent = '관리자 로그인';
+}
+
 function showAuthScreen(tab) {
   document.getElementById('authScreen').classList.remove('hidden');
   if (tab === 'register') switchAuthTab('register');
@@ -475,7 +502,6 @@ async function syncSettingsToServer(draft) {
     await apiPost('/api/sync/settings', {
       categories: draft.categories,
       darkMode:   draft.darkMode,
-      inviteCode: draft.inviteCode,
     });
   } catch {
     setSyncStatus('offline', '⚠️ 설정 동기화 실패');
@@ -969,11 +995,6 @@ function openSettings() {
   document.getElementById('settingsCurrentPw').value     = '';
   document.getElementById('settingsNewPw').value         = '';
 
-  const inviteField = document.getElementById('settingsInviteCode');
-  if (inviteField) {
-    inviteField.value = localStorage.getItem('cc_invite_current') || storedInviteCode || '';
-  }
-
   const sdot = document.getElementById('syncDot');
   const stxt = document.getElementById('syncStatusText');
   if (sdot) sdot.className = 'sync-dot ' + (syncEnabled ? 'online' : 'offline');
@@ -1053,18 +1074,11 @@ function saveSettingsData() {
 
   settingsDraft.darkMode     = document.getElementById('darkModeToggle').checked;
   settingsDraft.lockDisabled = document.getElementById('lockDisabledToggle')?.checked ?? false;
-  settingsDraft.inviteCode   = (document.getElementById('settingsInviteCode')?.value ?? '').trim();
 
   settings = settingsDraft;
   saveSettings();
   applyTheme(settings.darkMode);
   syncSettingsToServer(settings);
-
-  if (settings.inviteCode) {
-    storedInviteCode = settings.inviteCode;
-    localStorage.setItem('cc_invite', settings.inviteCode);
-  }
-
   renderCalendar();
   showToast('설정이 저장되었습니다.');
   document.getElementById('settingsOverlay').classList.add('hidden');
@@ -1402,6 +1416,18 @@ function bindStaticEvents() {
     showAuthScreen('login');
   });
 
+  // ── 관리자 로그인 (숨김) ──
+  document.getElementById('btnShowAdminLogin')?.addEventListener('click', () => {
+    const panel = document.getElementById('adminLoginPanel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden'))
+      setTimeout(() => document.getElementById('adminLoginPwInput')?.focus(), 50);
+  });
+  document.getElementById('btnAdminLoginSubmit')?.addEventListener('click', submitAdminLogin);
+  document.getElementById('adminLoginPwInput')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitAdminLogin();
+  });
+
   // ── 승인 대기 화면 ──
   const btnCheckStatus = document.getElementById('btnCheckStatus');
   if (btnCheckStatus) btnCheckStatus.addEventListener('click', refreshPendingStatus);
@@ -1488,12 +1514,6 @@ function bindStaticEvents() {
   document.getElementById('btnCopyAppLink')?.addEventListener('click', copyAppLink);
   document.getElementById('btnGenerateInvite')?.addEventListener('click', copyAppLink);
 
-  document.getElementById('btnRevokeAll').addEventListener('click', () => {
-    if (!confirm('모든 기기의 초대코드 승인을 취소할까요?\n기존 기기는 새 초대코드를 입력해야 합니다.')) return;
-    const newCode = Math.random().toString(36).slice(2, 8).toUpperCase();
-    document.getElementById('settingsInviteCode').value = newCode;
-    showToast(`새 초대코드: ${newCode} — 저장 후 적용됩니다.`);
-  });
 
   // ── 데이터 백업 내보내기 ──
   document.getElementById('btnExportData').addEventListener('click', () => {

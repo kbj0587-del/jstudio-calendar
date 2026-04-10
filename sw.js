@@ -1,19 +1,18 @@
-// 서비스 워커 - 캐시 없이 항상 네트워크에서 직접 로드
-self.addEventListener('install', () => self.skipWaiting());
+// 서비스 워커 v3 — 캐시 없음, 모든 요청 브라우저 직접 처리
+const SW_VERSION = 3;
+
+self.addEventListener('install', () => {
+  console.log('[SW] install v' + SW_VERSION);
+  self.skipWaiting();
+});
 
 self.addEventListener('activate', e => {
+  console.log('[SW] activate v' + SW_VERSION + ' — 캐시 전체 삭제');
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+    caches.keys()
+      .then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', e => {
-  // API 요청은 SW를 거치지 않고 직접 처리
-  if (e.request.url.includes('/api/')) {
-    return; // 기본 브라우저 처리에 맡김
-  }
-  e.respondWith(
-    fetch(e.request).catch(() => fetch(e.request))
-  );
-});
+// fetch 핸들러 없음 — 모든 요청은 브라우저가 직접 네트워크로 처리
