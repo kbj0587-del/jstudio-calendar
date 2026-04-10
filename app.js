@@ -179,7 +179,13 @@ async function init() {
   bindStaticEvents();
   setupRichEditor();
 
-  // ── 비밀번호가 설정된 경우: 잠금 화면만 표시, 캘린더는 렌더링하지 않음 ──
+  // ── 자격증명 없으면 즉시 로그인 화면 (캘린더 렌더 전) ──
+  if (!currentUser && !isAdminMode) {
+    showAuthScreen('login');
+    return; // launchApp()은 submitLogin()에서 로그인 성공 후 호출됨
+  }
+
+  // ── 앱 잠금 비밀번호가 설정된 경우 ──
   if (settings.password && !settings.lockDisabled) {
     showAppLock();
     return; // launchApp()은 verifyAppLock()에서 비밀번호 확인 후 호출됨
@@ -198,6 +204,11 @@ async function launchApp() {
     const resp = await apiGet('/api/sync');
 
     if (resp.status === 401) {
+      // 저장된 자격증명이 만료됨 → 초기화 후 로그인 화면
+      localStorage.removeItem('cc_user_id');
+      localStorage.removeItem('cc_user_name');
+      currentUser = null;
+      document.getElementById('appMain').classList.add('hidden');
       setSyncStatus('error', '로그인 필요');
       showAuthScreen('login');
       return;
