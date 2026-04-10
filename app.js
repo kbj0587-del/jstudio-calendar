@@ -192,6 +192,13 @@ async function init() {
   await launchApp();
 }
 
+// 앱이 다시 포그라운드로 올 때 자동 재동기화 (모바일 탭 전환 대응)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && syncEnabled) {
+    refreshSync();
+  }
+});
+
 // 잠금 해제 또는 비밀번호 미설정 시 캘린더 렌더링 + 서버 동기화
 async function launchApp() {
   document.getElementById('appMain').classList.remove('hidden');
@@ -995,6 +1002,13 @@ function openSettings() {
   document.getElementById('settingsCurrentPw').value     = '';
   document.getElementById('settingsNewPw').value         = '';
 
+  // 관리자/일반 사용자 권한에 따라 섹션 노출 제어
+  const adminOnly = ['sectionPassword', 'sectionAppShare', 'sectionSync', 'adminSection'];
+  adminOnly.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', !isAdminMode);
+  });
+
   const sdot = document.getElementById('syncDot');
   const stxt = document.getElementById('syncStatusText');
   if (sdot) sdot.className = 'sync-dot ' + (syncEnabled ? 'online' : 'offline');
@@ -1018,6 +1032,48 @@ function openSettings() {
   }
 
   document.getElementById('settingsOverlay').classList.remove('hidden');
+}
+
+function logout() {
+  if (!confirm('로그아웃 하시겠습니까?')) return;
+  localStorage.removeItem('cc_user_id');
+  localStorage.removeItem('cc_user_name');
+  localStorage.removeItem('cc_username');
+  localStorage.removeItem('cc_pin');
+  localStorage.removeItem('cc_admin_pw');
+  currentUser = null;
+  isAdminMode = false;
+  adminPw = '';
+  syncEnabled = false;
+  document.getElementById('settingsOverlay').classList.add('hidden');
+  document.getElementById('appMain').classList.add('hidden');
+  showAuthScreen('login');
+}
+
+async function refreshSync() {
+  const btn = document.getElementById('btnRefresh');
+  if (btn) { btn.style.opacity = '0.4'; btn.style.pointerEvents = 'none'; }
+  setSyncStatus('syncing', '새로고침 중…');
+  try {
+    const resp = await apiGet('/api/sync');
+    if (resp.ok) {
+      const data = await resp.json();
+      events = data.events || [];
+      settings.categories = data.categories || settings.categories;
+      settings.darkMode   = data.darkMode   ?? settings.darkMode;
+      syncEnabled = true;
+      localStorage.setItem('cc_events', JSON.stringify(events));
+      saveSettings();
+      applyTheme(settings.darkMode);
+      renderCalendar();
+      setSyncStatus('online', '✅ 동기화됨');
+    } else if (resp.status === 401) {
+      logout();
+    }
+  } catch {
+    setSyncStatus('offline', '⚠️ 오프라인');
+  }
+  if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = ''; }
 }
 
 function closeSettings() {
@@ -1490,12 +1546,16 @@ function bindStaticEvents() {
   document.getElementById('btnFormCancel').addEventListener('click', handleDayBack);
   document.getElementById('btnFormSave').addEventListener('click', saveEvent);
 
+  // ── 새로고침 ──
+  document.getElementById('btnRefresh').addEventListener('click', refreshSync);
+
   // ── 설정 ──
   document.getElementById('btnSettings').addEventListener('click', openSettingsWithAuth);
   document.getElementById('btnSettingsClose').addEventListener('click', closeSettings);
   document.getElementById('btnCancelSettings').addEventListener('click', closeSettings);
   document.getElementById('btnSaveSettings').addEventListener('click', saveSettingsData);
   document.getElementById('btnAddCategory').addEventListener('click', addCategory);
+  document.getElementById('btnLogout')?.addEventListener('click', logout);
 
   // ── 관리자 패널 ──
   const btnAdminVerify = document.getElementById('btnAdminVerify');
