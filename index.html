@@ -15,17 +15,39 @@
 </head>
 <body>
 
-<!-- ══════════════════ 사용자 등록 화면 ══════════════════ -->
-<div id="registrationScreen" class="app-lock-screen hidden">
+<!-- ══════════════════ 로그인/회원가입 화면 ══════════════════ -->
+<div id="authScreen" class="app-lock-screen hidden">
   <div class="app-lock-card">
     <img src="./icons/icon-192.png" class="lock-logo" alt="J.STUDIO" />
     <h2 class="lock-title">제이스튜디오 캘린더</h2>
-    <p class="lock-sub">접근하려면 이름을 입력하고<br>관리자의 승인을 받아야 합니다.</p>
-    <div class="invite-badge">📋 접근 요청</div>
-    <input type="text" id="regNameInput" class="lock-input" placeholder="이름 입력 (예: 홍길동)"
-           autocomplete="off" autocorrect="off" spellcheck="false" maxlength="20" />
-    <p id="regScreenError" class="lock-error hidden"></p>
-    <button id="btnRegSubmit" class="lock-btn">접근 요청하기</button>
+
+    <!-- 탭 -->
+    <div class="auth-tabs">
+      <button id="tabLogin"    class="auth-tab auth-tab-active">로그인</button>
+      <button id="tabRegister" class="auth-tab">회원가입</button>
+    </div>
+
+    <!-- 로그인 패널 -->
+    <div id="authLoginPanel">
+      <input type="text"     id="loginUsernameInput" class="lock-input" placeholder="아이디"
+             autocomplete="username" autocorrect="off" spellcheck="false" />
+      <input type="password" id="loginPinInput"      class="lock-input" placeholder="PIN (숫자 4~6자리)"
+             inputmode="numeric" maxlength="6" autocomplete="current-password" />
+      <p id="loginError" class="lock-error hidden"></p>
+      <button id="btnLoginSubmit" class="lock-btn">로그인</button>
+    </div>
+
+    <!-- 회원가입 패널 -->
+    <div id="authRegisterPanel" class="hidden">
+      <input type="text"     id="regNameInput"     class="lock-input" placeholder="이름 (예: 홍길동)"
+             autocomplete="off" autocorrect="off" spellcheck="false" maxlength="20" />
+      <input type="text"     id="regUsernameInput" class="lock-input" placeholder="아이디 (영문 소문자, 숫자, _)"
+             autocomplete="off" autocorrect="off" spellcheck="false" maxlength="20" />
+      <input type="password" id="regPinInput"      class="lock-input" placeholder="PIN (숫자 4~6자리)"
+             inputmode="numeric" maxlength="6" autocomplete="new-password" />
+      <p id="regError" class="lock-error hidden"></p>
+      <button id="btnRegSubmit" class="lock-btn">가입 요청하기</button>
+    </div>
   </div>
 </div>
 
@@ -52,20 +74,9 @@
     <div class="invite-badge" style="background:rgba(224,48,80,0.12);color:#e03050;border-color:rgba(224,48,80,0.3)">
       ❌ 접근 거절
     </div>
-  </div>
-</div>
-
-<!-- ══════════════════ 초대코드 화면 ══════════════════ -->
-<div id="inviteScreen" class="app-lock-screen hidden">
-  <div class="app-lock-card">
-    <img src="./icons/icon-192.png" class="lock-logo" alt="J.STUDIO" />
-    <h2 class="lock-title">제이스튜디오 캘린더</h2>
-    <p class="lock-sub">이 기기에서 처음 접근합니다.<br>관리자에게 받은 초대코드를 입력하세요.</p>
-    <div class="invite-badge">🔐 초대코드 필요</div>
-    <input type="text" id="inviteInput" class="lock-input" placeholder="초대코드 입력"
-           autocomplete="off" autocorrect="off" spellcheck="false" />
-    <p id="inviteError" class="lock-error hidden">초대코드가 올바르지 않습니다.</p>
-    <button id="btnInviteVerify" class="lock-btn">입장하기</button>
+    <button id="btnGoToLogin" class="lock-btn" style="margin-top:8px;background:var(--surface2);color:var(--text);border:1px solid var(--border)">
+      다른 계정으로 로그인
+    </button>
   </div>
 </div>
 

@@ -735,11 +735,12 @@ body {
 
 /* ══════════════ 비밀번호 잠금 전용: 블러 오버레이 ══════════════ */
 /* 캘린더를 은은하게 블러 처리하고 가운데 카드 표시 */
-#appLockScreen {
+#appLockScreen, #authScreen {
   background: rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(18px) saturate(0.8);
   -webkit-backdrop-filter: blur(18px) saturate(0.8);
 }
+#authScreen .app-lock-card,
 #appLockScreen .app-lock-card {
   background: rgba(255, 255, 255, 0.93);
   border: 1px solid rgba(200, 150, 12, 0.3);
@@ -748,23 +749,23 @@ body {
 }
 #appLockScreen .lock-title { color: #1a1d2e; }
 #appLockScreen .lock-sub   { color: #888; }
-#appLockScreen .lock-input {
+#appLockScreen .lock-input, #authScreen .lock-input {
   background: #f5f6fa;
   border: 1.5px solid #e0e3ea;
   color: #1a1d2e;
 }
-#appLockScreen .lock-input::placeholder { color: #bbb; letter-spacing: 0; }
-#appLockScreen .lock-input:focus { border-color: #c8960c; background: #fff; }
+#appLockScreen .lock-input::placeholder, #authScreen .lock-input::placeholder { color: #bbb; letter-spacing: 0; }
+#appLockScreen .lock-input:focus, #authScreen .lock-input:focus { border-color: #c8960c; background: #fff; }
 
-[data-theme="dark"] #appLockScreen {
+[data-theme="dark"] #appLockScreen, [data-theme="dark"] #authScreen {
   background: rgba(0, 0, 0, 0.28);
 }
-[data-theme="dark"] #appLockScreen .app-lock-card {
+[data-theme="dark"] #appLockScreen .app-lock-card, [data-theme="dark"] #authScreen .app-lock-card {
   background: rgba(20, 22, 44, 0.93);
   border: 1px solid rgba(200, 150, 12, 0.22);
   box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
 }
-[data-theme="dark"] #appLockScreen .lock-title { color: #fff; }
+[data-theme="dark"] #appLockScreen .lock-title, [data-theme="dark"] #authScreen .lock-title { color: #fff; }
 [data-theme="dark"] #appLockScreen .lock-sub   { color: rgba(255,255,255,0.45); }
 [data-theme="dark"] #appLockScreen .lock-input {
   background: rgba(255,255,255,0.07);
@@ -773,6 +774,35 @@ body {
 }
 [data-theme="dark"] #appLockScreen .lock-input::placeholder { color: rgba(255,255,255,0.28); }
 [data-theme="dark"] #appLockScreen .lock-input:focus { border-color: #c8960c; background: rgba(255,255,255,0.1); }
+
+/* ── 인증 탭 ── */
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(0,0,0,0.12);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 18px;
+}
+.auth-tab {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255,255,255,0.55);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.auth-tab.auth-tab-active {
+  background: rgba(200,150,12,0.8);
+  color: #fff;
+}
+#appLockScreen .auth-tab       { color: rgba(0,0,0,0.4); }
+#appLockScreen .auth-tab.auth-tab-active { background: var(--accent); color: #fff; }
+[data-theme="dark"] #appLockScreen .auth-tab { color: rgba(255,255,255,0.4); }
 
 /* ── 초대코드 배지 ── */
 .invite-badge {

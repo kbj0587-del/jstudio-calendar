@@ -168,20 +168,12 @@ async function init() {
   loadAll();
   applyTheme(settings.darkMode);
 
-  // URL 파라미터 먼저 처리 (localStorage 저장)
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlInvite = urlParams.get('invite');
-  const urlUid    = urlParams.get('uid');
-  if (urlInvite) { localStorage.setItem('cc_invite', urlInvite); window.history.replaceState({}, '', window.location.pathname); }
-  if (urlUid)    { localStorage.setItem('cc_user_id', urlUid);   window.history.replaceState({}, '', window.location.pathname); }
-
   // 사용자·관리자 정보 로드
   const savedUserId   = localStorage.getItem('cc_user_id')   || '';
   const savedUserName = localStorage.getItem('cc_user_name') || '';
   if (savedUserId) currentUser = { id: savedUserId, name: savedUserName };
   adminPw = localStorage.getItem('cc_admin_pw') || '';
   if (adminPw) isAdminMode = true;
-  storedInviteCode = localStorage.getItem('cc_invite') || '';
 
   // 이벤트 바인딩 (잠금 화면 버튼 작동에 필요)
   bindStaticEvents();
@@ -206,14 +198,8 @@ async function launchApp() {
     const resp = await apiGet('/api/sync');
 
     if (resp.status === 401) {
-      const data = await resp.json().catch(() => ({}));
-      if (data.error === 'needsRegistration') {
-        setSyncStatus('error', '등록 필요');
-        showRegistrationScreen();
-        return;
-      }
-      setSyncStatus('error', '초대코드 필요');
-      showInviteScreen();
+      setSyncStatus('error', '로그인 필요');
+      showAuthScreen('login');
       return;
     }
 
@@ -284,80 +270,161 @@ function updateAdminBadge() {
 }
 
 // ── 등록 화면 ─────────────────────────────────────
-function showRegistrationScreen() {
-  const sc = document.getElementById('registrationScreen');
-  if (sc) {
-    sc.classList.remove('hidden');
-    setTimeout(() => {
-      const inp = document.getElementById('regNameInput');
-      if (inp) inp.focus();
-    }, 150);
+// ── 로그인/회원가입 화면 ───────────────────────────
+function showAuthScreen(tab) {
+  document.getElementById('authScreen').classList.remove('hidden');
+  if (tab === 'register') switchAuthTab('register');
+  else switchAuthTab('login');
+  setTimeout(() => document.getElementById('loginUsernameInput')?.focus(), 150);
+}
+
+function switchAuthTab(tab) {
+  const loginPanel    = document.getElementById('authLoginPanel');
+  const registerPanel = document.getElementById('authRegisterPanel');
+  const tabLogin      = document.getElementById('tabLogin');
+  const tabRegister   = document.getElementById('tabRegister');
+  if (tab === 'login') {
+    loginPanel.classList.remove('hidden');
+    registerPanel.classList.add('hidden');
+    tabLogin.classList.add('auth-tab-active');
+    tabRegister.classList.remove('auth-tab-active');
+    setTimeout(() => document.getElementById('loginUsernameInput')?.focus(), 50);
+  } else {
+    loginPanel.classList.add('hidden');
+    registerPanel.classList.remove('hidden');
+    tabLogin.classList.remove('auth-tab-active');
+    tabRegister.classList.add('auth-tab-active');
+    setTimeout(() => document.getElementById('regNameInput')?.focus(), 50);
+  }
+}
+
+async function submitLogin() {
+  const username = document.getElementById('loginUsernameInput').value.trim();
+  const pin      = document.getElementById('loginPinInput').value.trim();
+  const errEl    = document.getElementById('loginError');
+  const btn      = document.getElementById('btnLoginSubmit');
+
+  if (!username || !pin) {
+    errEl.textContent = '아이디와 PIN을 입력해주세요.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+  btn.disabled = true; btn.textContent = '확인 중…';
+
+  try {
+    const resp = await fetch('/api/auth/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ username, pin }),
+    });
+    const data = await resp.json();
+
+    if (resp.status === 403 && data.error === 'pending') {
+      document.getElementById('authScreen').classList.add('hidden');
+      // 로컬에 username/pin 임시 저장 (상태 확인용)
+      localStorage.setItem('cc_username', username);
+      localStorage.setItem('cc_pin',      pin);
+      showPendingScreen();
+      btn.disabled = false; btn.textContent = '로그인';
+      return;
+    }
+    if (resp.status === 403 && data.error === 'rejected') {
+      document.getElementById('authScreen').classList.add('hidden');
+      showRejectedScreen();
+      btn.disabled = false; btn.textContent = '로그인';
+      return;
+    }
+    if (!resp.ok) {
+      errEl.textContent = data.message || '로그인에 실패했습니다.';
+      errEl.classList.remove('hidden');
+      btn.disabled = false; btn.textContent = '로그인';
+      return;
+    }
+
+    // 로그인 성공
+    const user = data.user;
+    localStorage.setItem('cc_user_id',   user.id);
+    localStorage.setItem('cc_user_name', user.name);
+    localStorage.setItem('cc_username',  username);
+    localStorage.setItem('cc_pin',       pin);
+    currentUser = { id: user.id, name: user.name };
+    document.getElementById('authScreen').classList.add('hidden');
+    await launchApp();
+  } catch {
+    errEl.textContent = '서버에 연결할 수 없습니다.';
+    errEl.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = '로그인';
   }
 }
 
 async function submitRegistration() {
-  const nameEl = document.getElementById('regNameInput');
-  const errEl  = document.getElementById('regScreenError');
-  const name   = nameEl?.value.trim();
-  if (!name) {
-    if (errEl) { errEl.textContent = '이름을 입력해주세요.'; errEl.classList.remove('hidden'); }
-    return;
-  }
-  if (errEl) errEl.classList.add('hidden');
+  const name     = document.getElementById('regNameInput').value.trim();
+  const username = document.getElementById('regUsernameInput').value.trim();
+  const pin      = document.getElementById('regPinInput').value.trim();
+  const errEl    = document.getElementById('regError');
+  const btn      = document.getElementById('btnRegSubmit');
 
-  const btn = document.getElementById('btnRegSubmit');
-  if (btn) { btn.disabled = true; btn.textContent = '요청 중…'; }
+  if (!name)     { errEl.textContent = '이름을 입력해주세요.';  errEl.classList.remove('hidden'); return; }
+  if (!username) { errEl.textContent = '아이디를 입력해주세요.'; errEl.classList.remove('hidden'); return; }
+  if (!pin || pin.length < 4) { errEl.textContent = 'PIN은 4자리 이상 입력해주세요.'; errEl.classList.remove('hidden'); return; }
+  errEl.classList.add('hidden');
+  btn.disabled = true; btn.textContent = '요청 중…';
 
   try {
-    const resp = await fetch('/api/invite/register', {
+    const resp = await fetch('/api/auth/register', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ name, userId: currentUser?.id }),
+      body:    JSON.stringify({ name, username, pin }),
     });
     const data = await resp.json();
 
     if (!resp.ok) {
-      if (errEl) { errEl.textContent = data.message || '오류가 발생했습니다.'; errEl.classList.remove('hidden'); }
-      if (btn) { btn.disabled = false; btn.textContent = '접근 요청하기'; }
+      errEl.textContent = data.message || '오류가 발생했습니다.';
+      errEl.classList.remove('hidden');
+      btn.disabled = false; btn.textContent = '가입 요청하기';
       return;
     }
 
-    const user = data.user;
-    localStorage.setItem('cc_user_id',   user.id);
-    localStorage.setItem('cc_user_name', user.name);
-    currentUser = { id: user.id, name: user.name };
-
-    const sc = document.getElementById('registrationScreen');
-    if (sc) sc.classList.add('hidden');
-
-    if (user.status === 'approved') {
-      await init();
-    } else {
-      showPendingScreen();
-    }
+    // 가입 성공 → 대기 화면
+    localStorage.setItem('cc_username', username);
+    localStorage.setItem('cc_pin',      pin);
+    document.getElementById('authScreen').classList.add('hidden');
+    showPendingScreen();
   } catch {
-    if (errEl) { errEl.textContent = '서버에 연결할 수 없습니다.'; errEl.classList.remove('hidden'); }
-    if (btn) { btn.disabled = false; btn.textContent = '접근 요청하기'; }
+    errEl.textContent = '서버에 연결할 수 없습니다.';
+    errEl.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = '가입 요청하기';
   }
 }
 
 // ── 승인 대기 화면 ─────────────────────────────────
 function showPendingScreen() {
-  document.getElementById('registrationScreen')?.classList.add('hidden');
   const sc = document.getElementById('pendingScreen');
   if (sc) sc.classList.remove('hidden');
 }
 
 async function refreshPendingStatus() {
-  if (!currentUser) return;
+  const username = localStorage.getItem('cc_username');
+  const pin      = localStorage.getItem('cc_pin');
+  if (!username || !pin) { showAuthScreen('login'); return; }
+
   try {
-    const resp = await fetch('/api/user/' + currentUser.id + '/status');
-    if (!resp.ok) return;
+    const resp = await fetch('/api/auth/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ username, pin }),
+    });
     const data = await resp.json();
-    if (data.user.status === 'approved') {
+
+    if (resp.ok) {
+      const user = data.user;
+      localStorage.setItem('cc_user_id',   user.id);
+      localStorage.setItem('cc_user_name', user.name);
+      currentUser = { id: user.id, name: user.name };
       document.getElementById('pendingScreen')?.classList.add('hidden');
-      await init();
-    } else if (data.user.status === 'rejected') {
+      await launchApp();
+    } else if (resp.status === 403 && data.error === 'rejected') {
       document.getElementById('pendingScreen')?.classList.add('hidden');
       showRejectedScreen();
     } else {
@@ -373,44 +440,6 @@ function showRejectedScreen() {
   document.getElementById('pendingScreen')?.classList.add('hidden');
   const sc = document.getElementById('rejectedScreen');
   if (sc) sc.classList.remove('hidden');
-}
-
-// ── 초대코드 화면 (기존 유지) ─────────────────────
-function showInviteScreen() {
-  document.getElementById('inviteScreen').classList.remove('hidden');
-  setTimeout(() => document.getElementById('inviteInput').focus(), 150);
-}
-
-async function verifyInvite() {
-  const code  = document.getElementById('inviteInput').value.trim();
-  const error = document.getElementById('inviteError');
-  if (!code) return;
-
-  try {
-    const resp = await fetch('/api/invite/verify', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ code }),
-    });
-    const { valid } = await resp.json();
-
-    if (valid) {
-      storedInviteCode = code;
-      localStorage.setItem('cc_invite', code);
-      document.getElementById('inviteScreen').classList.add('hidden');
-      await init();
-    } else {
-      error.classList.remove('hidden');
-      document.getElementById('inviteInput').value = '';
-      document.getElementById('inviteInput').focus();
-      const card = document.querySelector('#inviteScreen .app-lock-card');
-      card.style.animation = 'none';
-      card.offsetHeight;
-      card.style.animation = 'lockShake 0.4s ease';
-    }
-  } catch {
-    showToast('서버에 연결할 수 없습니다.');
-  }
 }
 
 // ── 서버 동기화 저장 (디바운스) ───────────────────
@@ -1431,11 +1460,20 @@ function setupRichEditor() {
 // ═════════════════════════════════════════════════
 function bindStaticEvents() {
 
-  // ── 등록 화면 ──
-  const btnRegSubmit = document.getElementById('btnRegSubmit');
-  if (btnRegSubmit) btnRegSubmit.addEventListener('click', submitRegistration);
-  const regNameInput = document.getElementById('regNameInput');
-  if (regNameInput) regNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitRegistration(); });
+  // ── 인증 화면 (로그인/회원가입) ──
+  document.getElementById('tabLogin')?.addEventListener('click',    () => switchAuthTab('login'));
+  document.getElementById('tabRegister')?.addEventListener('click', () => switchAuthTab('register'));
+  document.getElementById('btnLoginSubmit')?.addEventListener('click', submitLogin);
+  document.getElementById('loginUsernameInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPinInput')?.focus(); });
+  document.getElementById('loginPinInput')?.addEventListener('keydown',      e => { if (e.key === 'Enter') submitLogin(); });
+  document.getElementById('btnRegSubmit')?.addEventListener('click', submitRegistration);
+  document.getElementById('regNameInput')?.addEventListener('keydown',     e => { if (e.key === 'Enter') document.getElementById('regUsernameInput')?.focus(); });
+  document.getElementById('regUsernameInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('regPinInput')?.focus(); });
+  document.getElementById('regPinInput')?.addEventListener('keydown',      e => { if (e.key === 'Enter') submitRegistration(); });
+  document.getElementById('btnGoToLogin')?.addEventListener('click', () => {
+    document.getElementById('rejectedScreen')?.classList.add('hidden');
+    showAuthScreen('login');
+  });
 
   // ── 승인 대기 화면 ──
   const btnCheckStatus = document.getElementById('btnCheckStatus');
@@ -1451,11 +1489,6 @@ function bindStaticEvents() {
     }, 400);
   });
 
-  // ── 초대코드 화면 ──
-  document.getElementById('btnInviteVerify').addEventListener('click', verifyInvite);
-  document.getElementById('inviteInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') verifyInvite();
-  });
 
   // ── 앱 잠금 화면 ──
   document.getElementById('btnAppLockVerify').addEventListener('click', verifyAppLock);

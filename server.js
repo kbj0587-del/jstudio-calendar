@@ -48,14 +48,19 @@ function saveToFile() {
 }
 
 // ── 일회용 토큰 생성 ────────────────────────────────
-// 혼동되기 쉬운 문자(0,O,1,I,L) 제외한 8자리 랜덤 코드
 function generateToken() {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let token;
   do {
     token = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  } while (store.invites.find(i => i.token === token)); // 중복 방지
+  } while (store.invites.find(i => i.token === token));
   return token;
+}
+
+// ── PIN 해시 ────────────────────────────────────────
+const PIN_SALT = process.env.PIN_SALT || 'jstudio_pin_2024';
+function hashPin(pin) {
+  return crypto.createHash('sha256').update(pin + PIN_SALT).digest('hex');
 }
 
 // ── 인증 헬퍼 ──────────────────────────────────────
@@ -96,6 +101,58 @@ app.use((req, res, next) => {
   res.setHeader('Service-Worker-Allowed', '/');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   next();
+});
+
+// ════════════════════════════════════════════════════
+// 인증 API (아이디/PIN)
+// ════════════════════════════════════════════════════
+
+// 회원가입 요청
+app.post('/api/auth/register', (req, res) => {
+  const { name, username, pin } = req.body;
+  if (!name?.trim())     return res.status(400).json({ error: 'name_required',     message: '이름을 입력해주세요.' });
+  if (!username?.trim()) return res.status(400).json({ error: 'username_required', message: '아이디를 입력해주세요.' });
+  if (!pin || String(pin).length < 4)
+    return res.status(400).json({ error: 'pin_required', message: 'PIN은 4자리 이상이어야 합니다.' });
+
+  const uname = username.trim().toLowerCase();
+  if (!/^[a-z0-9_]+$/.test(uname))
+    return res.status(400).json({ error: 'username_invalid', message: '아이디는 영문 소문자, 숫자, _만 사용 가능합니다.' });
+
+  if (store.users.find(u => u.username === uname))
+    return res.status(400).json({ error: 'username_taken', message: '이미 사용 중인 아이디입니다.' });
+
+  const newUser = {
+    id:           crypto.randomUUID(),
+    name:         name.trim(),
+    username:     uname,
+    pinHash:      hashPin(String(pin)),
+    status:       'pending',
+    registeredAt: new Date().toISOString(),
+    approvedAt:   null,
+  };
+  store.users.push(newUser);
+  saveToFile();
+  console.log(`✅ 신규 가입 요청: ${newUser.name} (@${uname})`);
+  res.json({ ok: true, user: { id: newUser.id, name: newUser.name, status: newUser.status } });
+});
+
+// 로그인
+app.post('/api/auth/login', (req, res) => {
+  const { username, pin } = req.body;
+  if (!username || !pin)
+    return res.status(400).json({ error: 'missing_fields', message: '아이디와 PIN을 입력해주세요.' });
+
+  const user = store.users.find(u => u.username === username.trim().toLowerCase());
+  if (!user || user.pinHash !== hashPin(String(pin)))
+    return res.status(401).json({ error: 'invalid_credentials', message: '아이디 또는 PIN이 올바르지 않습니다.' });
+
+  if (user.status === 'pending')
+    return res.status(403).json({ error: 'pending',  message: '관리자 승인 대기 중입니다.' });
+  if (user.status === 'rejected')
+    return res.status(403).json({ error: 'rejected', message: '접근이 거절되었습니다.' });
+
+  res.json({ ok: true, user: { id: user.id, name: user.name, status: user.status } });
 });
 
 // ════════════════════════════════════════════════════
