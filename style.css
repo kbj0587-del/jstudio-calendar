@@ -39,6 +39,7 @@
 
 /* ── 리셋 ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.hidden { display: none !important; }
 
 /* 높이 체인 : html → body → #appMain → app-body → calendar-wrap → grid */
 html, body { height: 100%; }
