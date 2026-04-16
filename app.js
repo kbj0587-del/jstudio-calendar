@@ -1174,6 +1174,17 @@ function openSettings() {
 
   renderCategoryList();
 
+  // PIN 변경 섹션: 사용자 계정으로 로그인된 경우에만 표시
+  const pinSection = document.getElementById('sectionPinChange');
+  if (pinSection) {
+    pinSection.classList.toggle('hidden', !currentUser);
+    if (currentUser) {
+      document.getElementById('currentPinInput').value = '';
+      document.getElementById('newPinInput').value = '';
+      document.getElementById('pinChangeError')?.classList.add('hidden');
+    }
+  }
+
   // 관리자 패널 초기 상태
   const adminSection = document.getElementById('adminSection');
   if (adminSection) {
@@ -1441,8 +1452,8 @@ function renderAdminUsers(users) {
       const dt        = u.approvedAt ? formatShortDateTime(u.approvedAt) : '';
       const hasAdmin  = u.role === 'admin';
       const roleBadge = hasAdmin ? `<span class="role-badge-admin">👑 관리자</span>` : '';
-      // 관리자 지정/해제 버튼은 슈퍼 관리자(isAdminMode)만 표시
-      const adminBtn  = isAdminMode
+      // 관리자 지정/해제 버튼: 슈퍼 관리자 또는 서브 관리자 모두 표시
+      const adminBtn  = (isAdminMode || isSubAdmin)
         ? (hasAdmin
             ? `<button class="btn-revoke-admin" onclick="revokeUserAdmin('${u.id}')">권한 해제</button>`
             : `<button class="btn-grant-admin"  onclick="grantUserAdmin('${u.id}')">관리자 지정</button>`)
@@ -1508,7 +1519,7 @@ async function grantUserAdmin(id) {
   try {
     const resp = await fetch('/api/admin/users/' + id + '/grant-admin', {
       method:  'POST',
-      headers: { 'x-admin-password': adminPw },
+      headers: adminHeaders(),
     });
     if (resp.ok) { showToast('✅ 관리자 권한이 부여되었습니다.'); loadAdminUsers(); }
     else { const d = await resp.json().catch(() => ({})); showToast(d.message || '권한 부여 실패'); }
@@ -1520,11 +1531,54 @@ async function revokeUserAdmin(id) {
   try {
     const resp = await fetch('/api/admin/users/' + id + '/revoke-admin', {
       method:  'POST',
-      headers: { 'x-admin-password': adminPw },
+      headers: adminHeaders(),
     });
     if (resp.ok) { showToast('관리자 권한이 해제되었습니다.'); loadAdminUsers(); }
     else { const d = await resp.json().catch(() => ({})); showToast(d.message || '권한 해제 실패'); }
   } catch { showToast('서버 오류'); }
+}
+
+// ── PIN 변경 ──────────────────────────────────────
+async function submitPinChange() {
+  const currentPin = document.getElementById('currentPinInput')?.value.trim();
+  const newPin     = document.getElementById('newPinInput')?.value.trim();
+  const errEl      = document.getElementById('pinChangeError');
+  const btn        = document.getElementById('btnChangePinSave');
+
+  errEl.classList.add('hidden');
+  if (!currentPin || !newPin) {
+    errEl.textContent = '현재 PIN과 새 PIN을 모두 입력해주세요.';
+    errEl.classList.remove('hidden'); return;
+  }
+  if (newPin.length < 4) {
+    errEl.textContent = 'PIN은 4자리 이상이어야 합니다.';
+    errEl.classList.remove('hidden'); return;
+  }
+  btn.disabled = true; btn.textContent = '변경 중…';
+  try {
+    const resp = await fetch('/api/user/change-pin', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'x-user-id': currentUser.id },
+      body:    JSON.stringify({ currentPin, newPin }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      // 자동 로그인이 켜져 있으면 저장된 PIN도 갱신
+      if (localStorage.getItem('cc_autologin') === '1') {
+        localStorage.setItem('cc_pin', newPin);
+      }
+      showToast('✅ PIN이 변경되었습니다.');
+      document.getElementById('currentPinInput').value = '';
+      document.getElementById('newPinInput').value = '';
+    } else {
+      errEl.textContent = data.message || 'PIN 변경에 실패했습니다.';
+      errEl.classList.remove('hidden');
+    }
+  } catch {
+    errEl.textContent = '서버에 연결할 수 없습니다.';
+    errEl.classList.remove('hidden');
+  }
+  btn.disabled = false; btn.textContent = 'PIN 변경';
 }
 
 async function loadAdminActivity() {
@@ -1745,6 +1799,8 @@ function bindStaticEvents() {
   document.getElementById('btnSaveSettings').addEventListener('click', saveSettingsData);
   document.getElementById('btnAddCategory').addEventListener('click', addCategory);
   document.getElementById('btnLogout')?.addEventListener('click', logout);
+  document.getElementById('btnChangePinSave')?.addEventListener('click', submitPinChange);
+  document.getElementById('newPinInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') submitPinChange(); });
 
   // ── 관리자 패널 ──
   const btnAdminVerify = document.getElementById('btnAdminVerify');

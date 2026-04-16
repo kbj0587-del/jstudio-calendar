@@ -345,6 +345,21 @@
         </div>
       </div>
 
+      <!-- PIN 변경 (사용자 계정 로그인 시) -->
+      <div class="settings-section hidden" id="sectionPinChange">
+        <h3 class="settings-section-title">🔑 PIN 변경</h3>
+        <div class="form-group">
+          <label for="currentPinInput">현재 PIN</label>
+          <input type="password" id="currentPinInput" class="pw-input" inputmode="numeric" maxlength="6" placeholder="현재 PIN 입력" autocomplete="current-password" />
+        </div>
+        <div class="form-group" style="margin-top:8px">
+          <label for="newPinInput">새 PIN</label>
+          <input type="password" id="newPinInput" class="pw-input" inputmode="numeric" maxlength="6" placeholder="새 PIN (4~6자리)" autocomplete="new-password" />
+        </div>
+        <p id="pinChangeError" class="lock-error hidden" style="position:static;margin:6px 0;font-size:12px"></p>
+        <button id="btnChangePinSave" class="btn-save" style="width:100%;margin-top:4px">PIN 변경</button>
+      </div>
+
       <!-- 로그아웃 -->
       <div class="settings-section" id="sectionLogout">
         <button id="btnLogout" class="btn-revoke" style="width:100%">🚪 로그아웃</button>

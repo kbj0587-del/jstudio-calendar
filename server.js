@@ -63,6 +63,25 @@ function hashPin(pin) {
   return crypto.createHash('sha256').update(pin + PIN_SALT).digest('hex');
 }
 
+// ── 기본 관리자 계정 자동 생성 ─────────────────────
+const DEFAULT_ADMIN_USERNAME = process.env.DEFAULT_ADMIN_USERNAME || 'kbj0587';
+const DEFAULT_ADMIN_PIN      = process.env.DEFAULT_ADMIN_PIN      || '123456';
+(function ensureDefaultAdmin() {
+  if (store.users.find(u => u.username === DEFAULT_ADMIN_USERNAME)) return;
+  store.users.push({
+    id:           crypto.randomUUID(),
+    name:         '관리자',
+    username:     DEFAULT_ADMIN_USERNAME,
+    pinHash:      hashPin(DEFAULT_ADMIN_PIN),
+    status:       'approved',
+    role:         'admin',
+    registeredAt: new Date().toISOString(),
+    approvedAt:   new Date().toISOString(),
+  });
+  saveToFile();
+  console.log(`✅ 기본 관리자 계정 생성: @${DEFAULT_ADMIN_USERNAME}`);
+})();
+
 // ── 인증 헬퍼 ──────────────────────────────────────
 function isAdmin(req) {
   return req.headers['x-admin-password'] === ADMIN_PW;
@@ -207,9 +226,8 @@ app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// 관리자 권한 부여 (슈퍼 관리자 전용)
-app.post('/api/admin/users/:id/grant-admin', (req, res) => {
-  if (!isAdmin(req)) return res.status(403).json({ error: 'forbidden', message: '슈퍼 관리자만 권한을 부여할 수 있습니다.' });
+// 관리자 권한 부여 (관리자 이상)
+app.post('/api/admin/users/:id/grant-admin', requireAdmin, (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   if (user.status !== 'approved')
@@ -220,9 +238,8 @@ app.post('/api/admin/users/:id/grant-admin', (req, res) => {
   res.json({ ok: true, user });
 });
 
-// 관리자 권한 해제 (슈퍼 관리자 전용)
-app.post('/api/admin/users/:id/revoke-admin', (req, res) => {
-  if (!isAdmin(req)) return res.status(403).json({ error: 'forbidden', message: '슈퍼 관리자만 권한을 해제할 수 있습니다.' });
+// 관리자 권한 해제 (관리자 이상)
+app.post('/api/admin/users/:id/revoke-admin', requireAdmin, (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   user.role = 'user';
@@ -346,6 +363,30 @@ app.get('/api/user/:id/status', (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   res.json({ user });
+});
+
+// ════════════════════════════════════════════════════
+// 사용자 PIN 변경
+// ════════════════════════════════════════════════════
+app.post('/api/user/change-pin', (req, res) => {
+  const uid = req.headers['x-user-id'];
+  if (!uid) return res.status(401).json({ error: 'unauthorized' });
+  const user = store.users.find(u => u.id === uid);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+
+  const { currentPin, newPin } = req.body;
+  if (!currentPin || !newPin)
+    return res.status(400).json({ error: 'missing_fields', message: '현재 PIN과 새 PIN을 입력해주세요.' });
+  if (user.pinHash !== hashPin(String(currentPin)))
+    return res.status(400).json({ error: 'wrong_pin', message: '현재 PIN이 올바르지 않습니다.' });
+  if (String(newPin).length < 4)
+    return res.status(400).json({ error: 'pin_too_short', message: 'PIN은 4자리 이상이어야 합니다.' });
+
+  user.pinHash      = hashPin(String(newPin));
+  user.pinChangedAt = new Date().toISOString();
+  saveToFile();
+  console.log(`✅ PIN 변경: ${user.name} (@${user.username})`);
+  res.json({ ok: true });
 });
 
 // ════════════════════════════════════════════════════
