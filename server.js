@@ -5,6 +5,20 @@ const crypto   = require('crypto');
 const app      = express();
 const PORT     = process.env.PORT || 8080;
 
+// ── PostgreSQL 연결 (DATABASE_URL 있을 때만) ────────
+const USE_DB = !!process.env.DATABASE_URL;
+let pool = null;
+if (USE_DB) {
+  const { Pool } = require('pg');
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
+  console.log('🐘 PostgreSQL 모드 활성화');
+} else {
+  console.log('📁 파일 저장 모드 (DATABASE_URL 없음)');
+}
+
 app.use(express.json({ limit: '10mb' }));
 
 // ── 상수 ───────────────────────────────────────────
@@ -29,22 +43,54 @@ let store = {
   darkMode:       false,
 };
 
-try {
-  if (fs.existsSync(DATA_FILE)) {
-    const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    store = { ...store, ...saved };
-    if (!store.users)       store.users       = [];
-    if (!store.activityLog) store.activityLog = [];
-    if (!store.invites)     store.invites     = [];
-    console.log(`✅ 로드: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명 | 초대장 ${store.invites.length}개`);
+// ── DB 초기화 및 데이터 로드 (서버 시작 시 1회) ─────
+async function initStore() {
+  if (USE_DB) {
+    // ── PostgreSQL ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS jstudio_store (
+        id   INTEGER PRIMARY KEY,
+        data JSONB   NOT NULL
+      )
+    `);
+    const result = await pool.query('SELECT data FROM jstudio_store WHERE id = 1');
+    if (result.rows.length > 0) {
+      const saved = result.rows[0].data;
+      store = { ...store, ...saved };
+      if (!store.users)       store.users       = [];
+      if (!store.activityLog) store.activityLog = [];
+      if (!store.invites)     store.invites     = [];
+      console.log(`✅ DB 로드: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명`);
+    } else {
+      await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
+      console.log('✅ DB 최초 초기화 완료');
+    }
+  } else {
+    // ── 파일 폴백 ──
+    try {
+      if (fs.existsSync(DATA_FILE)) {
+        const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        store = { ...store, ...saved };
+        if (!store.users)       store.users       = [];
+        if (!store.activityLog) store.activityLog = [];
+        if (!store.invites)     store.invites     = [];
+        console.log(`✅ 파일 로드: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명`);
+      }
+    } catch (e) { console.log('⚠️ 저장 파일 없음, 기본값 사용'); }
   }
-} catch (e) {
-  console.log('⚠️ 저장 파일 없음, 기본값 사용');
 }
 
+// ── 저장 (fire-and-forget) ──────────────────────────
 function saveToFile() {
-  try { fs.writeFileSync(DATA_FILE, JSON.stringify(store), 'utf8'); }
-  catch (e) { console.error('저장 실패:', e.message); }
+  if (USE_DB) {
+    pool.query(
+      'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+      [JSON.stringify(store)]
+    ).catch(e => console.error('DB 저장 실패:', e.message));
+  } else {
+    try { fs.writeFileSync(DATA_FILE, JSON.stringify(store), 'utf8'); }
+    catch (e) { console.error('파일 저장 실패:', e.message); }
+  }
 }
 
 // ── 일회용 토큰 생성 ────────────────────────────────
@@ -66,7 +112,7 @@ function hashPin(pin) {
 // ── 기본 관리자 계정 자동 생성 ─────────────────────
 const DEFAULT_ADMIN_USERNAME = process.env.DEFAULT_ADMIN_USERNAME || 'kbj0587';
 const DEFAULT_ADMIN_PIN      = process.env.DEFAULT_ADMIN_PIN      || '123456';
-(function ensureDefaultAdmin() {
+function ensureDefaultAdmin() {
   if (store.users.find(u => u.username === DEFAULT_ADMIN_USERNAME)) return;
   store.users.push({
     id:           crypto.randomUUID(),
@@ -80,7 +126,7 @@ const DEFAULT_ADMIN_PIN      = process.env.DEFAULT_ADMIN_PIN      || '123456';
   });
   saveToFile();
   console.log(`✅ 기본 관리자 계정 생성: @${DEFAULT_ADMIN_USERNAME}`);
-})();
+}
 
 // ── 인증 헬퍼 ──────────────────────────────────────
 function isAdmin(req) {
@@ -458,9 +504,14 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ 제이스튜디오 캘린더 → port ${PORT}`);
-  console.log(`   관리자 비밀번호: ${ADMIN_PW}`);
-  const activeInvites = store.invites.filter(i => i.status === 'active').length;
-  console.log(`   활성 초대장: ${activeInvites}개`);
-});
+// ── 서버 시작 ────────────────────────────────────────
+async function startServer() {
+  await initStore();          // DB or 파일에서 데이터 로드
+  ensureDefaultAdmin();       // 관리자 계정 없으면 자동 생성
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ 제이스튜디오 캘린더 → port ${PORT}`);
+    console.log(`   저장소: ${USE_DB ? '🐘 PostgreSQL (영구)' : '📁 /tmp 파일 (임시)'}`);
+    console.log(`   관리자: @${DEFAULT_ADMIN_USERNAME}`);
+  });
+}
+startServer().catch(e => { console.error('❌ 서버 시작 실패:', e); process.exit(1); });
