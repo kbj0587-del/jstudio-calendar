@@ -69,8 +69,16 @@ function isAdmin(req) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!isAdmin(req)) return res.status(403).json({ error: 'forbidden' });
-  next();
+  if (isAdmin(req) || isSubAdmin(req)) return next();
+  return res.status(403).json({ error: 'forbidden' });
+}
+
+// 서브 관리자 확인 (role:'admin' 을 부여받은 승인 사용자)
+function isSubAdmin(req) {
+  const uid = req.headers['x-user-id'];
+  if (!uid) return false;
+  const user = store.users.find(u => u.id === uid);
+  return !!(user && user.status === 'approved' && user.role === 'admin');
 }
 
 // 데이터 접근 미들웨어: 관리자 OR 승인된 사용자
@@ -152,7 +160,7 @@ app.post('/api/auth/login', (req, res) => {
   if (user.status === 'rejected')
     return res.status(403).json({ error: 'rejected', message: '접근이 거절되었습니다.' });
 
-  res.json({ ok: true, user: { id: user.id, name: user.name, status: user.status } });
+  res.json({ ok: true, user: { id: user.id, name: user.name, status: user.status, role: user.role || 'user' } });
 });
 
 // ════════════════════════════════════════════════════
@@ -197,6 +205,30 @@ app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
   store.users.splice(idx, 1);
   saveToFile();
   res.json({ ok: true });
+});
+
+// 관리자 권한 부여 (슈퍼 관리자 전용)
+app.post('/api/admin/users/:id/grant-admin', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'forbidden', message: '슈퍼 관리자만 권한을 부여할 수 있습니다.' });
+  const user = store.users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+  if (user.status !== 'approved')
+    return res.status(400).json({ error: 'not_approved', message: '승인된 사용자에게만 관리자 권한을 부여할 수 있습니다.' });
+  user.role = 'admin';
+  saveToFile();
+  console.log(`✅ 관리자 권한 부여: ${user.name} (@${user.username})`);
+  res.json({ ok: true, user });
+});
+
+// 관리자 권한 해제 (슈퍼 관리자 전용)
+app.post('/api/admin/users/:id/revoke-admin', (req, res) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'forbidden', message: '슈퍼 관리자만 권한을 해제할 수 있습니다.' });
+  const user = store.users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+  user.role = 'user';
+  saveToFile();
+  console.log(`✅ 관리자 권한 해제: ${user.name} (@${user.username})`);
+  res.json({ ok: true, user });
 });
 
 // 활동 기록
@@ -326,7 +358,7 @@ app.get('/api/sync', requireAccess, (req, res) => {
     events:       store.events,
     categories:   store.categories,
     darkMode:     store.darkMode,
-    pendingCount: isAdmin(req) ? pendingCount : 0,
+    pendingCount: (isAdmin(req) || isSubAdmin(req)) ? pendingCount : 0,
   });
 });
 

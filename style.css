@@ -795,6 +795,27 @@ body {
 [data-theme="dark"] #appLockScreen .lock-input::placeholder { color: rgba(255,255,255,0.28); }
 [data-theme="dark"] #appLockScreen .lock-input:focus { border-color: #c8960c; background: rgba(255,255,255,0.1); }
 
+/* ── 자동 로그인 체크박스 ── */
+.autologin-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  margin: 2px 0 10px;
+  user-select: none;
+}
+.autologin-check input[type="checkbox"] {
+  width: 16px; height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+#appLockScreen .autologin-check,
+#authScreen .autologin-check { color: rgba(0,0,0,0.45); }
+[data-theme="dark"] #authScreen .autologin-check { color: rgba(255,255,255,0.5); }
+
 /* ── 인증 탭 ── */
 .auth-tabs {
   display: flex;
@@ -1027,7 +1048,8 @@ body {
   font-weight: 600;
 }
 .btn-reject:hover { background: rgba(224,48,80,.24); }
-.btn-user-del {
+.btn-user-del,
+.btn-delete-user {
   background: var(--surface);
   color: var(--text-muted);
   border: 1px solid var(--border);
@@ -1037,7 +1059,54 @@ body {
   font-family: inherit;
   cursor: pointer;
 }
-.btn-user-del:hover { color: #e03050; border-color: #e03050; }
+.btn-user-del:hover,
+.btn-delete-user:hover { color: #e03050; border-color: #e03050; }
+
+/* 관리자 지정 버튼 */
+.btn-grant-admin {
+  background: rgba(200,138,0,.13);
+  color: #c88a00;
+  border: 1px solid rgba(200,138,0,.3);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-grant-admin:hover { background: rgba(200,138,0,.25); }
+
+/* 권한 해제 버튼 */
+.btn-revoke-admin {
+  background: rgba(108,92,231,.13);
+  color: #6c5ce7;
+  border: 1px solid rgba(108,92,231,.3);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-revoke-admin:hover { background: rgba(108,92,231,.25); }
+
+/* 관리자 역할 배지 */
+.role-badge-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(200,138,0,.15);
+  color: #c88a00;
+  border: 1px solid rgba(200,138,0,.3);
+  vertical-align: middle;
+  margin-left: 4px;
+}
 
 /* ── 활동 기록 ── */
 .activity-item {

@@ -24,7 +24,8 @@ const EMOJI_LIST = [
 
 // ── 사용자 인증 상태 ───────────────────────────────
 let currentUser  = null;   // { id, name }
-let isAdminMode  = false;  // 관리자 모드 여부
+let isAdminMode  = false;  // 마스터 관리자 모드 여부
+let isSubAdmin   = false;  // 서브 관리자 (사용자이지만 관리자 권한 부여됨)
 let adminPw      = '';     // 관리자 비밀번호
 let pendingBadge = 0;      // 대기 중 사용자 수
 
@@ -77,6 +78,13 @@ async function apiDelete(path) {
     method:  'DELETE',
     headers: buildHeaders(),
   });
+}
+
+// 관리자 API 헤더 빌더 (슈퍼 관리자 또는 서브 관리자 공용)
+function adminHeaders() {
+  if (isAdminMode && adminPw) return { 'x-admin-password': adminPw };
+  if (isSubAdmin && currentUser) return { 'x-user-id': currentUser.id };
+  return {};
 }
 
 // ── 상태 ──────────────────────────────────────────
@@ -170,6 +178,7 @@ async function init() {
   const savedUserId   = localStorage.getItem('cc_user_id')   || '';
   const savedUserName = localStorage.getItem('cc_user_name') || '';
   if (savedUserId) currentUser = { id: savedUserId, name: savedUserName };
+  if (savedUserId && localStorage.getItem('cc_is_subadmin') === '1') isSubAdmin = true;
   adminPw = localStorage.getItem('cc_admin_pw') || '';
   if (adminPw) isAdminMode = true;
 
@@ -181,7 +190,8 @@ async function init() {
   if (!currentUser && !isAdminMode) {
     const savedUsername = localStorage.getItem('cc_username');
     const savedPin      = localStorage.getItem('cc_pin');
-    if (savedUsername && savedPin) {
+    const autoLogin     = localStorage.getItem('cc_autologin') === '1';
+    if (savedUsername && savedPin && autoLogin) {
       // 저장된 자격증명으로 자동 로그인 시도 (로딩 중 표시)
       showAutoLoginScreen();
       try {
@@ -196,6 +206,9 @@ async function init() {
           localStorage.setItem('cc_user_id',   data.user.id);
           localStorage.setItem('cc_user_name', data.user.name);
           currentUser = { id: data.user.id, name: data.user.name };
+          isSubAdmin = data.user.role === 'admin';
+          if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
+          else localStorage.removeItem('cc_is_subadmin');
           // 자동 로그인 성공 → 바로 진행
         } else if (resp.status === 403) {
           const d = await resp.json().catch(() => ({}));
@@ -290,6 +303,9 @@ async function launchApp() {
             localStorage.setItem('cc_user_id',   rdata.user.id);
             localStorage.setItem('cc_user_name', rdata.user.name);
             currentUser = { id: rdata.user.id, name: rdata.user.name };
+            isSubAdmin = rdata.user.role === 'admin';
+            if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
+            else localStorage.removeItem('cc_is_subadmin');
             // 재시도
             const resp2 = await apiGet('/api/sync');
             if (resp2.ok) {
@@ -338,7 +354,7 @@ async function launchApp() {
       settings.categories = data.categories || settings.categories;
       settings.darkMode   = data.darkMode   ?? settings.darkMode;
 
-      if (isAdminMode && data.pendingCount > 0) {
+      if ((isAdminMode || isSubAdmin) && data.pendingCount > 0) {
         pendingBadge = data.pendingCount;
         updateAdminBadge();
       }
@@ -363,7 +379,7 @@ function updateAdminBadge() {
 
   // 관리자 모드면 헤더 버튼 표시
   if (headerBtn) {
-    if (isAdminMode) headerBtn.classList.remove('hidden');
+    if (isAdminMode || isSubAdmin) headerBtn.classList.remove('hidden');
     else headerBtn.classList.add('hidden');
   }
 
@@ -485,11 +501,23 @@ async function submitLogin() {
     }
 
     // 로그인 성공
-    const user = data.user;
+    const user      = data.user;
+    const autoLogin = document.getElementById('autoLoginCheckbox')?.checked ?? true;
+
     localStorage.setItem('cc_user_id',   user.id);
     localStorage.setItem('cc_user_name', user.name);
-    localStorage.setItem('cc_username',  username);
-    localStorage.setItem('cc_pin',       pin);
+    if (autoLogin) {
+      localStorage.setItem('cc_username', username);
+      localStorage.setItem('cc_pin',      pin);
+      localStorage.setItem('cc_autologin', '1');
+    } else {
+      localStorage.removeItem('cc_username');
+      localStorage.removeItem('cc_pin');
+      localStorage.removeItem('cc_autologin');
+    }
+    isSubAdmin = user.role === 'admin';
+    if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
+    else localStorage.removeItem('cc_is_subadmin');
     currentUser = { id: user.id, name: user.name };
     document.getElementById('authScreen').classList.add('hidden');
     await launchApp();
@@ -564,6 +592,9 @@ async function refreshPendingStatus() {
       localStorage.setItem('cc_user_id',   user.id);
       localStorage.setItem('cc_user_name', user.name);
       currentUser = { id: user.id, name: user.name };
+      isSubAdmin = user.role === 'admin';
+      if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
+      else localStorage.removeItem('cc_is_subadmin');
       document.getElementById('pendingScreen')?.classList.add('hidden');
       await launchApp();
     } else if (resp.status === 403 && data.error === 'rejected') {
@@ -1126,11 +1157,13 @@ function openSettings() {
   document.getElementById('settingsNewPw').value         = '';
 
   // 관리자/일반 사용자 권한에 따라 섹션 노출 제어
-  const adminOnly = ['sectionPassword', 'sectionAppShare', 'sectionSync', 'adminSection'];
-  adminOnly.forEach(id => {
+  // sectionPassword: 슈퍼 관리자만 / 나머지: 관리자 또는 서브 관리자
+  ['sectionAppShare', 'sectionSync', 'adminSection'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.classList.toggle('hidden', !isAdminMode);
+    if (el) el.classList.toggle('hidden', !isAdminMode && !isSubAdmin);
   });
+  const pwSection = document.getElementById('sectionPassword');
+  if (pwSection) pwSection.classList.toggle('hidden', !isAdminMode);
 
   const sdot = document.getElementById('syncDot');
   const stxt = document.getElementById('syncStatusText');
@@ -1144,13 +1177,19 @@ function openSettings() {
   // 관리자 패널 초기 상태
   const adminSection = document.getElementById('adminSection');
   if (adminSection) {
-    const savedPw = localStorage.getItem('cc_admin_pw') || '';
-    const pwInput = document.getElementById('adminPwInput');
-    if (pwInput) pwInput.value = savedPw;
-    if (savedPw) {
-      showAdminPanel();
-    } else {
-      hideAdminPanel();
+    if (isAdminMode) {
+      // 슈퍼 관리자: 저장된 비밀번호로 자동 진입
+      const savedPw = localStorage.getItem('cc_admin_pw') || '';
+      const pwInput = document.getElementById('adminPwInput');
+      if (pwInput) pwInput.value = savedPw;
+      if (savedPw) showAdminPanel();
+      else hideAdminPanel();
+    } else if (isSubAdmin) {
+      // 서브 관리자: 패스워드 없이 패널 직접 표시
+      document.getElementById('adminLoginArea')?.classList.add('hidden');
+      document.getElementById('adminPanelArea')?.classList.remove('hidden');
+      document.getElementById('btnAdminLock')?.classList.add('hidden');
+      loadAdminUsers();
     }
   }
 
@@ -1163,9 +1202,12 @@ function logout() {
   localStorage.removeItem('cc_user_name');
   localStorage.removeItem('cc_username');
   localStorage.removeItem('cc_pin');
+  localStorage.removeItem('cc_autologin');
   localStorage.removeItem('cc_admin_pw');
+  localStorage.removeItem('cc_is_subadmin');
   currentUser = null;
   isAdminMode = false;
+  isSubAdmin  = false;
   adminPw = '';
   syncEnabled = false;
   document.getElementById('settingsOverlay').classList.add('hidden');
@@ -1349,7 +1391,7 @@ async function loadAdminUsers() {
 
   try {
     const resp = await fetch('/api/admin/users', {
-      headers: { 'x-admin-password': adminPw }
+      headers: adminHeaders()
     });
     if (!resp.ok) { container.innerHTML = '<div class="admin-error">불러오기 실패</div>'; return; }
     const data = await resp.json();
@@ -1396,14 +1438,23 @@ function renderAdminUsers(users) {
   if (approved.length) {
     html += `<div class="admin-group-title" style="margin-top:16px">✅ 승인된 사용자 (${approved.length}명)</div>`;
     approved.forEach(u => {
-      const dt = u.approvedAt ? formatShortDateTime(u.approvedAt) : '';
+      const dt        = u.approvedAt ? formatShortDateTime(u.approvedAt) : '';
+      const hasAdmin  = u.role === 'admin';
+      const roleBadge = hasAdmin ? `<span class="role-badge-admin">👑 관리자</span>` : '';
+      // 관리자 지정/해제 버튼은 슈퍼 관리자(isAdminMode)만 표시
+      const adminBtn  = isAdminMode
+        ? (hasAdmin
+            ? `<button class="btn-revoke-admin" onclick="revokeUserAdmin('${u.id}')">권한 해제</button>`
+            : `<button class="btn-grant-admin"  onclick="grantUserAdmin('${u.id}')">관리자 지정</button>`)
+        : '';
       html += `
         <div class="admin-user-card approved">
           <div class="admin-user-info">
-            <div class="admin-user-name">${esc(u.name)}</div>
-            <div class="admin-user-meta">승인: ${dt}</div>
+            <div class="admin-user-name">${esc(u.name)} ${roleBadge}</div>
+            <div class="admin-user-meta">@${esc(u.username || '')} · 승인: ${dt}</div>
           </div>
           <div class="admin-user-actions">
+            ${adminBtn}
             <button class="btn-delete-user" onclick="deleteUser('${u.id}')">삭제</button>
           </div>
         </div>`;
@@ -1421,7 +1472,7 @@ async function approveUser(id) {
   try {
     const resp = await fetch('/api/admin/users/' + id + '/approve', {
       method:  'POST',
-      headers: { 'x-admin-password': adminPw },
+      headers: adminHeaders(),
     });
     if (resp.ok) { showToast('승인되었습니다.'); loadAdminUsers(); }
     else showToast('승인 실패');
@@ -1433,7 +1484,7 @@ async function rejectUser(id) {
   try {
     const resp = await fetch('/api/admin/users/' + id + '/reject', {
       method:  'POST',
-      headers: { 'x-admin-password': adminPw },
+      headers: adminHeaders(),
     });
     if (resp.ok) { showToast('거절되었습니다.'); loadAdminUsers(); }
     else showToast('거절 실패');
@@ -1445,10 +1496,34 @@ async function deleteUser(id) {
   try {
     const resp = await fetch('/api/admin/users/' + id, {
       method:  'DELETE',
-      headers: { 'x-admin-password': adminPw },
+      headers: adminHeaders(),
     });
     if (resp.ok) { showToast('삭제되었습니다.'); loadAdminUsers(); }
     else showToast('삭제 실패');
+  } catch { showToast('서버 오류'); }
+}
+
+async function grantUserAdmin(id) {
+  if (!confirm('이 사용자에게 관리자 권한을 부여할까요?\n관리자로 지정되면 사용자 관리, 활동 기록 등을 볼 수 있습니다.')) return;
+  try {
+    const resp = await fetch('/api/admin/users/' + id + '/grant-admin', {
+      method:  'POST',
+      headers: { 'x-admin-password': adminPw },
+    });
+    if (resp.ok) { showToast('✅ 관리자 권한이 부여되었습니다.'); loadAdminUsers(); }
+    else { const d = await resp.json().catch(() => ({})); showToast(d.message || '권한 부여 실패'); }
+  } catch { showToast('서버 오류'); }
+}
+
+async function revokeUserAdmin(id) {
+  if (!confirm('이 사용자의 관리자 권한을 해제할까요?')) return;
+  try {
+    const resp = await fetch('/api/admin/users/' + id + '/revoke-admin', {
+      method:  'POST',
+      headers: { 'x-admin-password': adminPw },
+    });
+    if (resp.ok) { showToast('관리자 권한이 해제되었습니다.'); loadAdminUsers(); }
+    else { const d = await resp.json().catch(() => ({})); showToast(d.message || '권한 해제 실패'); }
   } catch { showToast('서버 오류'); }
 }
 
@@ -1459,7 +1534,7 @@ async function loadAdminActivity() {
 
   try {
     const resp = await fetch('/api/admin/activity', {
-      headers: { 'x-admin-password': adminPw }
+      headers: adminHeaders()
     });
     if (!resp.ok) { container.innerHTML = '<div class="admin-error">불러오기 실패</div>'; return; }
     const data = await resp.json();
