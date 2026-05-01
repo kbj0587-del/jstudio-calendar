@@ -161,6 +161,54 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
 
+/* ══════════════ 공휴일 ══════════════ */
+
+/* 달력 셀 — 공휴일 라벨 */
+.holiday-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--sunday);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  margin-top: 1px;
+  opacity: 0.9;
+}
+@media (max-width: 768px) {
+  .holiday-label { font-size: 8px; }
+}
+
+/* 목록 보기 — 공휴일 행 */
+.lv-holiday-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  background: rgba(214,48,80,0.05);
+  border-bottom: 1px solid var(--border);
+}
+[data-theme="dark"] .lv-holiday-item {
+  background: rgba(255,107,107,0.07);
+}
+.lv-holiday-bar {
+  width: 3px;
+  min-width: 3px;
+  height: 28px;
+  border-radius: 2px;
+  background: var(--sunday);
+  opacity: 0.7;
+}
+.lv-holiday-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sunday);
+  flex: 1;
+}
+@media (max-width: 768px) {
+  .lv-holiday-name { font-size: 14px; }
+}
+
 /* ══════════════ 서버 헬스체크 박스 ══════════════ */
 .server-health-box {
   background: var(--surface2);

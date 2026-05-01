@@ -539,6 +539,51 @@ app.post('/api/sync/settings', requireAccess, (req, res) => {
 });
 
 // ════════════════════════════════════════════════════
+// 대한민국 공휴일 API 프록시 (Nager.Date — 무료, API키 불필요)
+// ════════════════════════════════════════════════════
+const _holidayCache = {};   // 연도별 캐시
+
+// 고정 공휴일 내장 목록 (API 실패 시 fallback)
+function getBuiltinHolidays(year) {
+  return [
+    { date: `${year}-01-01`, name: '새해' },
+    { date: `${year}-03-01`, name: '삼일절' },
+    { date: `${year}-05-05`, name: '어린이날' },
+    { date: `${year}-06-06`, name: '현충일' },
+    { date: `${year}-08-15`, name: '광복절' },
+    { date: `${year}-10-03`, name: '개천절' },
+    { date: `${year}-10-09`, name: '한글날' },
+    { date: `${year}-12-25`, name: '성탄절' },
+  ];
+}
+
+app.get('/api/holidays/:year', async (req, res) => {
+  const year = parseInt(req.params.year);
+  if (isNaN(year) || year < 2020 || year > 2040)
+    return res.status(400).json({ error: 'invalid_year' });
+
+  if (_holidayCache[year])
+    return res.json({ holidays: _holidayCache[year], source: 'cache' });
+
+  try {
+    const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) throw new Error(`upstream ${r.status}`);
+    const raw  = await r.json();
+    const list = raw.map(h => ({ date: h.date, name: h.localName || h.name }));
+    _holidayCache[year] = list;
+    console.log(`📅 공휴일 로드: ${year}년 ${list.length}건`);
+    res.json({ holidays: list, source: 'api' });
+  } catch (e) {
+    console.warn(`⚠️ 공휴일 API 실패 (${year}): ${e.message} → 내장 목록 사용`);
+    const list = getBuiltinHolidays(year);
+    _holidayCache[year] = list;
+    res.json({ holidays: list, source: 'builtin' });
+  }
+});
+
+// ════════════════════════════════════════════════════
 // 헬스 체크 / 백업·복원 API
 // ════════════════════════════════════════════════════
 
