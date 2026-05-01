@@ -728,112 +728,100 @@ function renderCurrentView() {
   else                        renderCalendar();
 }
 
-// ── 전체 목록 보기 렌더링 (공휴일 포함) ──────────
+// ── 목록 보기 렌더링 — 현재 달만 표시 ────────────
 function renderListViewAll() {
   const body = document.getElementById('listViewBody');
   if (!body) return;
 
-  const todayStr = toDateStr(new Date());
-  const alpha    = isDark() ? 0.22 : 0.15;
-  const DAYS     = ['일','월','화','수','목','금','토'];
+  const todayStr  = toDateStr(new Date());
+  const alpha     = isDark() ? 0.22 : 0.15;
+  const DAYS      = ['일','월','화','수','목','금','토'];
+  const monthStr  = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
 
-  // 표시 연도 범위: 이벤트에 있는 연도 + 현재 연도
-  const yearsToShow = new Set([currentYear]);
-  events.forEach(ev => yearsToShow.add(+ev.date.slice(0, 4)));
+  // 월 타이틀 업데이트 (목록 보기에서도 반영)
+  const titleEl = document.getElementById('monthTitle');
+  if (titleEl) titleEl.textContent = `${currentYear}년 ${currentMonth + 1}월`;
 
-  // 공휴일 아이템 생성 (해당 연도 범위)
-  const holidayItems = [];
-  Object.entries(holidaysMap).forEach(([date, name]) => {
-    if (yearsToShow.has(+date.slice(0, 4))) {
-      holidayItems.push({ date, title: name, isHoliday: true });
-    }
-  });
+  // 현재 달 이벤트
+  const monthEvents = events.filter(ev => ev.date.startsWith(monthStr));
 
-  // 이벤트 + 공휴일 병합 및 정렬
+  // 현재 달 공휴일 (대체공휴일 포함 — API가 자동 반영)
+  const monthHolidays = Object.entries(holidaysMap)
+    .filter(([date]) => date.startsWith(monthStr))
+    .map(([date, name]) => ({ date, title: name, isHoliday: true }));
+
+  // 병합 + 정렬 (같은 날은 공휴일 → 일정 순)
   const allItems = [
-    ...events.map(ev => ({ ...ev, isHoliday: false })),
-    ...holidayItems,
+    ...monthEvents.map(ev => ({ ...ev, isHoliday: false })),
+    ...monthHolidays,
   ].sort((a, b) => {
     const dc = a.date.localeCompare(b.date);
     if (dc !== 0) return dc;
-    if (a.isHoliday && !b.isHoliday) return -1; // 공휴일 먼저
+    if (a.isHoliday && !b.isHoliday) return -1;
     if (!a.isHoliday && b.isHoliday) return 1;
     return (a.time || '').localeCompare(b.time || '');
   });
 
+  // 빈 달 처리
   if (!allItems.length) {
     body.innerHTML = `
       <div class="lv-empty">
         <div style="font-size:36px;margin-bottom:10px">📋</div>
-        <div style="font-weight:600;margin-bottom:4px">등록된 일정이 없습니다.</div>
+        <div style="font-weight:600;margin-bottom:4px">${currentYear}년 ${currentMonth + 1}월 일정이 없습니다.</div>
         <div style="font-size:13px;color:var(--text-muted)">날짜를 눌러 일정을 추가해보세요.</div>
       </div>`;
     return;
   }
 
-  // 월별 그룹
-  const groups = {};
+  // 월 헤더 (건수 요약)
+  const evtCnt  = allItems.filter(i => !i.isHoliday).length;
+  const holCnt  = allItems.filter(i =>  i.isHoliday).length;
+  const countTxt = [evtCnt ? `${evtCnt}건` : '', holCnt ? `공휴일 ${holCnt}` : '']
+    .filter(Boolean).join(' · ');
+
+  let html = `
+    <div class="lv-month-header">
+      ${currentYear}년 ${currentMonth + 1}월
+      <span class="lv-month-count">${countTxt}</span>
+    </div>`;
+
   allItems.forEach(item => {
-    const key = item.date.slice(0, 7);
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(item);
-  });
-
-  let html = '';
-  Object.entries(groups).forEach(([key, items]) => {
-    const [y, m] = key.split('-');
-    const evtCnt = items.filter(i => !i.isHoliday).length;
-    const holCnt = items.filter(i => i.isHoliday).length;
-    const countTxt = [
-      evtCnt  ? `${evtCnt}건` : '',
-      holCnt  ? `공휴일 ${holCnt}` : '',
-    ].filter(Boolean).join(' · ');
-
-    html += `
-      <div class="lv-month-header">
-        ${y}년 ${parseInt(m)}월
-        <span class="lv-month-count">${countTxt}</span>
+    const [ey, em, ed] = item.date.split('-').map(Number);
+    const dow     = new Date(ey, em-1, ed).getDay();
+    const dowStr  = DAYS[dow];
+    const isToday = item.date === todayStr;
+    const isHol   = !!holidaysMap[item.date];
+    const isSun   = dow === 0;
+    const isSat   = dow === 6;
+    const dateClr = isToday        ? 'var(--accent)'
+                  : isHol || isSun ? 'var(--sunday)'
+                  : isSat          ? 'var(--saturday)' : '';
+    const dayHtml = `
+      <div class="lv-date-col"${dateClr ? ` style="color:${dateClr}"` : ''}>
+        <span class="lv-day">${String(ed).padStart(2, '0')}</span>
+        <span class="lv-dow">${dowStr}</span>
       </div>`;
 
-    items.forEach(item => {
-      const [ey, em, ed] = item.date.split('-').map(Number);
-      const dow    = new Date(ey, em-1, ed).getDay();
-      const dowStr = DAYS[dow];
-      const isToday = item.date === todayStr;
-      const isHol   = !!holidaysMap[item.date];
-      const isSun   = dow === 0;
-      const isSat   = dow === 6;
-      const dateClr = isToday        ? 'var(--accent)'
-                    : isHol || isSun ? 'var(--sunday)'
-                    : isSat          ? 'var(--saturday)' : '';
-      const dateStyle = dateClr ? `style="color:${dateClr}"` : '';
-      const dayHtml = `
-        <div class="lv-date-col" ${dateStyle}>
-          <span class="lv-day">${String(ed).padStart(2,'0')}</span>
-          <span class="lv-dow">${dowStr}</span>
+    if (item.isHoliday) {
+      html += `
+        <div class="lv-holiday-item">
+          ${dayHtml}
+          <div class="lv-holiday-bar"></div>
+          <div class="lv-holiday-name">🎌 ${esc(item.title)}</div>
         </div>`;
-
-      if (item.isHoliday) {
-        html += `
-          <div class="lv-holiday-item">
-            ${dayHtml}
-            <div class="lv-holiday-bar"></div>
-            <div class="lv-holiday-name">🎌 ${esc(item.title)}</div>
-          </div>`;
-      } else {
-        const cat = getCat(item.type);
-        html += `
-          <div class="lv-event-item" onclick="openDayModalFromList('${item.date}','${item.id}')">
-            ${dayHtml}
-            <div class="lv-color-bar" style="background:${cat.color}"></div>
-            <div class="lv-info">
-              <div class="lv-title">${esc(item.title)}</div>
-              ${item.time ? `<div class="lv-time">⏰ ${esc(item.time)}</div>` : ''}
-            </div>
-            <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:${cat.color}">${esc(cat.name)}</span>
-          </div>`;
-      }
-    });
+    } else {
+      const cat = getCat(item.type);
+      html += `
+        <div class="lv-event-item" onclick="openDayModalFromList('${item.date}','${item.id}')">
+          ${dayHtml}
+          <div class="lv-color-bar" style="background:${cat.color}"></div>
+          <div class="lv-info">
+            <div class="lv-title">${esc(item.title)}</div>
+            ${item.time ? `<div class="lv-time">⏰ ${esc(item.time)}</div>` : ''}
+          </div>
+          <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:${cat.color}">${esc(cat.name)}</span>
+        </div>`;
+    }
   });
 
   body.innerHTML = html;
@@ -907,24 +895,24 @@ function renderCalendar() {
     }
 
     if (mobile) {
-      // 모바일: 컬러 도트로 일정 표시 (최대 3개)
+      // 모바일: 컬러 바로 일정 표시 (최대 3개)
       if (dayEvts.length > 0 && !other) {
-        const dotRow = document.createElement('div');
-        dotRow.className = 'mobile-dot-row';
+        const barRow = document.createElement('div');
+        barRow.className = 'mobile-bar-row';
         dayEvts.slice(0, 3).forEach(ev => {
           const cat = getCat(ev.type);
-          const dot = document.createElement('span');
-          dot.className = 'mobile-dot';
-          dot.style.background = cat.color;
-          dotRow.appendChild(dot);
+          const bar = document.createElement('span');
+          bar.className = 'mobile-bar';
+          bar.style.background = cat.color;
+          barRow.appendChild(bar);
         });
         if (dayEvts.length > 3) {
           const more = document.createElement('span');
-          more.className = 'mobile-dot-more';
-          more.textContent = '+' + (dayEvts.length - 3);
-          dotRow.appendChild(more);
+          more.className = 'mobile-bar-more';
+          more.textContent = `+${dayEvts.length - 3}`;
+          barRow.appendChild(more);
         }
-        cell.appendChild(dotRow);
+        cell.appendChild(barRow);
       }
     } else {
       // PC: 기존 텍스트 칩 표시
@@ -2088,16 +2076,16 @@ function bindStaticEvents() {
   document.getElementById('btnPrev').addEventListener('click', () => {
     if (--currentMonth < 0) { currentMonth = 11; currentYear--; }
     loadHolidaysForYear(currentYear);
-    switchView('calendar');
+    renderCurrentView();
   });
   document.getElementById('btnNext').addEventListener('click', () => {
     if (++currentMonth > 11) { currentMonth = 0; currentYear++; }
     loadHolidaysForYear(currentYear);
-    switchView('calendar');
+    renderCurrentView();
   });
   document.getElementById('btnToday').addEventListener('click', () => {
     const n = new Date(); currentYear = n.getFullYear(); currentMonth = n.getMonth();
-    switchView('calendar');
+    renderCurrentView();
   });
 
   // ── 뷰 전환 ──
