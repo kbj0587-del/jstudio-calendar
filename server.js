@@ -543,6 +543,12 @@ app.post('/api/sync/settings', requireAccess, (req, res) => {
 // ════════════════════════════════════════════════════
 const _holidayCache = {};   // 연도별 캐시
 
+// 날짜 → YYYY-MM-DD 문자열
+function _dateFmt(d) {
+  const y = d.getFullYear(), m = d.getMonth() + 1, dd = d.getDate();
+  return `${y}-${String(m).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+}
+
 // 고정 공휴일 내장 목록 (API 실패 시 fallback)
 function getBuiltinHolidays(year) {
   return [
@@ -555,6 +561,50 @@ function getBuiltinHolidays(year) {
     { date: `${year}-10-09`, name: '한글날' },
     { date: `${year}-12-25`, name: '성탄절' },
   ];
+}
+
+/**
+ * 대체공휴일 계산 (2023년 개정법 기준)
+ * - 성탄절 제외한 모든 공휴일이 토·일 → 다음 평일이 대체공휴일
+ * - 이미 대체공휴일로 표기된 항목은 중복 추가 안 함
+ */
+function addSubstituteHolidays(holidays) {
+  // 성탄절 대체공휴일 미적용 날짜들
+  const XMAS_DATES = new Set(
+    Array.from({length:21},(_,i)=>`${2020+i}-12-25`)
+  );
+
+  const knownDates = new Set(holidays.map(h => h.date));
+  const subs = [];
+
+  holidays.forEach(h => {
+    // 이미 대체공휴일이면 스킵
+    if (h.name.includes('대체')) return;
+    // 성탄절 대체공휴일 미적용
+    if (XMAS_DATES.has(h.date)) return;
+
+    const d   = new Date(h.date);
+    const dow = d.getDay(); // 0=일, 6=토
+    if (dow !== 0 && dow !== 6) return;
+
+    // 토요일이면 +2, 일요일이면 +1 → 월요일부터 탐색
+    const start = new Date(h.date);
+    start.setDate(start.getDate() + (dow === 6 ? 2 : 1));
+
+    // 이미 공휴일·대체공휴일인 날이면 하루씩 더 이동
+    let candidate = new Date(start);
+    while (knownDates.has(_dateFmt(candidate)) || candidate.getDay() === 0) {
+      candidate.setDate(candidate.getDate() + 1);
+    }
+
+    const subDate = _dateFmt(candidate);
+    if (!knownDates.has(subDate)) {
+      subs.push({ date: subDate, name: `${h.name} 대체공휴일` });
+      knownDates.add(subDate);
+    }
+  });
+
+  return [...holidays, ...subs].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 app.get('/api/holidays/:year', async (req, res) => {
@@ -571,14 +621,18 @@ app.get('/api/holidays/:year', async (req, res) => {
     });
     if (!r.ok) throw new Error(`upstream ${r.status}`);
     const raw  = await r.json();
-    const list = raw.map(h => ({ date: h.date, name: h.localName || h.name }));
+    const base = raw.map(h => ({ date: h.date, name: h.localName || h.name }));
+    // 대체공휴일이 API에 포함 안 된 경우를 대비해 자체 계산 후 병합
+    const list = addSubstituteHolidays(base);
     _holidayCache[year] = list;
-    console.log(`📅 공휴일 로드: ${year}년 ${list.length}건`);
+    console.log(`📅 공휴일 로드: ${year}년 ${list.length}건 (API)`);
     res.json({ holidays: list, source: 'api' });
   } catch (e) {
     console.warn(`⚠️ 공휴일 API 실패 (${year}): ${e.message} → 내장 목록 사용`);
-    const list = getBuiltinHolidays(year);
+    const base = getBuiltinHolidays(year);
+    const list = addSubstituteHolidays(base);
     _holidayCache[year] = list;
+    console.log(`📅 공휴일 내장: ${year}년 ${list.length}건 (대체공휴일 포함)`);
     res.json({ holidays: list, source: 'builtin' });
   }
 });

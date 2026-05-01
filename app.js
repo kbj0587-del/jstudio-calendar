@@ -819,7 +819,7 @@ function renderListViewAll() {
             <div class="lv-title">${esc(item.title)}</div>
             ${item.time ? `<div class="lv-time">⏰ ${esc(item.time)}</div>` : ''}
           </div>
-          <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:${cat.color}">${esc(cat.name)}</span>
+          <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">${esc(cat.name)}</span>
         </div>`;
     }
   });
@@ -920,7 +920,7 @@ function renderCalendar() {
         const cat  = getCat(ev.type);
         const chip = document.createElement('div');
         chip.className = 'event-chip';
-        chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:${cat.color};border-left:2px solid ${cat.color};`;
+        chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:var(--text);border-left:2px solid ${cat.color};`;
         chip.textContent   = `[${cat.name}] ` + (ev.time ? ev.time + ' ' : '') + ev.title;
         cell.appendChild(chip);
       });
@@ -1064,7 +1064,7 @@ function renderListView() {
     item.className = 'list-event-item';
     item.innerHTML = `
       <span class="list-event-badge"
-        style="background:${hexToRgba(cat.color,alpha)};color:${cat.color}">
+        style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">
         ${esc(cat.name)}
       </span>
       <div class="list-event-info">
@@ -1110,7 +1110,7 @@ function renderDetailView() {
     <div class="detail-section">
       <div class="detail-top-row">
         <span class="event-type-badge"
-          style="background:${hexToRgba(cat.color,alpha)};color:${cat.color}">
+          style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">
           ${esc(cat.name)}
         </span>
         ${ev.time ? `<span style="font-size:12px;color:var(--text-muted)">⏰ ${esc(ev.time)}</span>` : ''}
@@ -2109,6 +2109,9 @@ function bindStaticEvents() {
   document.getElementById('btnDetailDelete').addEventListener('click', deleteCurrentEvent);
   document.getElementById('btnFormCancel').addEventListener('click', handleDayBack);
   document.getElementById('btnFormSave').addEventListener('click', saveEvent);
+
+  // ── 로고 / 타이틀 클릭 → 새로고침 ──
+  document.getElementById('headerBrand').addEventListener('click', () => location.reload());
 
   // ── 새로고침 ──
   document.getElementById('btnRefresh').addEventListener('click', refreshSync);

@@ -75,7 +75,8 @@ body {
   z-index: 100;
   box-shadow: var(--shadow);
 }
-.app-header h1  { font-size: 16px; font-weight: 700; flex: 1; }
+.app-header h1  { font-size: 16px; font-weight: 700; }
+#headerBrand    { display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer; user-select: none; }
 .header-logo    {
   width: 34px; height: 34px;
   border-radius: 50%;
