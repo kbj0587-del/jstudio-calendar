@@ -1573,6 +1573,10 @@ function renderAdminUsers(users) {
             ? `<button class="btn-revoke-admin" onclick="revokeUserAdmin('${u.id}')">권한 해제</button>`
             : `<button class="btn-grant-admin"  onclick="grantUserAdmin('${u.id}')">관리자 지정</button>`)
         : '';
+      // PIN 재설정 버튼 (PIN이 있는 사용자만 — username 있으면 표시)
+      const pinResetBtn = u.username
+        ? `<button class="btn-reset-pin" onclick="openPinResetModal('${u.id}', '${esc(u.name)}')">🔑 PIN 재설정</button>`
+        : '';
       html += `
         <div class="admin-user-card approved">
           <div class="admin-user-info">
@@ -1581,6 +1585,7 @@ function renderAdminUsers(users) {
           </div>
           <div class="admin-user-actions">
             ${adminBtn}
+            ${pinResetBtn}
             <button class="btn-delete-user" onclick="deleteUser('${u.id}')">삭제</button>
           </div>
         </div>`;
@@ -1727,6 +1732,68 @@ async function downloadServerBackup() {
     showToast('서버 백업 다운로드 실패');
   }
   if (btn) { btn.disabled = false; btn.textContent = '🐘 서버 백업'; }
+}
+
+// ── 관리자 PIN 강제 재설정 ────────────────────────
+let pinResetTargetId = null;
+
+function openPinResetModal(userId, userName) {
+  pinResetTargetId = userId;
+  const nameEl = document.getElementById('pinResetUserName');
+  const input  = document.getElementById('pinResetInput');
+  const errEl  = document.getElementById('pinResetError');
+  const doneEl = document.getElementById('pinResetDone');
+  const formEl = document.getElementById('pinResetForm');
+  if (nameEl) nameEl.textContent = userName;
+  if (input)  input.value = '';
+  if (errEl)  errEl.classList.add('hidden');
+  if (doneEl) doneEl.classList.add('hidden');
+  if (formEl) formEl.classList.remove('hidden');
+  document.getElementById('pinResetOverlay')?.classList.remove('hidden');
+  setTimeout(() => input?.focus(), 100);
+}
+
+async function submitPinReset() {
+  const newPin = document.getElementById('pinResetInput')?.value.trim();
+  const errEl  = document.getElementById('pinResetError');
+  const btn    = document.getElementById('btnPinResetConfirm');
+
+  errEl.classList.add('hidden');
+  if (!newPin || newPin.length < 4) {
+    errEl.textContent = 'PIN은 4자리 이상이어야 합니다.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '처리 중…';
+  try {
+    const resp = await fetch(`/api/admin/users/${pinResetTargetId}/reset-pin`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+      body:    JSON.stringify({ newPin }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      // 성공: 폼 숨기고 새 PIN 안내
+      document.getElementById('pinResetForm')?.classList.add('hidden');
+      const doneEl = document.getElementById('pinResetDone');
+      const newPinDisplay = document.getElementById('pinResetNewPin');
+      if (newPinDisplay) newPinDisplay.textContent = newPin;
+      doneEl?.classList.remove('hidden');
+    } else {
+      errEl.textContent = data.message || 'PIN 재설정 실패';
+      errEl.classList.remove('hidden');
+    }
+  } catch {
+    errEl.textContent = '서버에 연결할 수 없습니다.';
+    errEl.classList.remove('hidden');
+  }
+  btn.disabled = false; btn.textContent = '재설정';
+}
+
+function closePinResetModal() {
+  document.getElementById('pinResetOverlay')?.classList.add('hidden');
+  pinResetTargetId = null;
 }
 
 // ── PIN 변경 ──────────────────────────────────────
@@ -2080,12 +2147,24 @@ function bindStaticEvents() {
     if (e.key === 'Enter') addCategory();
   });
 
+  // ── PIN 재설정 모달 ──
+  document.getElementById('btnPinResetConfirm')?.addEventListener('click', submitPinReset);
+  document.getElementById('btnPinResetCancel')?.addEventListener('click',  closePinResetModal);
+  document.getElementById('btnPinResetClose')?.addEventListener('click',   closePinResetModal);
+  document.getElementById('pinResetInput')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitPinReset();
+  });
+  document.getElementById('pinResetOverlay')?.addEventListener('click', e => {
+    if (e.target.id === 'pinResetOverlay') closePinResetModal();
+  });
+
   // ── ESC ──
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     closeDayModal();
     closeSettings();
     closeMiniCal();
+    closePinResetModal();
     document.getElementById('passwordOverlay').classList.add('hidden');
   });
 

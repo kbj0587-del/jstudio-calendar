@@ -1226,6 +1226,19 @@ body {
 .btn-grant-admin:hover { background: rgba(200,138,0,.25); }
 
 /* 권한 해제 버튼 */
+.btn-reset-pin {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(59,122,240,0.35);
+  background: rgba(59,122,240,0.08);
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--tr);
+}
+.btn-reset-pin:hover { background: rgba(59,122,240,0.18); }
+
 .btn-revoke-admin {
   background: rgba(108,92,231,.13);
   color: #6c5ce7;

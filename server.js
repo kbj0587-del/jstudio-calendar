@@ -446,6 +446,24 @@ app.get('/api/user/:id/status', (req, res) => {
 });
 
 // ════════════════════════════════════════════════════
+// 관리자 PIN 강제 재설정
+// ════════════════════════════════════════════════════
+app.post('/api/admin/users/:id/reset-pin', requireAdmin, (req, res) => {
+  const user = store.users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+
+  const { newPin } = req.body;
+  if (!newPin || String(newPin).length < 4)
+    return res.status(400).json({ error: 'pin_too_short', message: 'PIN은 4자리 이상이어야 합니다.' });
+
+  user.pinHash      = hashPin(String(newPin));
+  user.pinChangedAt = new Date().toISOString();
+  saveToFile();
+  console.log(`✅ 관리자가 PIN 재설정: ${user.name} (@${user.username})`);
+  res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════════════
 // 사용자 PIN 변경
 // ════════════════════════════════════════════════════
 app.post('/api/user/change-pin', (req, res) => {
