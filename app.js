@@ -1653,6 +1653,82 @@ async function revokeUserAdmin(id) {
   } catch { showToast('서버 오류'); }
 }
 
+// ── 서버 상태 확인 (헬스체크) ────────────────────
+async function checkServerHealth() {
+  const btn = document.getElementById('btnCheckHealth');
+  const box = document.getElementById('serverHealthBox');
+  if (btn) { btn.disabled = true; btn.textContent = '확인 중…'; }
+  try {
+    const resp = await fetch('/api/health');
+    const data = await resp.json();
+
+    const storageEl = document.getElementById('healthStorage');
+    const dbEl      = document.getElementById('healthDb');
+    const evEl      = document.getElementById('healthEvents');
+    const usEl      = document.getElementById('healthUsers');
+
+    if (storageEl) {
+      if (data.storage === 'postgresql') {
+        storageEl.textContent = '🐘 PostgreSQL (영구 저장)';
+        storageEl.style.color = 'var(--accent)';
+      } else {
+        storageEl.textContent = '⚠️ /tmp 파일 (배포 시 삭제됨)';
+        storageEl.style.color = '#e03050';
+      }
+    }
+    if (dbEl) {
+      if (data.storage === 'postgresql') {
+        const ok = data.db === 'connected';
+        dbEl.textContent = ok ? '✅ 연결됨' : `❌ 오류: ${data.dbError || '연결 실패'}`;
+        dbEl.style.color = ok ? 'var(--accent)' : '#e03050';
+      } else {
+        dbEl.textContent = '해당 없음 (파일 모드)';
+        dbEl.style.color = 'var(--text-muted)';
+      }
+    }
+    if (evEl) evEl.textContent = `${data.events}건`;
+    if (usEl) usEl.textContent = `${data.users}명`;
+
+    if (box) box.classList.remove('hidden');
+
+    if (!data.persistent) {
+      showToast('⚠️ 파일 모드입니다. Railway에서 DATABASE_URL을 설정하세요!');
+    } else if (data.db === 'connected') {
+      showToast('✅ PostgreSQL 연결 정상 — 데이터가 영구 보존됩니다.');
+    }
+  } catch {
+    showToast('서버 상태 확인 실패');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '🔍 서버 상태 확인'; }
+}
+
+// ── 서버 DB 백업 다운로드 (관리자용) ─────────────
+async function downloadServerBackup() {
+  if (!isAdminMode && !isSubAdmin) {
+    showToast('관리자만 서버 백업을 다운로드할 수 있습니다.');
+    return;
+  }
+  const btn = document.getElementById('btnServerBackup');
+  if (btn) { btn.disabled = true; btn.textContent = '다운로드 중…'; }
+  try {
+    const resp = await fetch('/api/admin/backup', {
+      headers: adminHeaders(),
+    });
+    if (!resp.ok) { showToast('백업 다운로드 실패'); return; }
+    const blob = await resp.blob();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `jstudio-server-backup-${dateStr}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('✅ 서버 백업 다운로드 완료');
+  } catch {
+    showToast('서버 백업 다운로드 실패');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '🐘 서버 백업'; }
+}
+
 // ── PIN 변경 ──────────────────────────────────────
 async function submitPinChange() {
   const currentPin = document.getElementById('currentPinInput')?.value.trim();
@@ -1939,7 +2015,7 @@ function bindStaticEvents() {
   document.getElementById('btnGenerateInvite')?.addEventListener('click', copyAppLink);
 
 
-  // ── 데이터 백업 내보내기 ──
+  // ── 데이터 백업 내보내기 (로컬) ──
   document.getElementById('btnExportData').addEventListener('click', () => {
     const backup = { events, settings: { categories: settings.categories, darkMode: settings.darkMode }, exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -1949,6 +2025,12 @@ function bindStaticEvents() {
     a.click();
     showToast('백업 파일이 다운로드되었습니다.');
   });
+
+  // ── 서버 상태 확인 ──
+  document.getElementById('btnCheckHealth')?.addEventListener('click', checkServerHealth);
+
+  // ── 서버 DB 백업 다운로드 ──
+  document.getElementById('btnServerBackup')?.addEventListener('click', downloadServerBackup);
 
   // ── 데이터 백업 불러오기 ──
   document.getElementById('importFile').addEventListener('change', e => {

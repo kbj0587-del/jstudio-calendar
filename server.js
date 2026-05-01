@@ -13,10 +13,17 @@ if (USE_DB) {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
   });
+  const maskedUrl = process.env.DATABASE_URL.replace(/\/\/[^@]+@/, '//****@');
   console.log('🐘 PostgreSQL 모드 활성화');
+  console.log(`   DB URL: ${maskedUrl}`);
 } else {
   console.log('📁 파일 저장 모드 (DATABASE_URL 없음)');
+  console.log('⚠️  /tmp 파일은 배포 시마다 초기화됩니다 — 데이터가 영구 보존되지 않습니다!');
+  console.log('⚠️  영구 저장을 위해 Railway에서 DATABASE_URL 환경변수를 설정하세요.');
 }
 
 app.use(express.json({ limit: '10mb' }));
@@ -47,6 +54,16 @@ let store = {
 async function initStore() {
   if (USE_DB) {
     // ── PostgreSQL ──
+    // 연결 테스트
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ PostgreSQL 연결 성공');
+    } catch (connErr) {
+      console.error('❌ PostgreSQL 연결 실패:', connErr.message);
+      console.error('   DATABASE_URL이 올바른지 확인하세요.');
+      throw connErr;
+    }
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS jstudio_store (
         id   INTEGER PRIMARY KEY,
@@ -57,13 +74,15 @@ async function initStore() {
     if (result.rows.length > 0) {
       const saved = result.rows[0].data;
       store = { ...store, ...saved };
-      if (!store.users)       store.users       = [];
-      if (!store.activityLog) store.activityLog = [];
-      if (!store.invites)     store.invites     = [];
-      console.log(`✅ DB 로드: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명`);
+      if (!Array.isArray(store.users))       store.users       = [];
+      if (!Array.isArray(store.activityLog)) store.activityLog = [];
+      if (!Array.isArray(store.invites))     store.invites     = [];
+      if (!Array.isArray(store.events))      store.events      = [];
+      if (!Array.isArray(store.categories))  store.categories  = DEFAULT_CATS;
+      console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명`);
     } else {
       await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
-      console.log('✅ DB 최초 초기화 완료');
+      console.log('✅ DB 최초 초기화 완료 (새 데이터베이스)');
     }
   } else {
     // ── 파일 폴백 ──
@@ -71,12 +90,18 @@ async function initStore() {
       if (fs.existsSync(DATA_FILE)) {
         const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
         store = { ...store, ...saved };
-        if (!store.users)       store.users       = [];
-        if (!store.activityLog) store.activityLog = [];
-        if (!store.invites)     store.invites     = [];
-        console.log(`✅ 파일 로드: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명`);
+        if (!Array.isArray(store.users))       store.users       = [];
+        if (!Array.isArray(store.activityLog)) store.activityLog = [];
+        if (!Array.isArray(store.invites))     store.invites     = [];
+        if (!Array.isArray(store.events))      store.events      = [];
+        console.log(`⚠️  파일 로드 (임시저장): 일정 ${store.events.length}건 | 사용자 ${store.users.length}명`);
+        console.log('⚠️  이 데이터는 다음 배포 시 삭제됩니다!');
+      } else {
+        console.log('⚠️  저장 파일 없음, 기본값으로 시작');
       }
-    } catch (e) { console.log('⚠️ 저장 파일 없음, 기본값 사용'); }
+    } catch (e) {
+      console.error('파일 로드 실패:', e.message);
+    }
   }
 }
 
@@ -86,7 +111,16 @@ function saveToFile() {
     pool.query(
       'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
       [JSON.stringify(store)]
-    ).catch(e => console.error('DB 저장 실패:', e.message));
+    ).then(() => {
+      // 저장 성공 (필요 시 로깅: console.log('💾 DB 저장 완료');)
+    }).catch(e => {
+      console.error('❌ DB 저장 실패:', e.message);
+      // 비상 파일 백업 시도
+      try {
+        fs.writeFileSync(DATA_FILE + '.emergency', JSON.stringify(store), 'utf8');
+        console.log('📁 비상 파일 백업 저장됨');
+      } catch (_) {}
+    });
   } else {
     try { fs.writeFileSync(DATA_FILE, JSON.stringify(store), 'utf8'); }
     catch (e) { console.error('파일 저장 실패:', e.message); }
@@ -486,6 +520,85 @@ app.post('/api/sync/settings', requireAccess, (req, res) => {
   res.json({ ok: true });
 });
 
+// ════════════════════════════════════════════════════
+// 헬스 체크 / 백업·복원 API
+// ════════════════════════════════════════════════════
+
+// 서버 상태 확인 (누구나 접근 가능)
+app.get('/api/health', async (req, res) => {
+  const info = {
+    status:    'ok',
+    storage:   USE_DB ? 'postgresql' : 'file(/tmp)',
+    persistent: USE_DB,
+    events:    store.events.length,
+    users:     store.users.length,
+    timestamp: new Date().toISOString(),
+  };
+  if (USE_DB) {
+    try {
+      await pool.query('SELECT 1');
+      info.db = 'connected';
+    } catch (e) {
+      info.db      = 'error';
+      info.dbError = e.message;
+      info.status  = 'degraded';
+    }
+  }
+  res.json(info);
+});
+
+// 데이터 전체 백업 (JSON 다운로드) — 관리자 전용
+app.get('/api/admin/backup', requireAdmin, (req, res) => {
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const backup  = {
+    exportedAt: new Date().toISOString(),
+    storage:    USE_DB ? 'postgresql' : 'file(/tmp)',
+    version:    1,
+    data: {
+      events:      store.events,
+      users:       store.users.map(u => ({ ...u, pinHash: undefined })), // PIN 해시 제외
+      categories:  store.categories,
+      activityLog: store.activityLog,
+      invites:     store.invites,
+      darkMode:    store.darkMode,
+      inviteRequired: store.inviteRequired,
+    },
+  };
+  res.setHeader('Content-Disposition', `attachment; filename="jstudio-backup-${dateStr}.json"`);
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.json(backup);
+});
+
+// 데이터 복원 (JSON 업로드) — 관리자 전용
+app.post('/api/admin/restore', requireAdmin, (req, res) => {
+  const { data, mode } = req.body;   // mode: 'merge' | 'replace'
+  if (!data) return res.status(400).json({ error: 'no_data', message: '복원할 데이터가 없습니다.' });
+
+  const restoreMode = mode === 'replace' ? 'replace' : 'merge';
+  const stats = { events: 0, users: 0 };
+
+  if (restoreMode === 'replace') {
+    // 전체 교체 (기존 데이터 덮어쓰기)
+    if (data.events)      { store.events      = data.events;      stats.events = data.events.length; }
+    if (data.categories)    store.categories  = data.categories;
+    if (data.darkMode !== undefined) store.darkMode = data.darkMode;
+    if (data.inviteRequired !== undefined) store.inviteRequired = data.inviteRequired;
+    // 사용자는 pinHash가 없으므로 머지만 가능 (아래 머지 로직 재사용)
+  }
+
+  // 이벤트 머지 (중복 ID 제외)
+  if (data.events && restoreMode === 'merge') {
+    const existingIds = new Set(store.events.map(e => e.id));
+    const newEvs = data.events.filter(e => !existingIds.has(e.id));
+    store.events = [...store.events, ...newEvs];
+    stats.events = newEvs.length;
+  }
+
+  saveToFile();
+  console.log(`✅ 데이터 복원 완료 (${restoreMode}): 일정 +${stats.events}건`);
+  res.json({ ok: true, mode: restoreMode, restored: stats });
+});
+
 // ── manifest.json ──────────────────────────────────
 app.get('/manifest.json', (req, res) => {
   res.setHeader('Content-Type', 'application/manifest+json');
@@ -506,12 +619,21 @@ app.get('*', (req, res) => {
 
 // ── 서버 시작 ────────────────────────────────────────
 async function startServer() {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🚀 제이스튜디오 캘린더 서버 시작 중...');
+  console.log(`   NODE_ENV    : ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   DATABASE_URL: ${USE_DB ? '✅ 설정됨 (PostgreSQL)' : '❌ 없음 (/tmp 파일 모드)'}`);
+
   await initStore();          // DB or 파일에서 데이터 로드
   ensureDefaultAdmin();       // 관리자 계정 없으면 자동 생성
+
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`✅ 제이스튜디오 캘린더 → port ${PORT}`);
-    console.log(`   저장소: ${USE_DB ? '🐘 PostgreSQL (영구)' : '📁 /tmp 파일 (임시)'}`);
-    console.log(`   관리자: @${DEFAULT_ADMIN_USERNAME}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`✅ 제이스튜디오 캘린더 → http://0.0.0.0:${PORT}`);
+    console.log(`   저장소 : ${USE_DB ? '🐘 PostgreSQL (영구 저장)' : '📁 /tmp 파일 (⚠️ 임시 — 배포 시 삭제됨)'}`);
+    console.log(`   관리자 : @${DEFAULT_ADMIN_USERNAME}`);
+    console.log(`   헬스체크: /api/health`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   });
 }
 startServer().catch(e => { console.error('❌ 서버 시작 실패:', e); process.exit(1); });

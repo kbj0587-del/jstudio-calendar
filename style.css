@@ -161,6 +161,35 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
 
+/* ══════════════ 서버 헬스체크 박스 ══════════════ */
+.server-health-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.health-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+.health-row + .health-row {
+  border-top: 1px solid var(--border);
+}
+.health-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 56px;
+}
+.health-value {
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
 /* ══════════════ 목록 보기 ══════════════ */
 .list-view-wrap {
   flex: 1;
