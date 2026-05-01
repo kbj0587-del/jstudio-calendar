@@ -207,8 +207,7 @@ async function init() {
   if (!currentUser && !isAdminMode) {
     const savedUsername = localStorage.getItem('cc_username');
     const savedPin      = localStorage.getItem('cc_pin');
-    const autoLogin     = localStorage.getItem('cc_autologin') === '1';
-    if (savedUsername && savedPin && autoLogin) {
+    if (savedUsername && savedPin) {
       // 저장된 자격증명으로 자동 로그인 시도 (로딩 중 표시)
       showAutoLoginScreen();
       try {
@@ -233,7 +232,7 @@ async function init() {
           if (d.error === 'rejected') { showRejectedScreen(); return; }
           showAuthScreen('login'); return;
         } else {
-          // 자동 로그인 실패 → 수동 로그인
+          // 자동 로그인 실패 → 수동 로그인 화면
           showAuthScreen('login'); return;
         }
       } catch {
@@ -521,21 +520,13 @@ async function submitLogin() {
       return;
     }
 
-    // 로그인 성공
-    const user      = data.user;
-    const autoLogin = document.getElementById('autoLoginCheckbox')?.checked ?? true;
+    // 로그인 성공 — 세션 유지를 위해 자격증명 항상 저장
+    const user = data.user;
 
     localStorage.setItem('cc_user_id',   user.id);
     localStorage.setItem('cc_user_name', user.name);
-    if (autoLogin) {
-      localStorage.setItem('cc_username', username);
-      localStorage.setItem('cc_pin',      pin);
-      localStorage.setItem('cc_autologin', '1');
-    } else {
-      localStorage.removeItem('cc_username');
-      localStorage.removeItem('cc_pin');
-      localStorage.removeItem('cc_autologin');
-    }
+    localStorage.setItem('cc_username',  username);
+    localStorage.setItem('cc_pin',       pin);
     isSubAdmin = user.role === 'admin';
     if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
     else localStorage.removeItem('cc_is_subadmin');
