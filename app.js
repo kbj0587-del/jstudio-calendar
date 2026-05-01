@@ -864,7 +864,7 @@ function renderCalendar() {
         const chip = document.createElement('div');
         chip.className = 'event-chip';
         chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:${cat.color};border-left:2px solid ${cat.color};`;
-        chip.textContent   = (ev.time ? ev.time + ' ' : '') + ev.title;
+        chip.textContent   = `[${cat.name}] ` + (ev.time ? ev.time + ' ' : '') + ev.title;
         cell.appendChild(chip);
       });
       if (dayEvts.length > 3) {
