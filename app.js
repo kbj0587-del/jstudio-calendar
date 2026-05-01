@@ -828,8 +828,8 @@ function renderListViewAll() {
 }
 
 function openDayModalFromList(dateStr, eventId) {
-  viewingEventId = eventId;
-  openDayModal(dateStr);
+  openDayModal(dateStr);       // 내부에서 viewingEventId = null 리셋됨
+  viewingEventId = eventId;    // 리셋 후 다시 설정
   setTimeout(() => switchDayView('detail'), 50);
 }
 
