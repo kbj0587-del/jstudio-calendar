@@ -135,12 +135,23 @@
       <button id="monthTitle" class="month-title-btn"></button>
       <button id="btnNext"   class="nav-arrow">›</button>
       <button id="btnToday"  class="btn-today">오늘</button>
+      <div class="view-toggle">
+        <button id="btnViewCalendar" class="view-toggle-btn" title="달력 보기">📅</button>
+        <button id="btnViewList"     class="view-toggle-btn" title="목록 보기">☰</button>
+      </div>
     </div>
-    <div class="weekday-row">
-      <span>일</span><span>월</span><span>화</span>
-      <span>수</span><span>목</span><span>금</span><span>토</span>
+    <!-- 달력 보기 -->
+    <div id="calendarContent">
+      <div class="weekday-row">
+        <span>일</span><span>월</span><span>화</span>
+        <span>수</span><span>목</span><span>금</span><span>토</span>
+      </div>
+      <div id="calGrid" class="calendar-grid"></div>
     </div>
-    <div id="calGrid" class="calendar-grid"></div>
+    <!-- 목록 보기 -->
+    <div id="listViewWrap" class="list-view-wrap hidden">
+      <div id="listViewBody"></div>
+    </div>
   </div>
 </div>
 

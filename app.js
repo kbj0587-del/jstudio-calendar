@@ -23,6 +23,7 @@ const EMOJI_LIST = [
 ];
 
 // ── 사용자 인증 상태 ───────────────────────────────
+let currentView  = 'calendar'; // 'calendar' | 'list'
 let currentUser  = null;   // { id, name }
 let isAdminMode  = false;  // 마스터 관리자 모드 여부
 let isSubAdmin   = false;  // 서브 관리자 (사용자이지만 관리자 권한 부여됨)
@@ -273,7 +274,7 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(() => {
     if (document.getElementById('appMain') &&
         !document.getElementById('appMain').classList.contains('hidden')) {
-      renderCalendar();
+      renderCurrentView();
     }
   }, 200);
 });
@@ -281,7 +282,8 @@ window.addEventListener('resize', () => {
 // 잠금 해제 또는 비밀번호 미설정 시 캘린더 렌더링 + 서버 동기화
 async function launchApp() {
   document.getElementById('appMain').classList.remove('hidden');
-  renderCalendar();
+  initView();
+  applyView();
 
   setSyncStatus('syncing', '서버 연결 중…');
   try {
@@ -316,7 +318,7 @@ async function launchApp() {
               settings.darkMode   = data2.darkMode   ?? settings.darkMode;
               localStorage.setItem('cc_events', JSON.stringify(events));
               saveSettings(); applyTheme(settings.darkMode);
-              renderCalendar();
+              renderCurrentView();
               setSyncStatus('online', '✅ 동기화됨');
               return;
             }
@@ -362,7 +364,7 @@ async function launchApp() {
       saveEvents();
       saveSettings();
       applyTheme(settings.darkMode);
-      renderCalendar();
+      renderCurrentView();
       setSyncStatus('online', '✅ 동기화됨 — 모든 기기에서 동일한 데이터');
     }
   } catch {
@@ -671,9 +673,122 @@ function verifyAppLock() {
 }
 
 // ═════════════════════════════════════════════════
-// 달력 렌더링
+// 뷰 전환 (달력 ↔ 목록)
 // ═════════════════════════════════════════════════
 const isMobile = () => window.innerWidth <= 768;
+
+function initView() {
+  const saved = localStorage.getItem('cc_view');
+  currentView = saved || (isMobile() ? 'list' : 'calendar');
+}
+
+function switchView(view) {
+  currentView = view;
+  localStorage.setItem('cc_view', view);
+  applyView();
+}
+
+function applyView() {
+  const calContent = document.getElementById('calendarContent');
+  const listWrap   = document.getElementById('listViewWrap');
+  const btnCal     = document.getElementById('btnViewCalendar');
+  const btnList    = document.getElementById('btnViewList');
+  const isList     = currentView === 'list';
+
+  calContent?.classList.toggle('hidden', isList);
+  listWrap?.classList.toggle('hidden', !isList);
+  btnCal?.classList.toggle('view-toggle-active', !isList);
+  btnList?.classList.toggle('view-toggle-active', isList);
+
+  if (isList) renderListViewAll();
+  else        renderCalendar();
+}
+
+function renderCurrentView() {
+  if (currentView === 'list') renderListViewAll();
+  else                        renderCalendar();
+}
+
+// ── 전체 목록 보기 렌더링 ─────────────────────────
+function renderListViewAll() {
+  const body = document.getElementById('listViewBody');
+  if (!body) return;
+
+  const sorted = [...events].sort((a, b) => {
+    const dc = a.date.localeCompare(b.date);
+    return dc !== 0 ? dc : (a.time || '').localeCompare(b.time || '');
+  });
+
+  if (!sorted.length) {
+    body.innerHTML = `
+      <div class="lv-empty">
+        <div style="font-size:36px;margin-bottom:10px">📋</div>
+        <div style="font-weight:600;margin-bottom:4px">등록된 일정이 없습니다.</div>
+        <div style="font-size:13px;color:var(--text-muted)">날짜를 눌러 일정을 추가해보세요.</div>
+      </div>`;
+    return;
+  }
+
+  const todayStr = toDateStr(new Date());
+  const alpha    = isDark() ? 0.22 : 0.15;
+  const DAYS     = ['일','월','화','수','목','금','토'];
+
+  // 월별 그룹
+  const groups = {};
+  sorted.forEach(ev => {
+    const key = ev.date.substring(0, 7);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(ev);
+  });
+
+  let html = '';
+  Object.entries(groups).forEach(([key, evts]) => {
+    const [y, m] = key.split('-');
+    html += `
+      <div class="lv-month-header">
+        ${y}년 ${parseInt(m)}월
+        <span class="lv-month-count">${evts.length}건</span>
+      </div>`;
+    evts.forEach(ev => {
+      const cat     = getCat(ev.type);
+      const [ey, em, ed] = ev.date.split('-').map(Number);
+      const dow     = new Date(ey, em-1, ed).getDay();
+      const dowStr  = DAYS[dow];
+      const isToday = ev.date === todayStr;
+      const isSun   = dow === 0;
+      const isSat   = dow === 6;
+      const dateClr = isToday ? 'var(--accent)'
+                    : isSun   ? 'var(--sunday)'
+                    : isSat   ? 'var(--saturday)' : '';
+
+      html += `
+        <div class="lv-event-item" onclick="openDayModalFromList('${ev.date}','${ev.id}')">
+          <div class="lv-date-col" ${dateClr ? `style="color:${dateClr}"` : ''}>
+            <span class="lv-day">${String(ed).padStart(2,'0')}</span>
+            <span class="lv-dow">${dowStr}</span>
+          </div>
+          <div class="lv-color-bar" style="background:${cat.color}"></div>
+          <div class="lv-info">
+            <div class="lv-title">${esc(ev.title)}</div>
+            ${ev.time ? `<div class="lv-time">⏰ ${esc(ev.time)}</div>` : ''}
+          </div>
+          <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:${cat.color}">${esc(cat.name)}</span>
+        </div>`;
+    });
+  });
+
+  body.innerHTML = html;
+}
+
+function openDayModalFromList(dateStr, eventId) {
+  viewingEventId = eventId;
+  openDayModal(dateStr);
+  setTimeout(() => switchDayView('detail'), 50);
+}
+
+// ═════════════════════════════════════════════════
+// 달력 렌더링
+// ═════════════════════════════════════════════════
 
 function renderCalendar() {
   const y = currentYear, m = currentMonth;
@@ -800,7 +915,7 @@ function renderMiniCal() {
     btn.addEventListener('click', () => {
       currentYear  = miniCalYear;
       currentMonth = i;
-      renderCalendar();
+      switchView('calendar');
       closeMiniCal();
     });
     grid.appendChild(btn);
@@ -1086,7 +1201,7 @@ function saveEvent() {
       }
     }, 300);
   }
-  renderCalendar();
+  renderCurrentView();
 }
 
 /** 현재 상세 중인 일정 삭제 */
@@ -1099,7 +1214,7 @@ function deleteCurrentEvent() {
   const deletedEv = ev;
 
   viewingEventId = null;
-  renderCalendar();
+  renderCurrentView();
   switchDayView('list');
   showToast('일정이 삭제되었습니다.');
 
@@ -1241,7 +1356,7 @@ async function refreshSync() {
       localStorage.setItem('cc_events', JSON.stringify(events));
       saveSettings();
       applyTheme(settings.darkMode);
-      renderCalendar();
+      renderCurrentView();
       setSyncStatus('online', '✅ 동기화됨');
     } else if (resp.status === 401) {
       logout();
@@ -1311,7 +1426,7 @@ function saveSettingsData() {
   saveSettings();
   applyTheme(settings.darkMode);
   syncSettingsToServer(settings);
-  renderCalendar();
+  renderCurrentView();
   showToast('설정이 저장되었습니다.');
   document.getElementById('settingsOverlay').classList.add('hidden');
   settingsDraft    = null;
@@ -1760,16 +1875,20 @@ function bindStaticEvents() {
   // ── 월 이동 ──
   document.getElementById('btnPrev').addEventListener('click', () => {
     if (--currentMonth < 0) { currentMonth = 11; currentYear--; }
-    renderCalendar();
+    switchView('calendar');
   });
   document.getElementById('btnNext').addEventListener('click', () => {
     if (++currentMonth > 11) { currentMonth = 0; currentYear++; }
-    renderCalendar();
+    switchView('calendar');
   });
   document.getElementById('btnToday').addEventListener('click', () => {
     const n = new Date(); currentYear = n.getFullYear(); currentMonth = n.getMonth();
-    renderCalendar();
+    switchView('calendar');
   });
+
+  // ── 뷰 전환 ──
+  document.getElementById('btnViewCalendar')?.addEventListener('click', () => switchView('calendar'));
+  document.getElementById('btnViewList')?.addEventListener('click',     () => switchView('list'));
 
   // ── 미니 달력 ──
   document.getElementById('monthTitle').addEventListener('click', openMiniCal);
@@ -1845,7 +1964,7 @@ function bindStaticEvents() {
         if (backup.settings?.categories) settings.categories = backup.settings.categories;
         saveEvents();
         saveSettings();
-        renderCalendar();
+        renderCurrentView();
         showToast('백업 데이터를 불러왔습니다.');
       } catch { showToast('올바른 백업 파일이 아닙니다.'); }
     };
