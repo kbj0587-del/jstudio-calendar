@@ -1588,6 +1588,64 @@ body {
 }
 [data-theme="dark"] .inc-summary-amount { color: #a78bfa; }
 
+/* ══════════════ 월별 현황 섹션 (대강 / 수업노쇼) ══════════════ */
+.ms-section {
+  margin: 12px 0 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.ms-section--daeggang .ms-header {
+  background: color-mix(in srgb, #e07b20 10%, var(--surface2));
+}
+.ms-section--noshow .ms-header {
+  background: color-mix(in srgb, #e03050 10%, var(--surface2));
+}
+.ms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ms-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.ms-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.ms-list { display: flex; flex-direction: column; }
+.ms-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.ms-row:last-child { border-bottom: none; }
+.ms-row:hover { background: var(--surface2); }
+.ms-date {
+  min-width: 80px;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ms-content {
+  flex: 1;
+  color: var(--text);
+}
+.ms-noshow {
+  color: #e03050;
+  font-weight: 500;
+}
+[data-theme="dark"] .ms-noshow { color: #ff6b6b; }
+
 /* ══════════════ 스크롤바 ══════════════ */
 ::-webkit-scrollbar       { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

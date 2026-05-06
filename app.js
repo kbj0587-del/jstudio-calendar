@@ -3,17 +3,18 @@
    ═══════════════════════════════════════════════ */
 
 // ── 상수 ──────────────────────────────────────────
-const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review'];
+const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow'];
 
 const DEFAULT_CATS = [
-  { id: 'daeggang',  name: '대강',    color: '#e07b20', system: true },
-  { id: 'incentive', name: '인센티브', color: '#7c3aed', system: true },
-  { id: 'trial',     name: '체험수업', color: '#0891b2', system: true },
-  { id: 'review',    name: '리뷰체험', color: '#e91e8c', system: true },
-  { id: 'noshow',    name: '노쇼',    color: '#e03050' },
-  { id: 'makeup',    name: '보강',    color: '#1a8fc7' },
-  { id: 'info',      name: '중요정보', color: '#c88a00' },
-  { id: 'other',     name: '기타',    color: '#2e9e4f' },
+  { id: 'daeggang',    name: '대강',    color: '#e07b20', system: true },
+  { id: 'incentive',  name: '인센티브', color: '#7c3aed', system: true },
+  { id: 'trial',      name: '체험수업', color: '#0891b2', system: true },
+  { id: 'review',     name: '리뷰체험', color: '#e91e8c', system: true },
+  { id: 'classnoshow',name: '수업노쇼', color: '#e03050', system: true },
+  { id: 'noshow',     name: '노쇼',    color: '#e03050' },
+  { id: 'makeup',     name: '보강',    color: '#1a8fc7' },
+  { id: 'info',       name: '중요정보', color: '#c88a00' },
+  { id: 'other',      name: '기타',    color: '#2e9e4f' },
 ];
 
 const PALETTE_COLORS = [
@@ -209,9 +210,12 @@ function collectExtraFields(type) {
         f.incentiveAmt      = String(totalAmt);
       } else {
         const regAmt  = Number(document.getElementById('fRegisterAmt')?.value) || 0;
+        const persons = Math.max(1, Number(document.getElementById('fConsultPersonCount')?.value) || 1);
         const rate    = Number(document.getElementById('fConsultRate')?.value) || incentiveDefaults.consultRate;
-        const calcAmt = Math.round(regAmt * rate / 100);
+        const totalReg = regAmt * persons;
+        const calcAmt  = Math.round(totalReg * rate / 100);
         f.registerAmt         = regAmt;
+        f.personCount         = persons;
         f.consultRate         = rate;
         f.consultIncentiveAmt = calcAmt;
         f.incentiveAmt        = String(calcAmt);
@@ -233,6 +237,11 @@ function collectExtraFields(type) {
       f.clientName    = document.getElementById('fClientName')?.value.trim() || '';
       f.clientContact = document.getElementById('fClientContact')?.value.trim() || '';
       f.noshow        = document.getElementById('fNoshow')?.checked || false;
+      break;
+    case 'classnoshow':
+      f.studentName   = document.getElementById('fStudentName')?.value.trim() || '';
+      f.studentContact= document.getElementById('fStudentContact')?.value.trim() || '';
+      f.className     = document.getElementById('fClassName')?.value.trim() || '';
       break;
   }
   return f;
@@ -257,8 +266,16 @@ function autoTitle(type, f) {
           : ` ${total.toLocaleString()}원`;
         return `${iType}${staff}${amtStr}`;
       } else {
-        const amt = f.incentiveAmt ? ` ${Number(f.incentiveAmt).toLocaleString()}원` : '';
-        return `${iType}${staff}${amt}`;
+        const cnt  = f.personCount || 1;
+        const reg  = f.registerAmt || 0;
+        const amt  = Number(f.incentiveAmt) || 0;
+        if (!reg && !amt) return `${iType}${staff}`;
+        const totalReg = reg * cnt;
+        const rate  = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
+        const amtStr = cnt > 1
+          ? ` ${reg.toLocaleString()}×${cnt}=${totalReg.toLocaleString()}원→${rate}%=${amt.toLocaleString()}원`
+          : ` ${reg.toLocaleString()}원→${rate}%=${amt.toLocaleString()}원`;
+        return `${iType}${staff}${amtStr}`;
       }
     }
     case 'trial': {
@@ -267,7 +284,12 @@ function autoTitle(type, f) {
       return cnt > 1 ? `${name} 外 ${cnt - 1}명` : name;
     }
     case 'review': return f.clientName || '리뷰체험';
-    default:       return '';
+    case 'classnoshow': {
+      const sName = f.studentName || '수업노쇼';
+      const cls   = f.className   ? ` (${f.className})` : '';
+      return `${sName}${cls}`;
+    }
+    default: return '';
   }
 }
 
@@ -290,8 +312,15 @@ function getChipText(ev) {
           : ` ${total.toLocaleString()}원`;
         return `${iType}${staff}${amtStr}`;
       }
-      const amt = f.incentiveAmt ? ` ${Number(f.incentiveAmt).toLocaleString()}원` : '';
-      return `${iType}${staff}${amt}` || ev.title;
+      const cnt  = f.personCount || 1;
+      const reg  = f.registerAmt || 0;
+      const amt  = Number(f.incentiveAmt) || 0;
+      if (!reg && !amt) return `${iType}${staff}` || ev.title;
+      const rate = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
+      const amtStr = cnt > 1
+        ? ` ${reg.toLocaleString()}×${cnt}→${rate}%=${amt.toLocaleString()}원`
+        : ` ${reg.toLocaleString()}원→${rate}%=${amt.toLocaleString()}원`;
+      return `${iType}${staff}${amtStr}`;
     }
     case 'trial': {
       const base = f.clientName || ev.title;
@@ -301,6 +330,11 @@ function getChipText(ev) {
     }
     case 'review':
       return (f.clientName || ev.title) + (f.noshow ? ' ⚠노쇼' : '');
+    case 'classnoshow': {
+      const sName = f.studentName || ev.title;
+      const cls   = f.className ? ` (${f.className})` : '';
+      return `🚫${sName}${cls}`;
+    }
     default: return ev.title;
   }
 }
@@ -327,7 +361,18 @@ function getExtraSummaryHtml(ev) {
             : ` | ${total.toLocaleString()}원`;
         }
       } else {
-        if (f.incentiveAmt) amtStr = ` | ${Number(f.incentiveAmt).toLocaleString()}원`;
+        const reg  = f.registerAmt || 0;
+        const cnt  = f.personCount || 1;
+        const amt  = Number(f.incentiveAmt) || 0;
+        const rate = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
+        if (reg > 0) {
+          const totalReg = reg * cnt;
+          amtStr = cnt > 1
+            ? ` | ${reg.toLocaleString()}×${cnt}=${totalReg.toLocaleString()}원 → ${rate}% = ${amt.toLocaleString()}원`
+            : ` | ${reg.toLocaleString()}원 → ${rate}% = ${amt.toLocaleString()}원`;
+        } else if (amt > 0) {
+          amtStr = ` | ${amt.toLocaleString()}원`;
+        }
       }
       return `<div class="lv-extra-info">💰 ${esc(iType)}${staff}${amtStr}</div>`;
     }
@@ -345,6 +390,12 @@ function getExtraSummaryHtml(ev) {
       const contact = f.clientContact ? ` | ${esc(f.clientContact)}` : '';
       const noshow  = f.noshow ? ` <span class="lv-noshow-tag">노쇼</span>` : '';
       return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${noshow}</div>`;
+    }
+    case 'classnoshow': {
+      if (!f.studentName && !f.className) return '';
+      const cls     = f.className ? ` | ${esc(f.className)}` : '';
+      const contact = f.studentContact ? ` | ${esc(f.studentContact)}` : '';
+      return `<div class="lv-extra-info lv-extra-noshow">🚫 ${esc(f.studentName||'-')}${cls}${contact}</div>`;
     }
     default: return '';
   }
@@ -391,21 +442,33 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-val detail-amt">${amtStr}</span>
           </div>`;
       } else {
-        const rate   = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
-        const regAmt = f.registerAmt ? Number(f.registerAmt).toLocaleString() + '원' : '-';
-        const total  = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '-';
+        const rate    = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
+        const reg     = Number(f.registerAmt) || 0;
+        const cnt     = f.personCount || 1;
+        const totalReg= reg * cnt;
+        const amt     = Number(f.incentiveAmt) || 0;
+        const regStr  = reg > 0
+          ? (cnt > 1
+              ? `${reg.toLocaleString()}원 × ${cnt}명 = <strong>${totalReg.toLocaleString()}원</strong>`
+              : `${reg.toLocaleString()}원`)
+          : '-';
+        const amtStr  = amt > 0 ? `${rate}% = <strong>${amt.toLocaleString()}원</strong>` : '-';
         extraRows = `
           <div class="detail-extra-row">
             <span class="detail-extra-label">담당 상담자</span>
             <span class="detail-extra-val">${esc(f.staffName || '-')}</span>
           </div>
           <div class="detail-extra-row">
+            <span class="detail-extra-label">인원</span>
+            <span class="detail-extra-val">${cnt}명</span>
+          </div>
+          <div class="detail-extra-row">
             <span class="detail-extra-label">등록 금액</span>
-            <span class="detail-extra-val">${regAmt}</span>
+            <span class="detail-extra-val detail-amt">${regStr}</span>
           </div>
           <div class="detail-extra-row">
             <span class="detail-extra-label">인센티브</span>
-            <span class="detail-extra-val detail-amt">${rate}% = ${total}</span>
+            <span class="detail-extra-val detail-amt">${amtStr}</span>
           </div>`;
       }
       return `
@@ -459,6 +522,23 @@ function getExtraDetailHtml(ev) {
           </div>
         </div>`;
     }
+    case 'classnoshow':
+      return `
+        <div class="detail-extra-section">
+          <div class="detail-label">🚫 수업노쇼 정보</div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">수강생 이름</span>
+            <span class="detail-extra-val">${esc(f.studentName || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">연락처</span>
+            <span class="detail-extra-val">${esc(f.studentContact || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">수업명</span>
+            <span class="detail-extra-val">${esc(f.className || '-')}</span>
+          </div>
+        </div>`;
     default: return '';
   }
 }
@@ -1084,6 +1164,76 @@ function renderIncentiveSummary(monthStr) {
     </div>`;
 }
 
+// ── 월별 대강 정산 요약 ───────────────────────────
+function renderDaeggangSummary(monthStr) {
+  const dgEvents = events.filter(ev =>
+    ev.type === 'daeggang' && ev.date.startsWith(monthStr)
+  );
+  if (!dgEvents.length) return '';
+
+  // 날짜순 정렬
+  const sorted = [...dgEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+
+  let rows = '';
+  sorted.forEach(ev => {
+    const f    = ev.extraFields || {};
+    const [,, ed] = ev.date.split('-');
+    const dow  = ['일','월','화','수','목','금','토'][new Date(ev.date).getDay()];
+    const time = ev.time ? ` ${ev.time}` : '';
+    const a    = f.instructorA || '?';
+    const b    = f.instructorB || '?';
+    rows += `
+      <div class="ms-row">
+        <span class="ms-date">${Number(ed)}일(${dow})${time}</span>
+        <span class="ms-content">${esc(a)} → ${esc(b)}</span>
+      </div>`;
+  });
+
+  return `
+    <div class="ms-section ms-section--daeggang">
+      <div class="ms-header">
+        <span class="ms-title">🔄 대강 현황</span>
+        <span class="ms-count">${dgEvents.length}건</span>
+      </div>
+      <div class="ms-list">${rows}</div>
+    </div>`;
+}
+
+// ── 월별 수업노쇼 요약 ────────────────────────────
+function renderClassNoshowSummary(monthStr) {
+  const nsEvents = events.filter(ev =>
+    ev.type === 'classnoshow' && ev.date.startsWith(monthStr)
+  );
+  if (!nsEvents.length) return '';
+
+  const sorted = [...nsEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+
+  let rows = '';
+  sorted.forEach(ev => {
+    const f    = ev.extraFields || {};
+    const [,, ed] = ev.date.split('-');
+    const dow  = ['일','월','화','수','목','금','토'][new Date(ev.date).getDay()];
+    const time = ev.time ? ` ${ev.time}` : '';
+    const name = f.studentName  || '-';
+    const cls  = f.className    ? ` · ${f.className}` : '';
+    const tel  = f.studentContact ? ` · ${f.studentContact}` : '';
+    rows += `
+      <div class="ms-row">
+        <span class="ms-date">${Number(ed)}일(${dow})${time}</span>
+        <span class="ms-content ms-noshow">${esc(name)}${esc(cls)}${esc(tel)}</span>
+      </div>`;
+  });
+
+  return `
+    <div class="ms-section ms-section--noshow">
+      <div class="ms-header">
+        <span class="ms-title">🚫 수업노쇼 현황</span>
+        <span class="ms-count">${nsEvents.length}건</span>
+      </div>
+      <div class="ms-list">${rows}</div>
+    </div>`;
+}
+
 // ── 목록 보기 렌더링 — 현재 달만 표시 ────────────
 function renderListViewAll() {
   const body = document.getElementById('listViewBody');
@@ -1182,8 +1332,10 @@ function renderListViewAll() {
     }
   });
 
-  // 월별 인센티브 정산 섹션 추가
+  // 월별 정산 섹션 추가
   html += renderIncentiveSummary(monthStr);
+  html += renderDaeggangSummary(monthStr);
+  html += renderClassNoshowSummary(monthStr);
 
   body.innerHTML = html;
 }
@@ -1606,11 +1758,20 @@ function renderExtraFields(catId, ev) {
           </div>
         </div>
         <div id="incentiveConsultFields"${!isConsult ? ' style="display:none"' : ''}>
-          <div class="form-group">
-            <label>등록 금액 <span class="required">*</span></label>
-            <div class="input-with-unit">
-              <input type="number" id="fRegisterAmt" placeholder="0" min="0" step="10000" value="${regAmt}"/>
-              <span class="input-unit">원</span>
+          <div class="form-row">
+            <div class="form-group">
+              <label>등록 금액 (1인) <span class="required">*</span></label>
+              <div class="input-with-unit">
+                <input type="number" id="fRegisterAmt" placeholder="0" min="0" step="10000" value="${regAmt}"/>
+                <span class="input-unit">원</span>
+              </div>
+            </div>
+            <div class="form-group" style="max-width:110px">
+              <label>인원</label>
+              <div class="input-with-unit">
+                <input type="number" id="fConsultPersonCount" placeholder="1" min="1" step="1" value="${f.personCount || 1}"/>
+                <span class="input-unit">명</span>
+              </div>
             </div>
           </div>
           <div class="form-group">
@@ -1642,13 +1803,20 @@ function renderExtraFields(catId, ev) {
       // 상담등록 자동계산
       const updateCalc = () => {
         const reg  = Number(document.getElementById('fRegisterAmt')?.value) || 0;
+        const cnt  = Math.max(1, Number(document.getElementById('fConsultPersonCount')?.value) || 1);
         const rt   = Number(document.getElementById('fConsultRate')?.value) || incentiveDefaults.consultRate;
-        const calc = Math.round(reg * rt / 100);
+        const totalReg = reg * cnt;
+        const calc = Math.round(totalReg * rt / 100);
         const el   = document.getElementById('incentiveCalcInfo');
         if (!el) return;
-        el.innerHTML = reg > 0
-          ? `<span class="calc-rate">${rt}% = </span><span class="calc-amt">${calc.toLocaleString()}원</span>`
-          : `<span class="calc-placeholder">등록 금액을 입력하면 자동 계산됩니다</span>`;
+        if (reg > 0) {
+          const regPart = cnt > 1
+            ? `<span class="calc-rate">${reg.toLocaleString()}원 × ${cnt}명 = ${totalReg.toLocaleString()}원 → ${rt}% = </span>`
+            : `<span class="calc-rate">${reg.toLocaleString()}원 → ${rt}% = </span>`;
+          el.innerHTML = regPart + `<span class="calc-amt">${calc.toLocaleString()}원</span>`;
+        } else {
+          el.innerHTML = `<span class="calc-placeholder">등록 금액을 입력하면 자동 계산됩니다</span>`;
+        }
       };
 
       // 라디오 버튼 변경 이벤트
@@ -1674,6 +1842,7 @@ function renderExtraFields(catId, ev) {
       document.getElementById('fTrialIncentiveAmt')?.addEventListener('input', updateTrialCalc);
       document.getElementById('fTrialPersonCount')?.addEventListener('input', updateTrialCalc);
       document.getElementById('fRegisterAmt')?.addEventListener('input', updateCalc);
+      document.getElementById('fConsultPersonCount')?.addEventListener('input', updateCalc);
       document.getElementById('fConsultRate')?.addEventListener('input', updateCalc);
 
       // 초기 계산 표시
@@ -1757,6 +1926,23 @@ function renderExtraFields(catId, ev) {
           </label>
         </div>`;
       setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
+      break;
+    }
+    case 'classnoshow': {
+      container.innerHTML = `
+        <div class="form-group">
+          <label>수강생 이름 <span class="required">*</span></label>
+          <input type="text" id="fStudentName" placeholder="수강생 이름" value="${esc(f.studentName||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>연락처</label>
+          <input type="tel" id="fStudentContact" placeholder="010-0000-0000" value="${esc(f.studentContact||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>수업명</label>
+          <input type="text" id="fClassName" placeholder="노쇼가 발생한 수업명" value="${esc(f.className||'')}"/>
+        </div>`;
+      setTimeout(() => document.getElementById('fStudentName')?.focus(), 80);
       break;
     }
     default:
