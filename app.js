@@ -124,6 +124,8 @@ let settingsDraft    = null;
 let savedSel         = null;
 
 let events   = [];
+let incentiveDefaults = { trialAmount: 10000, consultRate: 5 }; // 서버에서 로드됨
+
 let settings = {
   password:     '',
   lockDisabled: false,
@@ -144,6 +146,16 @@ function ensureSystemCats() {
       existing.system = true;
     }
   });
+}
+
+async function loadIncentiveDefaults() {
+  try {
+    const resp = await apiGet('/api/admin/incentive-defaults');
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.defaults) incentiveDefaults = { ...incentiveDefaults, ...data.defaults };
+    }
+  } catch { /* 오프라인 — 기본값 유지 */ }
 }
 
 function loadAll() {
@@ -184,10 +196,25 @@ function collectExtraFields(type) {
       f.instructorA = document.getElementById('fInstructorA')?.value.trim() || '';
       f.instructorB = document.getElementById('fInstructorB')?.value.trim() || '';
       break;
-    case 'incentive':
-      f.incentiveType = document.querySelector('input[name="incentiveType"]:checked')?.value || '체험등록';
-      f.incentiveAmt  = document.getElementById('fIncentiveAmt')?.value || '';
+    case 'incentive': {
+      const iType = document.querySelector('input[name="incentiveType"]:checked')?.value || '체험등록';
+      f.incentiveType = iType;
+      f.staffName     = document.getElementById('fStaffName')?.value.trim() || '';
+      if (iType === '체험등록') {
+        const amt = Number(document.getElementById('fTrialIncentiveAmt')?.value) || 0;
+        f.trialIncentiveAmt = amt;
+        f.incentiveAmt      = String(amt);
+      } else {
+        const regAmt = Number(document.getElementById('fRegisterAmt')?.value) || 0;
+        const rate   = Number(document.getElementById('fConsultRate')?.value) || incentiveDefaults.consultRate;
+        const calcAmt = Math.round(regAmt * rate / 100);
+        f.registerAmt        = regAmt;
+        f.consultRate        = rate;
+        f.consultIncentiveAmt = calcAmt;
+        f.incentiveAmt        = String(calcAmt);
+      }
       break;
+    }
     case 'trial':
     case 'review':
       f.clientName    = document.getElementById('fClientName')?.value.trim() || '';
@@ -205,8 +232,10 @@ function autoTitle(type, f) {
         ? `${f.instructorA || '?'} → ${f.instructorB || '?'} 대강`
         : '대강';
     case 'incentive': {
-      const amt = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '';
-      return [f.incentiveType || '체험등록', amt].filter(Boolean).join(' ');
+      const iType  = f.incentiveType || '체험등록';
+      const staff  = f.staffName ? ` · ${f.staffName}` : '';
+      const amt    = f.incentiveAmt ? ` ${Number(f.incentiveAmt).toLocaleString()}원` : '';
+      return `${iType}${staff}${amt}`;
     }
     case 'trial':  return f.clientName || '체험수업';
     case 'review': return f.clientName || '리뷰체험';
@@ -221,8 +250,10 @@ function getChipText(ev) {
     case 'daeggang':
       return f.instructorA ? `${f.instructorA}→${f.instructorB}` : ev.title;
     case 'incentive': {
-      const amt = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '';
-      return [f.incentiveType, amt].filter(Boolean).join(' ') || ev.title;
+      const iType = f.incentiveType || '체험등록';
+      const staff = f.staffName ? ` · ${f.staffName}` : '';
+      const amt   = f.incentiveAmt ? ` ${Number(f.incentiveAmt).toLocaleString()}원` : '';
+      return `${iType}${staff}${amt}` || ev.title;
     }
     case 'trial':
     case 'review':
@@ -239,9 +270,11 @@ function getExtraSummaryHtml(ev) {
       if (!f.instructorA && !f.instructorB) return '';
       return `<div class="lv-extra-info">🔄 ${esc(f.instructorA||'?')} → ${esc(f.instructorB||'?')}</div>`;
     case 'incentive': {
-      const amt = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '';
-      if (!f.incentiveType && !amt) return '';
-      return `<div class="lv-extra-info">💰 ${esc(f.incentiveType||'체험등록')}${amt ? ' | ' + amt : ''}</div>`;
+      const iType = f.incentiveType || '체험등록';
+      const staff = f.staffName ? ` | ${esc(f.staffName)}` : '';
+      const amt   = f.incentiveAmt ? ` | ${Number(f.incentiveAmt).toLocaleString()}원` : '';
+      if (!f.incentiveType && !f.staffName && !f.incentiveAmt) return '';
+      return `<div class="lv-extra-info">💰 ${esc(iType)}${staff}${amt}</div>`;
     }
     case 'trial':
     case 'review': {
@@ -272,18 +305,44 @@ function getExtraDetailHtml(ev) {
           </div>
         </div>`;
     case 'incentive': {
-      const amt = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '-';
+      const iType = f.incentiveType || '체험등록';
+      const amt   = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '-';
+      let extraRows = '';
+      if (iType === '체험등록') {
+        extraRows = `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">담당 강사</span>
+            <span class="detail-extra-val">${esc(f.staffName || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">인센티브 금액</span>
+            <span class="detail-extra-val detail-amt">${amt}</span>
+          </div>`;
+      } else {
+        const rate   = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
+        const regAmt = f.registerAmt ? Number(f.registerAmt).toLocaleString() + '원' : '-';
+        extraRows = `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">담당 상담자</span>
+            <span class="detail-extra-val">${esc(f.staffName || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">등록 금액</span>
+            <span class="detail-extra-val">${regAmt}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">인센티브</span>
+            <span class="detail-extra-val detail-amt">${rate}% = ${amt}</span>
+          </div>`;
+      }
       return `
         <div class="detail-extra-section">
           <div class="detail-label">인센티브 정보</div>
           <div class="detail-extra-row">
             <span class="detail-extra-label">구분</span>
-            <span class="detail-extra-val">${esc(f.incentiveType || '-')}</span>
+            <span class="detail-extra-val">${esc(iType)}</span>
           </div>
-          <div class="detail-extra-row">
-            <span class="detail-extra-label">인센티브 금액</span>
-            <span class="detail-extra-val detail-amt">${amt}</span>
-          </div>
+          ${extraRows}
         </div>`;
     }
     case 'trial':
@@ -536,9 +595,10 @@ async function launchApp() {
       applyTheme(settings.darkMode);
       renderCurrentView();
       setSyncStatus('online', '✅ 동기화됨 — 모든 기기에서 동일한 데이터');
-      // 공휴일 백그라운드 로드
+      // 공휴일 + 인센티브 기본값 백그라운드 로드
       loadHolidaysForYear(currentYear);
       loadHolidaysForYear(currentYear + 1);
+      loadIncentiveDefaults();
     }
   } catch {
     syncEnabled = false;
@@ -874,6 +934,60 @@ function renderCurrentView() {
   else                        renderCalendar();
 }
 
+// ── 월별 인센티브 정산 요약 ───────────────────────
+function renderIncentiveSummary(monthStr) {
+  const incEvents = events.filter(ev =>
+    ev.type === 'incentive' && ev.date.startsWith(monthStr) && ev.extraFields
+  );
+  if (!incEvents.length) return '';
+
+  // 담당자별 집계
+  const staffMap = {};
+  incEvents.forEach(ev => {
+    const f    = ev.extraFields;
+    const name = f.staffName?.trim() || '(미입력)';
+    if (!staffMap[name]) {
+      staffMap[name] = { trial: { count: 0, total: 0 }, consult: { count: 0, total: 0 } };
+    }
+    const amt = Number(f.incentiveAmt) || 0;
+    if (f.incentiveType === '상담등록') {
+      staffMap[name].consult.count++;
+      staffMap[name].consult.total += amt;
+    } else {
+      staffMap[name].trial.count++;
+      staffMap[name].trial.total += amt;
+    }
+  });
+
+  const staffNames = Object.keys(staffMap).sort();
+  let grandTotal = 0;
+  staffNames.forEach(n => { grandTotal += staffMap[n].trial.total + staffMap[n].consult.total; });
+
+  let rows = '';
+  staffNames.forEach(name => {
+    const d     = staffMap[name];
+    const total = d.trial.total + d.consult.total;
+    const parts = [];
+    if (d.trial.count   > 0) parts.push(`체험 ${d.trial.count}건 · ${d.trial.total.toLocaleString()}원`);
+    if (d.consult.count > 0) parts.push(`상담 ${d.consult.count}건 · ${d.consult.total.toLocaleString()}원`);
+    rows += `
+      <div class="inc-summary-card">
+        <div class="inc-summary-name">${esc(name)}</div>
+        <div class="inc-summary-detail">${parts.join(' / ')}</div>
+        <div class="inc-summary-amount">${total.toLocaleString()}원</div>
+      </div>`;
+  });
+
+  return `
+    <div class="inc-summary-section">
+      <div class="inc-summary-header">
+        <span class="inc-summary-title">💰 인센티브 정산</span>
+        <span class="inc-summary-grand">${grandTotal.toLocaleString()}원</span>
+      </div>
+      <div class="inc-summary-list">${rows}</div>
+    </div>`;
+}
+
 // ── 목록 보기 렌더링 — 현재 달만 표시 ────────────
 function renderListViewAll() {
   const body = document.getElementById('listViewBody');
@@ -971,6 +1085,9 @@ function renderListViewAll() {
         </div>`;
     }
   });
+
+  // 월별 인센티브 정산 섹션 추가
+  html += renderIncentiveSummary(monthStr);
 
   body.innerHTML = html;
 }
@@ -1335,30 +1452,102 @@ function renderExtraFields(catId, ev) {
       setTimeout(() => document.getElementById('fInstructorA')?.focus(), 80);
       break;
 
-    case 'incentive':
+    case 'incentive': {
+      const isConsult   = f.incentiveType === '상담등록';
+      const staffLabel  = isConsult ? '담당 상담자' : '담당 강사';
+      const staffHolder = isConsult ? '상담자 이름' : '강사 이름';
+      const staffVal    = esc(f.staffName || '');
+      const trialAmt    = (f.trialIncentiveAmt !== undefined) ? f.trialIncentiveAmt
+                        : (!isConsult && !f.incentiveType) ? incentiveDefaults.trialAmount
+                        : (f.incentiveAmt && !isConsult) ? f.incentiveAmt : incentiveDefaults.trialAmount;
+      const regAmt      = f.registerAmt !== undefined ? f.registerAmt : '';
+      const cRate       = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
+      const calcAmt     = regAmt ? Math.round(Number(regAmt) * Number(cRate) / 100) : 0;
+      const calcHtml    = calcAmt
+        ? `<span class="calc-rate">${cRate}% = </span><span class="calc-amt">${calcAmt.toLocaleString()}원</span>`
+        : `<span class="calc-placeholder">등록 금액을 입력하면 자동 계산됩니다</span>`;
+
       container.innerHTML = `
         <div class="form-group">
           <label>구분 <span class="required">*</span></label>
           <div class="incentive-radio-group">
             <label class="radio-label">
-              <input type="radio" name="incentiveType" value="체험등록" ${f.incentiveType !== '상담등록' ? 'checked' : ''}/>
+              <input type="radio" name="incentiveType" value="체험등록" ${!isConsult ? 'checked' : ''}/>
               <span>체험등록</span>
             </label>
             <label class="radio-label">
-              <input type="radio" name="incentiveType" value="상담등록" ${f.incentiveType === '상담등록' ? 'checked' : ''}/>
+              <input type="radio" name="incentiveType" value="상담등록" ${isConsult ? 'checked' : ''}/>
               <span>상담등록</span>
             </label>
           </div>
         </div>
         <div class="form-group">
-          <label>인센티브 금액 <span class="required">*</span></label>
-          <div class="input-with-unit">
-            <input type="number" id="fIncentiveAmt" placeholder="0" min="0" step="1000" value="${f.incentiveAmt||''}"/>
-            <span class="input-unit">원</span>
+          <label id="fStaffLabel">${staffLabel} <span class="required">*</span></label>
+          <input type="text" id="fStaffName" placeholder="${staffHolder}" value="${staffVal}"/>
+        </div>
+        <div id="incentiveTrialFields"${isConsult ? ' style="display:none"' : ''}>
+          <div class="form-group">
+            <label>인센티브 금액 <span class="required">*</span></label>
+            <div class="input-with-unit">
+              <input type="number" id="fTrialIncentiveAmt" placeholder="0" min="0" step="1000" value="${trialAmt}"/>
+              <span class="input-unit">원</span>
+            </div>
           </div>
+        </div>
+        <div id="incentiveConsultFields"${!isConsult ? ' style="display:none"' : ''}>
+          <div class="form-group">
+            <label>등록 금액 <span class="required">*</span></label>
+            <div class="input-with-unit">
+              <input type="number" id="fRegisterAmt" placeholder="0" min="0" step="10000" value="${regAmt}"/>
+              <span class="input-unit">원</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>인센티브 비율</label>
+            <div class="input-with-unit" style="max-width:130px">
+              <input type="number" id="fConsultRate" placeholder="${incentiveDefaults.consultRate}" min="0" max="100" step="0.5" value="${cRate}"/>
+              <span class="input-unit">%</span>
+            </div>
+          </div>
+          <div class="incentive-calc-info" id="incentiveCalcInfo">${calcHtml}</div>
         </div>`;
-      setTimeout(() => document.getElementById('fIncentiveAmt')?.focus(), 80);
+
+      // 자동계산 함수
+      const updateCalc = () => {
+        const reg  = Number(document.getElementById('fRegisterAmt')?.value) || 0;
+        const rt   = Number(document.getElementById('fConsultRate')?.value) || incentiveDefaults.consultRate;
+        const calc = Math.round(reg * rt / 100);
+        const el   = document.getElementById('incentiveCalcInfo');
+        if (!el) return;
+        el.innerHTML = reg > 0
+          ? `<span class="calc-rate">${rt}% = </span><span class="calc-amt">${calc.toLocaleString()}원</span>`
+          : `<span class="calc-placeholder">등록 금액을 입력하면 자동 계산됩니다</span>`;
+      };
+
+      // 라디오 버튼 변경 이벤트
+      container.querySelectorAll('input[name="incentiveType"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          const toConsult = radio.value === '상담등록';
+          const lbl = document.getElementById('fStaffLabel');
+          const inp = document.getElementById('fStaffName');
+          if (lbl) lbl.innerHTML = (toConsult ? '담당 상담자' : '담당 강사') + ' <span class="required">*</span>';
+          if (inp) inp.placeholder = toConsult ? '상담자 이름' : '강사 이름';
+          document.getElementById('incentiveTrialFields').style.display  = toConsult ? 'none' : '';
+          document.getElementById('incentiveConsultFields').style.display = toConsult ? '' : 'none';
+          if (!toConsult) {
+            const ti = document.getElementById('fTrialIncentiveAmt');
+            if (ti && !ti.value) ti.value = incentiveDefaults.trialAmount;
+          }
+          updateCalc();
+        });
+      });
+
+      document.getElementById('fRegisterAmt')?.addEventListener('input', updateCalc);
+      document.getElementById('fConsultRate')?.addEventListener('input', updateCalc);
+
+      setTimeout(() => document.getElementById('fStaffName')?.focus(), 80);
       break;
+    }
 
     case 'trial':
     case 'review': {
@@ -1582,6 +1771,18 @@ function openSettings() {
   const pwSection = document.getElementById('sectionPassword');
   if (pwSection) pwSection.classList.toggle('hidden', !isAdminMode);
 
+  // 인센티브 기본값 섹션 (관리자·서브 관리자)
+  const incSection = document.getElementById('sectionIncentiveDefaults');
+  if (incSection) {
+    incSection.classList.toggle('hidden', !isAdminMode && !isSubAdmin);
+    if (isAdminMode || isSubAdmin) {
+      const trialInput = document.getElementById('incentiveDefaultTrialAmt');
+      const rateInput  = document.getElementById('incentiveDefaultConsultRate');
+      if (trialInput) trialInput.value = incentiveDefaults.trialAmount;
+      if (rateInput)  rateInput.value  = incentiveDefaults.consultRate;
+    }
+  }
+
   const sdot = document.getElementById('syncDot');
   const stxt = document.getElementById('syncStatusText');
   if (sdot) sdot.className = 'sync-dot ' + (syncEnabled ? 'online' : 'offline');
@@ -1747,6 +1948,34 @@ function saveSettingsData() {
   document.getElementById('settingsOverlay').classList.add('hidden');
   settingsDraft    = null;
   settingsUnlocked = false;
+}
+
+async function saveIncentiveDefaults() {
+  const trialAmt  = Number(document.getElementById('incentiveDefaultTrialAmt')?.value);
+  const consultRt = Number(document.getElementById('incentiveDefaultConsultRate')?.value);
+  const btn       = document.getElementById('btnSaveIncentiveDefaults');
+
+  if (isNaN(trialAmt) || trialAmt < 0) { showToast('체험등록 금액을 올바르게 입력해주세요.'); return; }
+  if (isNaN(consultRt) || consultRt < 0 || consultRt > 100) { showToast('비율은 0~100 사이로 입력해주세요.'); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중…'; }
+  try {
+    const resp = await fetch('/api/admin/incentive-defaults', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...adminHeaders() },
+      body:    JSON.stringify({ trialAmount: trialAmt, consultRate: consultRt }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      incentiveDefaults = data.defaults;
+      showToast(`✅ 저장됨 — 체험 ${trialAmt.toLocaleString()}원 / 상담 ${consultRt}%`);
+    } else {
+      showToast('저장 실패: 관리자 권한이 필요합니다.');
+    }
+  } catch {
+    showToast('서버에 연결할 수 없습니다.');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '💾 인센티브 기본값 저장'; }
 }
 
 // ═════════════════════════════════════════════════
@@ -2381,6 +2610,7 @@ function bindStaticEvents() {
   document.getElementById('btnCancelSettings').addEventListener('click', closeSettings);
   document.getElementById('btnSaveSettings').addEventListener('click', saveSettingsData);
   document.getElementById('btnAddCategory').addEventListener('click', addCategory);
+  document.getElementById('btnSaveIncentiveDefaults')?.addEventListener('click', saveIncentiveDefaults);
   document.getElementById('btnLogout')?.addEventListener('click', logout);
   document.getElementById('btnChangePinSave')?.addEventListener('click', submitPinChange);
   document.getElementById('newPinInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') submitPinChange(); });

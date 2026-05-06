@@ -378,6 +378,31 @@
         </div>
       </div>
 
+      <!-- 인센티브 기본값 (관리자·서브 관리자) -->
+      <div class="settings-section hidden" id="sectionIncentiveDefaults">
+        <h3 class="settings-section-title">💰 인센티브 기본값</h3>
+        <div class="form-group">
+          <label for="incentiveDefaultTrialAmt">체험등록 기본 인센티브 금액</label>
+          <div class="input-with-unit">
+            <input type="number" id="incentiveDefaultTrialAmt" min="0" step="1000" placeholder="10000" />
+            <span class="input-unit">원</span>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:8px">
+          <label for="incentiveDefaultConsultRate">상담등록 인센티브 비율</label>
+          <div class="input-with-unit" style="max-width:130px">
+            <input type="number" id="incentiveDefaultConsultRate" min="0" max="100" step="0.5" placeholder="5" />
+            <span class="input-unit">%</span>
+          </div>
+        </div>
+        <button id="btnSaveIncentiveDefaults" class="btn-save" style="width:100%;margin-top:10px">
+          💾 인센티브 기본값 저장
+        </button>
+        <p class="setting-hint" style="margin-top:6px">
+          신규 인센티브 등록 시 이 값이 자동 적용됩니다.
+        </p>
+      </div>
+
       <!-- 카테고리 -->
       <div class="settings-section">
         <h3 class="settings-section-title">카테고리 관리</h3>

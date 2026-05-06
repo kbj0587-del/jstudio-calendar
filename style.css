@@ -1511,6 +1511,83 @@ body {
 @keyframes toastIn  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 @keyframes toastOut { to   { opacity:0; } }
 
+/* ══════════════ 인센티브 폼 ══════════════ */
+.incentive-calc-info {
+  background: color-mix(in srgb, #7c3aed 10%, var(--surface2));
+  border: 1px solid color-mix(in srgb, #7c3aed 30%, var(--border));
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  margin-top: 4px;
+  font-size: 13px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.calc-rate    { color: var(--text-muted); }
+.calc-amt     { font-weight: 700; color: #7c3aed; font-size: 15px; }
+[data-theme="dark"] .calc-amt { color: #a78bfa; }
+.calc-placeholder { color: var(--text-muted); font-size: 12px; font-style: italic; }
+
+/* ══════════════ 인센티브 정산 (리스트 보기) ══════════════ */
+.inc-summary-section {
+  margin: 16px 0 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.inc-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 16px;
+  background: color-mix(in srgb, #7c3aed 10%, var(--surface2));
+  border-bottom: 1px solid var(--border);
+}
+.inc-summary-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.inc-summary-grand {
+  font-size: 15px;
+  font-weight: 800;
+  color: #7c3aed;
+}
+[data-theme="dark"] .inc-summary-grand { color: #a78bfa; }
+
+.inc-summary-list { display: flex; flex-direction: column; }
+.inc-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--tr);
+}
+.inc-summary-card:last-child { border-bottom: none; }
+.inc-summary-card:hover { background: var(--surface2); }
+.inc-summary-name {
+  font-weight: 600;
+  font-size: 14px;
+  min-width: 64px;
+  color: var(--text);
+}
+.inc-summary-detail {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.inc-summary-amount {
+  font-weight: 700;
+  font-size: 14px;
+  color: #7c3aed;
+  white-space: nowrap;
+}
+[data-theme="dark"] .inc-summary-amount { color: #a78bfa; }
+
 /* ══════════════ 스크롤바 ══════════════ */
 ::-webkit-scrollbar       { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

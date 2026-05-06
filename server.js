@@ -46,13 +46,14 @@ const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review'];
 
 // ── 데이터 저장소 ───────────────────────────────────
 let store = {
-  inviteRequired: false,   // true = 초대장 없이 접근 불가
-  invites:        [],      // 일회용 초대 토큰 배열
-  users:          [],      // 등록된 사용자
-  events:         [],      // 일정
-  activityLog:    [],      // 활동 기록
-  categories:     DEFAULT_CATS,
-  darkMode:       false,
+  inviteRequired:    false,   // true = 초대장 없이 접근 불가
+  invites:           [],      // 일회용 초대 토큰 배열
+  users:             [],      // 등록된 사용자
+  events:            [],      // 일정
+  activityLog:       [],      // 활동 기록
+  categories:        DEFAULT_CATS,
+  darkMode:          false,
+  incentiveDefaults: { trialAmount: 10000, consultRate: 5 }, // 인센티브 기본값
 };
 
 // ── DB 초기화 및 데이터 로드 (서버 시작 시 1회) ─────
@@ -84,6 +85,7 @@ async function initStore() {
       if (!Array.isArray(store.invites))     store.invites     = [];
       if (!Array.isArray(store.events))      store.events      = [];
       if (!Array.isArray(store.categories))  store.categories  = DEFAULT_CATS;
+      if (!store.incentiveDefaults) store.incentiveDefaults = { trialAmount: 10000, consultRate: 5 };
       // 시스템 카테고리가 DB에 없는 경우 자동 추가 (마이그레이션)
       SYSTEM_CAT_IDS.forEach(id => {
         const def = DEFAULT_CATS.find(c => c.id === id);
@@ -746,6 +748,32 @@ app.post('/api/admin/restore', requireAdmin, (req, res) => {
   saveToFile();
   console.log(`✅ 데이터 복원 완료 (${restoreMode}): 일정 +${stats.events}건`);
   res.json({ ok: true, mode: restoreMode, restored: stats });
+});
+
+// ════════════════════════════════════════════════════
+// 인센티브 기본값 API
+// ════════════════════════════════════════════════════
+
+// 인센티브 기본값 조회 (승인된 사용자 이상)
+app.get('/api/admin/incentive-defaults', requireAccess, (req, res) => {
+  res.json({ ok: true, defaults: store.incentiveDefaults });
+});
+
+// 인센티브 기본값 변경 (관리자 전용)
+app.post('/api/admin/incentive-defaults', requireAdmin, (req, res) => {
+  const { trialAmount, consultRate } = req.body;
+  if (!store.incentiveDefaults) store.incentiveDefaults = { trialAmount: 10000, consultRate: 5 };
+  if (trialAmount !== undefined) {
+    const amt = Number(trialAmount);
+    if (!isNaN(amt) && amt >= 0) store.incentiveDefaults.trialAmount = Math.round(amt);
+  }
+  if (consultRate !== undefined) {
+    const rate = Number(consultRate);
+    if (!isNaN(rate) && rate >= 0 && rate <= 100) store.incentiveDefaults.consultRate = rate;
+  }
+  saveToFile();
+  console.log(`✅ 인센티브 기본값 업데이트: 체험 ${store.incentiveDefaults.trialAmount}원, 상담 ${store.incentiveDefaults.consultRate}%`);
+  res.json({ ok: true, defaults: store.incentiveDefaults });
 });
 
 // ── manifest.json ──────────────────────────────────
