@@ -84,7 +84,20 @@ async function initStore() {
       if (!Array.isArray(store.invites))     store.invites     = [];
       if (!Array.isArray(store.events))      store.events      = [];
       if (!Array.isArray(store.categories))  store.categories  = DEFAULT_CATS;
-      console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명`);
+      // 시스템 카테고리가 DB에 없는 경우 자동 추가 (마이그레이션)
+      SYSTEM_CAT_IDS.forEach(id => {
+        const def = DEFAULT_CATS.find(c => c.id === id);
+        if (!def) return;
+        const existing = store.categories.find(c => c.id === id);
+        if (!existing) {
+          store.categories.unshift({ ...def });
+          console.log(`📌 시스템 카테고리 추가: ${def.name}`);
+        } else {
+          existing.name   = def.name;
+          existing.system = true;
+        }
+      });
+      console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명 | 카테고리 ${store.categories.length}개`);
     } else {
       await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
       console.log('✅ DB 최초 초기화 완료 (새 데이터베이스)');

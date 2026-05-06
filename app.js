@@ -484,6 +484,7 @@ async function launchApp() {
               events = data2.events || [];
               settings.categories = data2.categories || settings.categories;
               settings.darkMode   = data2.darkMode   ?? settings.darkMode;
+              ensureSystemCats(); // 재로그인 후에도 시스템 카테고리 보장
               localStorage.setItem('cc_events', JSON.stringify(events));
               saveSettings(); applyTheme(settings.darkMode);
               renderCurrentView();
@@ -523,6 +524,7 @@ async function launchApp() {
       events = data.events || [];
       settings.categories = data.categories || settings.categories;
       settings.darkMode   = data.darkMode   ?? settings.darkMode;
+      ensureSystemCats(); // 서버 데이터로 덮어쓴 뒤에도 시스템 카테고리 보장
 
       if ((isAdminMode || isSubAdmin) && data.pendingCount > 0) {
         pendingBadge = data.pendingCount;
