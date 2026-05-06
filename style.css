@@ -322,6 +322,30 @@ body {
   white-space: nowrap;
 }
 
+/* ── 리스트 보기 extraFields 서브 정보 ── */
+.lv-extra-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.lv-extra-noshow { color: #e03050; }
+.lv-event-item.lv-item-noshow { background: color-mix(in srgb, #e03050 7%, var(--surface)); }
+.lv-event-item.lv-item-noshow:hover { background: color-mix(in srgb, #e03050 12%, var(--surface2)); }
+.lv-noshow-tag {
+  display: inline-block;
+  background: #fde8ec;
+  color: #e03050;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+[data-theme="dark"] .lv-noshow-tag { background: #3a1020; }
+
 /* ══════════════ 월 네비 ══════════════ */
 .month-nav {
   display: flex;
@@ -836,6 +860,7 @@ body {
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 7px 10px;
 }
+.category-row--system { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
 .cat-color-dot  { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
 .cat-name-input {
   flex: 1; background: transparent; border: none; color: var(--text);
@@ -854,6 +879,61 @@ body {
 }
 .btn-cat-delete:hover { background: #fde8ec; color: #e03050; }
 [data-theme="dark"] .btn-cat-delete:hover { background: #3a1020; }
+.cat-lock-icon  { font-size: 13px; flex-shrink: 0; }
+.cat-name-fixed { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); }
+
+/* ── 동적 폼 필드 ── */
+.incentive-radio-group {
+  display: flex; gap: 16px; padding: 4px 0;
+}
+.radio-label {
+  display: flex; align-items: center; gap: 6px;
+  cursor: pointer; font-size: 14px; font-weight: 500;
+}
+.radio-label input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
+.input-with-unit {
+  display: flex; align-items: center; gap: 8px;
+}
+.input-with-unit input { flex: 1; }
+.input-unit { font-size: 13px; color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+.noshow-check-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer; padding: 6px 10px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface2); transition: all var(--tr);
+}
+.noshow-check-label:has(input:checked) {
+  border-color: #e03050;
+  background: color-mix(in srgb, #e03050 8%, var(--surface));
+}
+.noshow-check-label input[type="checkbox"] { accent-color: #e03050; width: 16px; height: 16px; }
+.noshow-check-text { font-size: 14px; font-weight: 600; }
+.noshow-check-label:has(input:checked) .noshow-check-text { color: #e03050; }
+
+/* ── 상세 뷰 extraFields ── */
+.detail-extra-section {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 4px;
+}
+.detail-extra-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.detail-extra-row:last-child { border-bottom: none; padding-bottom: 0; }
+.detail-extra-label { font-size: 12px; color: var(--text-muted); }
+.detail-extra-val   { font-size: 14px; font-weight: 600; color: var(--text); }
+.detail-amt         { color: #7c3aed; font-size: 15px; }
+.detail-noshow-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: #fde8ec; color: #e03050;
+  font-size: 11px; font-weight: 700;
+  padding: 2px 7px; border-radius: 10px; margin-left: 6px;
+}
+[data-theme="dark"] .detail-noshow-badge { background: #3a1020; }
 
 .add-category-row {
   display: flex; gap: 8px; align-items: center;

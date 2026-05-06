@@ -33,11 +33,16 @@ const DATA_FILE = '/tmp/jstudio_data.json';
 const ADMIN_PW  = process.env.ADMIN_PASSWORD || 'jstudio2024';
 
 const DEFAULT_CATS = [
-  { id: 'noshow', name: '노쇼',    color: '#e03050' },
-  { id: 'makeup', name: '보강',    color: '#1a8fc7' },
-  { id: 'info',   name: '중요정보', color: '#c88a00' },
-  { id: 'other',  name: '기타',    color: '#2e9e4f' },
+  { id: 'daeggang',  name: '대강',    color: '#e07b20', system: true },
+  { id: 'incentive', name: '인센티브', color: '#7c3aed', system: true },
+  { id: 'trial',     name: '체험수업', color: '#0891b2', system: true },
+  { id: 'review',    name: '리뷰체험', color: '#e91e8c', system: true },
+  { id: 'noshow',    name: '노쇼',    color: '#e03050' },
+  { id: 'makeup',    name: '보강',    color: '#1a8fc7' },
+  { id: 'info',      name: '중요정보', color: '#c88a00' },
+  { id: 'other',     name: '기타',    color: '#2e9e4f' },
 ];
+const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review'];
 
 // ── 데이터 저장소 ───────────────────────────────────
 let store = {
@@ -532,8 +537,22 @@ app.post('/api/sync/events', requireAccess, (req, res) => {
 
 app.post('/api/sync/settings', requireAccess, (req, res) => {
   const { categories, darkMode } = req.body;
-  if (categories !== undefined) store.categories = categories;
-  if (darkMode   !== undefined) store.darkMode   = darkMode;
+  if (categories !== undefined) {
+    store.categories = categories;
+    // 시스템 카테고리 보호 — 항상 존재, 이름 고정, system 플래그 유지
+    SYSTEM_CAT_IDS.forEach(id => {
+      const def = DEFAULT_CATS.find(c => c.id === id);
+      if (!def) return;
+      const existing = store.categories.find(c => c.id === id);
+      if (!existing) {
+        store.categories.unshift({ ...def });
+      } else {
+        existing.name   = def.name;
+        existing.system = true;
+      }
+    });
+  }
+  if (darkMode !== undefined) store.darkMode = darkMode;
   saveToFile();
   res.json({ ok: true });
 });

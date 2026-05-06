@@ -3,11 +3,17 @@
    ═══════════════════════════════════════════════ */
 
 // ── 상수 ──────────────────────────────────────────
+const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review'];
+
 const DEFAULT_CATS = [
-  { id: 'noshow',  name: '노쇼',    color: '#e03050' },
-  { id: 'makeup',  name: '보강',    color: '#1a8fc7' },
-  { id: 'info',    name: '중요정보', color: '#c88a00' },
-  { id: 'other',   name: '기타',    color: '#2e9e4f' },
+  { id: 'daeggang',  name: '대강',    color: '#e07b20', system: true },
+  { id: 'incentive', name: '인센티브', color: '#7c3aed', system: true },
+  { id: 'trial',     name: '체험수업', color: '#0891b2', system: true },
+  { id: 'review',    name: '리뷰체험', color: '#e91e8c', system: true },
+  { id: 'noshow',    name: '노쇼',    color: '#e03050' },
+  { id: 'makeup',    name: '보강',    color: '#1a8fc7' },
+  { id: 'info',      name: '중요정보', color: '#c88a00' },
+  { id: 'other',     name: '기타',    color: '#2e9e4f' },
 ];
 
 const PALETTE_COLORS = [
@@ -126,6 +132,20 @@ let settings = {
 };
 
 // ── 저장 / 로드 ───────────────────────────────────
+function ensureSystemCats() {
+  // 시스템 카테고리가 항상 맨 앞에 존재하도록 보장
+  const sysDefs = DEFAULT_CATS.filter(c => c.system);
+  sysDefs.slice().reverse().forEach(def => {
+    const existing = settings.categories.find(c => c.id === def.id);
+    if (!existing) {
+      settings.categories.unshift({ ...def });
+    } else {
+      existing.name   = def.name;   // 이름 고정
+      existing.system = true;
+    }
+  });
+}
+
 function loadAll() {
   try { events = JSON.parse(localStorage.getItem('cc_events')) || []; } catch { events = []; }
   try {
@@ -135,6 +155,7 @@ function loadAll() {
       if (!settings.categories?.length) settings.categories = DEFAULT_CATS.map(c => ({ ...c }));
     }
   } catch {}
+  ensureSystemCats(); // 시스템 카테고리 항상 보장
 }
 function saveEvents() {
   localStorage.setItem('cc_events', JSON.stringify(events));
@@ -153,6 +174,138 @@ function isDark() {
 // ── 색상 헬퍼 ────────────────────────────────────
 function getCat(id) {
   return settings.categories.find(c => c.id === id) || { name: id || '?', color: '#888' };
+}
+
+// ── 시스템 카테고리 extraFields 헬퍼 ──────────────
+function collectExtraFields(type) {
+  const f = {};
+  switch (type) {
+    case 'daeggang':
+      f.instructorA = document.getElementById('fInstructorA')?.value.trim() || '';
+      f.instructorB = document.getElementById('fInstructorB')?.value.trim() || '';
+      break;
+    case 'incentive':
+      f.incentiveType = document.querySelector('input[name="incentiveType"]:checked')?.value || '체험등록';
+      f.incentiveAmt  = document.getElementById('fIncentiveAmt')?.value || '';
+      break;
+    case 'trial':
+    case 'review':
+      f.clientName    = document.getElementById('fClientName')?.value.trim() || '';
+      f.clientContact = document.getElementById('fClientContact')?.value.trim() || '';
+      f.noshow        = document.getElementById('fNoshow')?.checked || false;
+      break;
+  }
+  return f;
+}
+
+function autoTitle(type, f) {
+  switch (type) {
+    case 'daeggang':
+      return (f.instructorA || f.instructorB)
+        ? `${f.instructorA || '?'} → ${f.instructorB || '?'} 대강`
+        : '대강';
+    case 'incentive': {
+      const amt = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '';
+      return [f.incentiveType || '체험등록', amt].filter(Boolean).join(' ');
+    }
+    case 'trial':  return f.clientName || '체험수업';
+    case 'review': return f.clientName || '리뷰체험';
+    default:       return '';
+  }
+}
+
+function getChipText(ev) {
+  const f = ev.extraFields;
+  if (!f) return ev.title;
+  switch (ev.type) {
+    case 'daeggang':
+      return f.instructorA ? `${f.instructorA}→${f.instructorB}` : ev.title;
+    case 'incentive': {
+      const amt = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '';
+      return [f.incentiveType, amt].filter(Boolean).join(' ') || ev.title;
+    }
+    case 'trial':
+    case 'review':
+      return (f.clientName || ev.title) + (f.noshow ? ' ⚠노쇼' : '');
+    default: return ev.title;
+  }
+}
+
+function getExtraSummaryHtml(ev) {
+  const f = ev.extraFields;
+  if (!f) return '';
+  switch (ev.type) {
+    case 'daeggang':
+      if (!f.instructorA && !f.instructorB) return '';
+      return `<div class="lv-extra-info">🔄 ${esc(f.instructorA||'?')} → ${esc(f.instructorB||'?')}</div>`;
+    case 'incentive': {
+      const amt = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '';
+      if (!f.incentiveType && !amt) return '';
+      return `<div class="lv-extra-info">💰 ${esc(f.incentiveType||'체험등록')}${amt ? ' | ' + amt : ''}</div>`;
+    }
+    case 'trial':
+    case 'review': {
+      if (!f.clientName && !f.clientContact) return '';
+      const contact = f.clientContact ? ` | ${esc(f.clientContact)}` : '';
+      const noshow  = f.noshow ? ` <span class="lv-noshow-tag">노쇼</span>` : '';
+      return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${noshow}</div>`;
+    }
+    default: return '';
+  }
+}
+
+function getExtraDetailHtml(ev) {
+  const f = ev.extraFields;
+  if (!f) return '';
+  switch (ev.type) {
+    case 'daeggang':
+      return `
+        <div class="detail-extra-section">
+          <div class="detail-label">대강 정보</div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">원담당 강사 (A)</span>
+            <span class="detail-extra-val">${esc(f.instructorA || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">대강 진행 강사 (B)</span>
+            <span class="detail-extra-val">${esc(f.instructorB || '-')}</span>
+          </div>
+        </div>`;
+    case 'incentive': {
+      const amt = f.incentiveAmt ? Number(f.incentiveAmt).toLocaleString() + '원' : '-';
+      return `
+        <div class="detail-extra-section">
+          <div class="detail-label">인센티브 정보</div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">구분</span>
+            <span class="detail-extra-val">${esc(f.incentiveType || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">인센티브 금액</span>
+            <span class="detail-extra-val detail-amt">${amt}</span>
+          </div>
+        </div>`;
+    }
+    case 'trial':
+    case 'review': {
+      const lbl = ev.type === 'trial' ? '체험수업' : '리뷰체험';
+      const nameLbl = ev.type === 'trial' ? '체험자 이름' : '체험단 이름';
+      const noshowHtml = f.noshow ? `<span class="detail-noshow-badge">🚫 노쇼</span>` : '';
+      return `
+        <div class="detail-extra-section">
+          <div class="detail-label">${lbl} 정보</div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">${nameLbl}</span>
+            <span class="detail-extra-val">${esc(f.clientName || '-')} ${noshowHtml}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">연락처</span>
+            <span class="detail-extra-val">${esc(f.clientContact || '-')}</span>
+          </div>
+        </div>`;
+    }
+    default: return '';
+  }
 }
 function hexToRgba(hex, a) {
   hex = hex.replace('#', '');
@@ -801,14 +954,16 @@ function renderListViewAll() {
           <div class="lv-holiday-name">🎌 ${esc(item.title)}</div>
         </div>`;
     } else {
-      const cat = getCat(item.type);
+      const cat     = getCat(item.type);
+      const isNoshow = item.extraFields?.noshow === true;
       html += `
-        <div class="lv-event-item" onclick="openDayModalFromList('${item.date}','${item.id}')">
+        <div class="lv-event-item${isNoshow ? ' lv-item-noshow' : ''}" onclick="openDayModalFromList('${item.date}','${item.id}')">
           ${dayHtml}
           <div class="lv-color-bar" style="background:${cat.color}"></div>
           <div class="lv-info">
             <div class="lv-title">${esc(item.title)}</div>
             ${item.time ? `<div class="lv-time">⏰ ${esc(item.time)}</div>` : ''}
+            ${getExtraSummaryHtml(item)}
           </div>
           <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">${esc(cat.name)}</span>
         </div>`;
@@ -912,7 +1067,7 @@ function renderCalendar() {
         const chip = document.createElement('div');
         chip.className = 'event-chip';
         chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:var(--text);border-left:2px solid ${cat.color};`;
-        chip.textContent   = `[${cat.name}] ` + (ev.time ? ev.time + ' ' : '') + ev.title;
+        chip.textContent   = `[${cat.name}] ` + (ev.time ? ev.time + ' ' : '') + getChipText(ev);
         cell.appendChild(chip);
       });
       if (dayEvts.length > 3) {
@@ -1111,6 +1266,7 @@ function renderDetailView() {
         <span>📅 ${formatDateKo(ev.date)}</span>
       </div>
     </div>
+    ${getExtraDetailHtml(ev)}
     ${ev.desc ? `
     <div class="detail-section">
       <div class="detail-label">메모</div>
@@ -1123,13 +1279,17 @@ function renderDetailView() {
 function openFormAdd(dateStr) {
   editingEventId = null;
   formPrevView   = 'list';
+  const firstCatId = settings.categories[0]?.id || '';
   document.getElementById('fDate').value     = dateStr || modalDate || toDateStr(new Date());
   document.getElementById('fTime').value     = '';
   document.getElementById('fTitle').value    = '';
   document.getElementById('fDesc').innerHTML = '';
-  renderTypeBtns(settings.categories[0]?.id);
+  renderTypeBtns(firstCatId);
+  renderExtraFields(firstCatId, null);
   switchDayView('form');
-  setTimeout(() => document.getElementById('fTitle').focus(), 80);
+  if (!SYSTEM_CAT_IDS.includes(firstCatId)) {
+    setTimeout(() => document.getElementById('fTitle').focus(), 80);
+  }
 }
 
 function openFormEdit(id) {
@@ -1142,7 +1302,86 @@ function openFormEdit(id) {
   document.getElementById('fTitle').value    = ev.title;
   document.getElementById('fDesc').innerHTML = ev.desc  || '';
   renderTypeBtns(ev.type);
+  renderExtraFields(ev.type, ev); // 기존 데이터로 폼 채우기
   switchDayView('form');
+}
+
+function renderExtraFields(catId, ev) {
+  const container  = document.getElementById('extraFieldsContainer');
+  const defGroup   = document.getElementById('defaultFieldsGroup');
+  const isSystem   = SYSTEM_CAT_IDS.includes(catId);
+  const f          = (ev && ev.extraFields) || {};
+
+  if (defGroup) defGroup.style.display = isSystem ? 'none' : '';
+  if (!container) return;
+
+  if (!isSystem) { container.innerHTML = ''; return; }
+
+  switch (catId) {
+    case 'daeggang':
+      container.innerHTML = `
+        <div class="form-row">
+          <div class="form-group">
+            <label>A강사 (원담당) <span class="required">*</span></label>
+            <input type="text" id="fInstructorA" placeholder="원담당 강사명" value="${esc(f.instructorA||'')}"/>
+          </div>
+          <div class="form-group">
+            <label>B강사 (대강) <span class="required">*</span></label>
+            <input type="text" id="fInstructorB" placeholder="대강 진행 강사명" value="${esc(f.instructorB||'')}"/>
+          </div>
+        </div>`;
+      setTimeout(() => document.getElementById('fInstructorA')?.focus(), 80);
+      break;
+
+    case 'incentive':
+      container.innerHTML = `
+        <div class="form-group">
+          <label>구분 <span class="required">*</span></label>
+          <div class="incentive-radio-group">
+            <label class="radio-label">
+              <input type="radio" name="incentiveType" value="체험등록" ${f.incentiveType !== '상담등록' ? 'checked' : ''}/>
+              <span>체험등록</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="incentiveType" value="상담등록" ${f.incentiveType === '상담등록' ? 'checked' : ''}/>
+              <span>상담등록</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>인센티브 금액 <span class="required">*</span></label>
+          <div class="input-with-unit">
+            <input type="number" id="fIncentiveAmt" placeholder="0" min="0" step="1000" value="${f.incentiveAmt||''}"/>
+            <span class="input-unit">원</span>
+          </div>
+        </div>`;
+      setTimeout(() => document.getElementById('fIncentiveAmt')?.focus(), 80);
+      break;
+
+    case 'trial':
+    case 'review': {
+      const lbl = catId === 'trial' ? '체험자' : '체험단';
+      container.innerHTML = `
+        <div class="form-group">
+          <label>${lbl} 이름 <span class="required">*</span></label>
+          <input type="text" id="fClientName" placeholder="${lbl} 이름" value="${esc(f.clientName||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>연락처</label>
+          <input type="tel" id="fClientContact" placeholder="010-0000-0000" value="${esc(f.clientContact||'')}"/>
+        </div>
+        <div class="form-group">
+          <label class="noshow-check-label">
+            <input type="checkbox" id="fNoshow" ${f.noshow ? 'checked' : ''}/>
+            <span class="noshow-check-text">🚫 노쇼</span>
+          </label>
+        </div>`;
+      setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
+      break;
+    }
+    default:
+      container.innerHTML = '';
+  }
 }
 
 function renderTypeBtns(activeId) {
@@ -1162,6 +1401,7 @@ function renderTypeBtns(activeId) {
       });
       btn.classList.add('active');
       applyTypeBtnStyle(btn, cat, true);
+      renderExtraFields(cat.id, null); // 카테고리 변경 시 동적 폼 교체
     });
     wrap.appendChild(btn);
   });
@@ -1180,13 +1420,23 @@ function getActiveTypeId() {
 
 /** 일정 저장 */
 function saveEvent() {
-  const date  = document.getElementById('fDate').value;
-  const title = document.getElementById('fTitle').value.trim();
-  const time  = document.getElementById('fTime').value;
-  const desc  = document.getElementById('fDesc').innerHTML.trim();
-  const type  = getActiveTypeId();
+  const date     = document.getElementById('fDate').value;
+  const time     = document.getElementById('fTime').value;
+  const type     = getActiveTypeId();
+  const isSysCat = SYSTEM_CAT_IDS.includes(type);
 
-  if (!date || !title) { showToast('날짜와 제목을 입력해주세요.'); return; }
+  // extraFields 수집 (시스템 카테고리)
+  const extraFields = isSysCat ? collectExtraFields(type) : null;
+
+  // 제목 결정: 시스템 카테고리는 자동 생성, 아니면 직접 입력
+  const title = isSysCat
+    ? autoTitle(type, extraFields)
+    : document.getElementById('fTitle').value.trim();
+
+  const desc = isSysCat ? '' : document.getElementById('fDesc').innerHTML.trim();
+
+  if (!date) { showToast('날짜를 입력해주세요.'); return; }
+  if (!title) { showToast('필수 항목을 입력해주세요.'); return; }
 
   const now      = new Date().toISOString();
   const byUser   = currentUser || { id: 'admin', name: '관리자' };
@@ -1200,6 +1450,7 @@ function saveEvent() {
       events[idx] = {
         ...old,
         date, title, time, desc, type,
+        extraFields: extraFields || old.extraFields || null,
         updatedBy: byUser,
         updatedAt: now,
       };
@@ -1213,12 +1464,13 @@ function saveEvent() {
     switchDayView('detail');
   } else {
     const newEv = {
-      id:        crypto.randomUUID(),
+      id:          crypto.randomUUID(),
       date, title, time, desc, type,
-      createdBy: byUser,
-      createdAt: now,
-      updatedBy: null,
-      updatedAt: null,
+      extraFields: extraFields,
+      createdBy:   byUser,
+      createdAt:   now,
+      updatedBy:   null,
+      updatedAt:   null,
     };
     events.push(newEv);
     changedEv = newEv;
@@ -1426,24 +1678,38 @@ function renderCategoryList() {
   const el = document.getElementById('categoryList');
   el.innerHTML = '';
   settingsDraft.categories.forEach(cat => {
+    const isSys = SYSTEM_CAT_IDS.includes(cat.id);
     const row = document.createElement('div');
-    row.className = 'category-row';
-    row.innerHTML = `
-      <span class="cat-color-dot" style="background:${cat.color}"></span>
-      <input class="cat-name-input"  type="text"  value="${esc(cat.name)}" />
-      <input class="cat-color-input" type="color" value="${cat.color}" />
-      <button class="btn-cat-delete">×</button>`;
+    row.className = 'category-row' + (isSys ? ' category-row--system' : '');
 
-    row.querySelector('.cat-name-input').addEventListener('input', e => { cat.name  = e.target.value; });
-    row.querySelector('.cat-color-input').addEventListener('input', e => {
-      cat.color = e.target.value;
-      row.querySelector('.cat-color-dot').style.background = e.target.value;
-    });
-    row.querySelector('.btn-cat-delete').addEventListener('click', () => {
-      if (settingsDraft.categories.length <= 1) { showToast('카테고리는 최소 1개 이상이어야 합니다.'); return; }
-      settingsDraft.categories = settingsDraft.categories.filter(c => c !== cat);
-      renderCategoryList();
-    });
+    if (isSys) {
+      // 고정 카테고리: 이름 고정, 색상만 변경 가능
+      row.innerHTML = `
+        <span class="cat-lock-icon">🔒</span>
+        <span class="cat-color-dot" style="background:${cat.color}"></span>
+        <span class="cat-name-fixed">${esc(cat.name)}</span>
+        <input class="cat-color-input" type="color" value="${cat.color}" title="색상 변경 가능"/>`;
+      row.querySelector('.cat-color-input').addEventListener('input', e => {
+        cat.color = e.target.value;
+        row.querySelector('.cat-color-dot').style.background = e.target.value;
+      });
+    } else {
+      // 사용자 카테고리: 이름·색상 변경 + 삭제 가능
+      row.innerHTML = `
+        <span class="cat-color-dot" style="background:${cat.color}"></span>
+        <input class="cat-name-input"  type="text"  value="${esc(cat.name)}" />
+        <input class="cat-color-input" type="color" value="${cat.color}" />
+        <button class="btn-cat-delete">×</button>`;
+      row.querySelector('.cat-name-input').addEventListener('input', e => { cat.name = e.target.value; });
+      row.querySelector('.cat-color-input').addEventListener('input', e => {
+        cat.color = e.target.value;
+        row.querySelector('.cat-color-dot').style.background = e.target.value;
+      });
+      row.querySelector('.btn-cat-delete').addEventListener('click', () => {
+        settingsDraft.categories = settingsDraft.categories.filter(c => c !== cat);
+        renderCategoryList();
+      });
+    }
     el.appendChild(row);
   });
 }
