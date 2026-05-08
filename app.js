@@ -266,27 +266,7 @@ function autoTitle(type, f) {
       const iType  = f.incentiveType || '체험등록';
       const staff  = f.staffName  ? ` · ${f.staffName}`  : '';
       const member = f.memberName ? ` · ${f.memberName}` : '';
-      if (iType === '체험등록') {
-        const perAmt = f.trialIncentiveAmt || 0;
-        const cnt    = f.personCount || 1;
-        const total  = Number(f.incentiveAmt) || perAmt * cnt;
-        if (!perAmt) return `${iType}${staff}${member}`;
-        const amtStr = cnt > 1
-          ? ` ${perAmt.toLocaleString()}×${cnt}=${total.toLocaleString()}원`
-          : ` ${total.toLocaleString()}원`;
-        return `${iType}${staff}${member}${amtStr}`;
-      } else {
-        const cnt      = f.personCount || 1;
-        const reg      = f.registerAmt || 0;
-        const amt      = Number(f.incentiveAmt) || 0;
-        if (!reg && !amt) return `${iType}${staff}${member}`;
-        const totalReg = reg * cnt;
-        const rate     = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
-        const amtStr   = cnt > 1
-          ? ` ${reg.toLocaleString()}×${cnt}=${totalReg.toLocaleString()}원→${rate}%=${amt.toLocaleString()}원`
-          : ` ${reg.toLocaleString()}원→${rate}%=${amt.toLocaleString()}원`;
-        return `${iType}${staff}${member}${amtStr}`;
-      }
+      return `${iType}${staff}${member}`;
     }
     case 'trial': {
       const name = f.clientName || '체험수업';
@@ -317,27 +297,10 @@ function getChipText(ev) {
     case 'daeggang':
       return f.instructorA ? `${f.instructorA}→${f.instructorB}` : ev.title;
     case 'incentive': {
-      const iType = f.incentiveType || '체험등록';
-      const staff = f.staffName ? ` · ${f.staffName}` : '';
-      if (iType === '체험등록') {
-        const perAmt = f.trialIncentiveAmt || 0;
-        const cnt    = f.personCount || 1;
-        const total  = Number(f.incentiveAmt) || perAmt * cnt;
-        if (!perAmt) return `${iType}${staff}` || ev.title;
-        const amtStr = cnt > 1
-          ? ` ${perAmt.toLocaleString()}×${cnt}=${total.toLocaleString()}원`
-          : ` ${total.toLocaleString()}원`;
-        return `${iType}${staff}${amtStr}`;
-      }
-      const cnt  = f.personCount || 1;
-      const reg  = f.registerAmt || 0;
-      const amt  = Number(f.incentiveAmt) || 0;
-      if (!reg && !amt) return `${iType}${staff}` || ev.title;
-      const rate = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
-      const amtStr = cnt > 1
-        ? ` ${reg.toLocaleString()}×${cnt}→${rate}%=${amt.toLocaleString()}원`
-        : ` ${reg.toLocaleString()}원→${rate}%=${amt.toLocaleString()}원`;
-      return `${iType}${staff}${amtStr}`;
+      const iType  = f.incentiveType || '체험등록';
+      const staff  = f.staffName  ? ` · ${f.staffName}`  : '';
+      const member = f.memberName ? ` · ${f.memberName}` : '';
+      return `${iType}${staff}${member}` || ev.title;
     }
     case 'trial': {
       const base = f.clientName || ev.title;
