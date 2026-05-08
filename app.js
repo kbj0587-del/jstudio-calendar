@@ -202,6 +202,7 @@ function collectExtraFields(type) {
       const iType = document.querySelector('input[name="incentiveType"]:checked')?.value || '체험등록';
       f.incentiveType = iType;
       f.staffName     = document.getElementById('fStaffName')?.value.trim() || '';
+      f.memberName    = document.getElementById('fMemberName')?.value.trim() || '';
       if (iType === '체험등록') {
         const perAmt    = Number(document.getElementById('fTrialIncentiveAmt')?.value) || 0;
         const persons   = Math.max(1, Number(document.getElementById('fTrialPersonCount')?.value) || 1);
@@ -262,28 +263,29 @@ function autoTitle(type, f) {
         ? `${f.instructorA || '?'} → ${f.instructorB || '?'} 대강`
         : '대강';
     case 'incentive': {
-      const iType = f.incentiveType || '체험등록';
-      const staff = f.staffName ? ` · ${f.staffName}` : '';
+      const iType  = f.incentiveType || '체험등록';
+      const staff  = f.staffName  ? ` · ${f.staffName}`  : '';
+      const member = f.memberName ? ` · ${f.memberName}` : '';
       if (iType === '체험등록') {
         const perAmt = f.trialIncentiveAmt || 0;
         const cnt    = f.personCount || 1;
         const total  = Number(f.incentiveAmt) || perAmt * cnt;
-        if (!perAmt) return `${iType}${staff}`;
+        if (!perAmt) return `${iType}${staff}${member}`;
         const amtStr = cnt > 1
           ? ` ${perAmt.toLocaleString()}×${cnt}=${total.toLocaleString()}원`
           : ` ${total.toLocaleString()}원`;
-        return `${iType}${staff}${amtStr}`;
+        return `${iType}${staff}${member}${amtStr}`;
       } else {
-        const cnt  = f.personCount || 1;
-        const reg  = f.registerAmt || 0;
-        const amt  = Number(f.incentiveAmt) || 0;
-        if (!reg && !amt) return `${iType}${staff}`;
+        const cnt      = f.personCount || 1;
+        const reg      = f.registerAmt || 0;
+        const amt      = Number(f.incentiveAmt) || 0;
+        if (!reg && !amt) return `${iType}${staff}${member}`;
         const totalReg = reg * cnt;
-        const rate  = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
-        const amtStr = cnt > 1
+        const rate     = f.consultRate !== undefined ? f.consultRate : incentiveDefaults.consultRate;
+        const amtStr   = cnt > 1
           ? ` ${reg.toLocaleString()}×${cnt}=${totalReg.toLocaleString()}원→${rate}%=${amt.toLocaleString()}원`
           : ` ${reg.toLocaleString()}원→${rate}%=${amt.toLocaleString()}원`;
-        return `${iType}${staff}${amtStr}`;
+        return `${iType}${staff}${member}${amtStr}`;
       }
     }
     case 'trial': {
@@ -461,6 +463,10 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-val">${esc(f.staffName || '-')}</span>
           </div>
           <div class="detail-extra-row">
+            <span class="detail-extra-label">등록자 이름</span>
+            <span class="detail-extra-val">${esc(f.memberName || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
             <span class="detail-extra-label">인원</span>
             <span class="detail-extra-val">${cnt}명</span>
           </div>
@@ -484,6 +490,10 @@ function getExtraDetailHtml(ev) {
           <div class="detail-extra-row">
             <span class="detail-extra-label">담당 상담자</span>
             <span class="detail-extra-val">${esc(f.staffName || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">등록자 이름</span>
+            <span class="detail-extra-val">${esc(f.memberName || '-')}</span>
           </div>
           <div class="detail-extra-row">
             <span class="detail-extra-label">인원</span>
@@ -1234,10 +1244,12 @@ function renderIncentiveSummary(monthStr) {
         calcStr = (per > 0 && cnt > 1) ? `${per.toLocaleString()}원×${cnt}명` : '';
       }
 
+      const memberStr = f.memberName ? `<span class="inc-detail-member">${esc(f.memberName)}</span>` : '';
       details += `
-        <div class="inc-detail-row">
+        <div class="inc-detail-row" onclick="openDayModalFromList('${ev.date}','${ev.id}')">
           <span class="inc-detail-date">${Number(d)}일(${dow})</span>
           <span class="inc-detail-type${isConsult ? ' inc-type-consult' : ' inc-type-trial'}">${esc(iType)}</span>
+          ${memberStr}
           ${calcStr ? `<span class="inc-detail-calc">${esc(calcStr)}</span>` : ''}
           <span class="inc-detail-amt">${amt.toLocaleString()}원</span>
         </div>`;
@@ -1395,7 +1407,7 @@ function renderSalesSummary(monthStr) {
       const mem = `${f.duration||''}${f.freq ? ' '+f.freq : ''}`.trim();
       const pay = f.payment ? Number(f.payment).toLocaleString()+'원' : '-';
       rows += `
-        <div class="ms-row ms-row--sales">
+        <div class="ms-row ms-row--sales ms-row-clickable" onclick="openDayModalFromList('${item.date}','${item.id}')">
           <span class="ms-date">${Number(ed)}일(${dow})</span>
           <span class="ms-content">
             <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
@@ -1406,12 +1418,12 @@ function renderSalesSummary(monthStr) {
         </div>`;
     } else {
       // 체험수업 유료 건
-      const cnt   = Number(f.personCount) || 1;
-      const total = Number(f.trialTotal) || (Number(f.trialFee) * cnt);
-      const pay   = total > 0 ? total.toLocaleString()+'원' : '-';
+      const cnt    = Number(f.personCount) || 1;
+      const total  = Number(f.trialTotal) || (Number(f.trialFee) * cnt);
+      const pay    = total > 0 ? total.toLocaleString()+'원' : '-';
       const cntStr = cnt > 1 ? ` · ${cnt}명` : '';
       rows += `
-        <div class="ms-row ms-row--sales">
+        <div class="ms-row ms-row--sales ms-row-clickable" onclick="openDayModalFromList('${item.date}','${item.id}')">
           <span class="ms-date">${Number(ed)}일(${dow})</span>
           <span class="ms-content">
             <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
@@ -1452,9 +1464,10 @@ function getSysListTitle(ev) {
       return `${name}${rtype}${mem}`;
     }
     case 'incentive': {
-      const iType = f.incentiveType || '체험등록';
-      const staff = f.staffName ? ` · ${f.staffName}` : '';
-      return `${iType}${staff}`;
+      const iType  = f.incentiveType || '체험등록';
+      const staff  = f.staffName  ? ` · ${f.staffName}`  : '';
+      const member = f.memberName ? ` · ${f.memberName}` : '';
+      return `${iType}${staff}${member}`;
     }
     case 'trial': {
       const name = f.clientName || '체험수업';
@@ -1579,20 +1592,16 @@ function renderListViewAll() {
 
       let infoHtml;
       if (isSys) {
-        // 시스템 카테고리: 타이틀(금액 제외) + 금액 오른쪽 정렬, 중복 없음
-        const title  = getSysListTitle(item);
-        const payAmt = getSysPayAmt(item);
+        // 시스템 카테고리: 타이틀만 표시 (금액은 하단 정산 섹션에서만 표시)
+        const title    = getSysListTitle(item);
         const timeHtml = item.time
           ? `<span class="lv-time lv-time-inline">⏰ ${esc(item.time)}</span>` : '';
-        const amtHtml  = payAmt > 0
-          ? `<span class="lv-sys-amount">${payAmt.toLocaleString()}원</span>` : '';
         infoHtml = `
           <div class="lv-sys-row">
             <div class="lv-sys-main">
               <span class="lv-title">${esc(title)}</span>
               ${timeHtml}
             </div>
-            ${amtHtml}
           </div>`;
       } else {
         // 일반 카테고리: 기존 레이아웃
@@ -2016,6 +2025,10 @@ function renderExtraFields(catId, ev) {
         <div class="form-group">
           <label id="fStaffLabel">${staffLabel} <span class="required">*</span></label>
           <input type="text" id="fStaffName" placeholder="${staffHolder}" value="${staffVal}"/>
+        </div>
+        <div class="form-group">
+          <label>등록자 이름 <span class="required">*</span></label>
+          <input type="text" id="fMemberName" placeholder="회원 이름" value="${esc(f.memberName||'')}"/>
         </div>
         <div id="incentiveTrialFields"${isConsult ? ' style="display:none"' : ''}>
           <div class="form-row">

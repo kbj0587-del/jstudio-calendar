@@ -1730,6 +1730,11 @@ body {
 .inc-type-consult { background: #dbeafe; color: #1e40af; }
 [data-theme="dark"] .inc-type-trial   { background: #2e1065; color: #c4b5fd; }
 [data-theme="dark"] .inc-type-consult { background: #1e3a5f; color: #93c5fd; }
+.inc-detail-member {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
 .inc-detail-calc {
   flex: 1;
   color: var(--text-muted);
@@ -1743,8 +1748,14 @@ body {
   color: #7c3aed;
   white-space: nowrap;
   flex-shrink: 0;
+  margin-left: auto; /* 빈 calc일 때도 오른쪽 정렬 */
 }
 [data-theme="dark"] .inc-detail-amt { color: #a78bfa; }
+
+/* 클릭 가능한 정산 행 */
+.inc-detail-row { cursor: pointer; }
+.inc-detail-row:hover { background: color-mix(in srgb, #7c3aed 8%, var(--surface2)); }
+.ms-row-clickable { cursor: pointer; }
 
 /* ══════════════ 월별 현황 섹션 (대강 / 수업노쇼 / 매출) ══════════════ */
 .ms-section {
