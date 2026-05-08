@@ -1178,43 +1178,79 @@ function renderIncentiveSummary(monthStr) {
   );
   if (!incEvents.length) return '';
 
-  // 담당자별 집계
+  // 담당자별 이벤트 목록 수집
   const staffMap = {};
   incEvents.forEach(ev => {
-    const f    = ev.extraFields;
-    const name = f.staffName?.trim() || '(미입력)';
-    if (!staffMap[name]) {
-      staffMap[name] = { trial: { count: 0, total: 0 }, consult: { count: 0, total: 0 } };
-    }
-    const amt = Number(f.incentiveAmt) || 0;
-    if (f.incentiveType === '상담등록') {
-      staffMap[name].consult.count++;
-      staffMap[name].consult.total += amt;
-    } else {
-      staffMap[name].trial.count++;
-      staffMap[name].trial.total += amt;
-    }
+    const name = ev.extraFields.staffName?.trim() || '(미입력)';
+    if (!staffMap[name]) staffMap[name] = { list: [], total: 0 };
+    const amt = Number(ev.extraFields.incentiveAmt) || 0;
+    staffMap[name].list.push({ ev, amt });
+    staffMap[name].total += amt;
   });
 
   const staffNames = Object.keys(staffMap).sort();
   let grandTotal = 0;
-  staffNames.forEach(n => { grandTotal += staffMap[n].trial.total + staffMap[n].consult.total; });
+  staffNames.forEach(n => { grandTotal += staffMap[n].total; });
 
-  const totalCount = incEvents.length;
-  const bodyId = `acc-inc-${monthStr}`;
+  const bodyId  = `acc-inc-${monthStr}`;
+  const DAYS    = ['일','월','화','수','목','금','토'];
 
-  let rows = '';
+  let content = '';
   staffNames.forEach(name => {
-    const d     = staffMap[name];
-    const total = d.trial.total + d.consult.total;
+    const { list, total } = staffMap[name];
+
+    // 날짜순 정렬
+    list.sort((a, b) =>
+      a.ev.date.localeCompare(b.ev.date) || (a.ev.time||'').localeCompare(b.ev.time||'')
+    );
+
+    // 구분 소계 뱃지
+    const trialCnt   = list.filter(e => e.ev.extraFields.incentiveType !== '상담등록').length;
+    const consultCnt = list.filter(e => e.ev.extraFields.incentiveType === '상담등록').length;
     const parts = [];
-    if (d.trial.count   > 0) parts.push(`체험 ${d.trial.count}건 · ${d.trial.total.toLocaleString()}원`);
-    if (d.consult.count > 0) parts.push(`상담 ${d.consult.count}건 · ${d.consult.total.toLocaleString()}원`);
-    rows += `
-      <div class="inc-summary-card">
-        <div class="inc-summary-name">${esc(name)}</div>
-        <div class="inc-summary-detail">${parts.join(' / ')}</div>
-        <div class="inc-summary-amount">${total.toLocaleString()}원</div>
+    if (trialCnt   > 0) parts.push(`체험 ${trialCnt}건`);
+    if (consultCnt > 0) parts.push(`상담 ${consultCnt}건`);
+
+    // 세부 행 (날짜별)
+    let details = '';
+    list.forEach(({ ev, amt }) => {
+      const f     = ev.extraFields;
+      const [,, d] = ev.date.split('-');
+      const dow   = DAYS[new Date(ev.date).getDay()];
+      const iType = f.incentiveType || '체험등록';
+      const isConsult = iType === '상담등록';
+
+      let calcStr = '';
+      if (isConsult) {
+        const reg  = Number(f.registerAmt) || 0;
+        const cnt  = Number(f.personCount) || 1;
+        const rate = f.consultRate !== undefined ? f.consultRate : 5;
+        calcStr = cnt > 1
+          ? `${reg.toLocaleString()}원×${cnt}명→${rate}%`
+          : `${reg.toLocaleString()}원→${rate}%`;
+      } else {
+        const per = Number(f.trialIncentiveAmt) || 0;
+        const cnt = Number(f.personCount) || 1;
+        calcStr = (per > 0 && cnt > 1) ? `${per.toLocaleString()}원×${cnt}명` : '';
+      }
+
+      details += `
+        <div class="inc-detail-row">
+          <span class="inc-detail-date">${Number(d)}일(${dow})</span>
+          <span class="inc-detail-type${isConsult ? ' inc-type-consult' : ' inc-type-trial'}">${esc(iType)}</span>
+          ${calcStr ? `<span class="inc-detail-calc">${esc(calcStr)}</span>` : ''}
+          <span class="inc-detail-amt">${amt.toLocaleString()}원</span>
+        </div>`;
+    });
+
+    content += `
+      <div class="inc-staff-group">
+        <div class="inc-staff-header">
+          <span class="inc-staff-name">${esc(name)}</span>
+          <span class="inc-staff-sub">${parts.join(' · ')}</span>
+          <span class="inc-staff-total">${total.toLocaleString()}원</span>
+        </div>
+        <div class="inc-staff-details">${details}</div>
       </div>`;
   });
 
@@ -1223,14 +1259,14 @@ function renderIncentiveSummary(monthStr) {
       <div class="inc-summary-header acc-trigger" onclick="toggleAccordion('${bodyId}',this)">
         <div class="acc-header-left">
           <span class="inc-summary-title">💰 인센티브 정산</span>
-          <span class="acc-count-badge">${totalCount}건</span>
+          <span class="acc-count-badge">${incEvents.length}건</span>
         </div>
         <div class="acc-header-right">
           <span class="inc-summary-grand">${grandTotal.toLocaleString()}원</span>
           <span class="acc-chevron">▼</span>
         </div>
       </div>
-      <div class="inc-summary-list acc-body" id="${bodyId}">${rows}</div>
+      <div class="inc-summary-list acc-body" id="${bodyId}">${content}</div>
     </div>`;
 }
 

@@ -1635,6 +1635,83 @@ body {
 }
 [data-theme="dark"] .inc-summary-amount { color: #a78bfa; }
 
+/* 강사별 그룹 */
+.inc-staff-group {
+  border-bottom: 1px solid var(--border);
+}
+.inc-staff-group:last-child { border-bottom: none; }
+
+.inc-staff-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 8px;
+  background: color-mix(in srgb, #7c3aed 5%, var(--surface2));
+}
+.inc-staff-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+  min-width: 60px;
+}
+.inc-staff-sub {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.inc-staff-total {
+  font-weight: 800;
+  font-size: 14px;
+  color: #7c3aed;
+  white-space: nowrap;
+}
+[data-theme="dark"] .inc-staff-total { color: #a78bfa; }
+
+/* 세부 내역 행 */
+.inc-staff-details { display: flex; flex-direction: column; }
+.inc-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 6px 28px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.inc-detail-row:hover { background: var(--surface2); }
+.inc-detail-date {
+  min-width: 56px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.inc-detail-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.inc-type-trial   { background: #ede9fe; color: #5b21b6; }
+.inc-type-consult { background: #dbeafe; color: #1e40af; }
+[data-theme="dark"] .inc-type-trial   { background: #2e1065; color: #c4b5fd; }
+[data-theme="dark"] .inc-type-consult { background: #1e3a5f; color: #93c5fd; }
+.inc-detail-calc {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inc-detail-amt {
+  font-weight: 700;
+  color: #7c3aed;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+[data-theme="dark"] .inc-detail-amt { color: #a78bfa; }
+
 /* ══════════════ 월별 현황 섹션 (대강 / 수업노쇼 / 매출) ══════════════ */
 .ms-section {
   margin: 12px 0 8px;
