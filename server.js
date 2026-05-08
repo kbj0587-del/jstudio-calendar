@@ -33,17 +33,18 @@ const DATA_FILE = '/tmp/jstudio_data.json';
 const ADMIN_PW  = process.env.ADMIN_PASSWORD || 'jstudio2024';
 
 const DEFAULT_CATS = [
-  { id: 'daeggang',    name: '대강',    color: '#e07b20', system: true },
-  { id: 'incentive',  name: '인센티브', color: '#7c3aed', system: true },
-  { id: 'trial',      name: '체험수업', color: '#0891b2', system: true },
-  { id: 'review',     name: '리뷰체험', color: '#e91e8c', system: true },
-  { id: 'classnoshow',name: '수업노쇼', color: '#e03050', system: true },
-  { id: 'noshow',     name: '노쇼',    color: '#e03050' },
-  { id: 'makeup',     name: '보강',    color: '#1a8fc7' },
-  { id: 'info',       name: '중요정보', color: '#c88a00' },
-  { id: 'other',      name: '기타',    color: '#2e9e4f' },
+  { id: 'daeggang',    name: '대강',      color: '#e07b20', system: true },
+  { id: 'incentive',  name: '인센티브',   color: '#7c3aed', system: true },
+  { id: 'trial',      name: '체험수업',   color: '#0891b2', system: true },
+  { id: 'review',     name: '리뷰체험',   color: '#e91e8c', system: true },
+  { id: 'classnoshow',name: '수업노쇼',   color: '#e03050', system: true },
+  { id: 'sales',      name: '매출(등록)', color: '#059669', system: true },
+  { id: 'noshow',     name: '노쇼',      color: '#e03050' },
+  { id: 'makeup',     name: '보강',      color: '#1a8fc7' },
+  { id: 'info',       name: '중요정보',   color: '#c88a00' },
+  { id: 'other',      name: '기타',      color: '#2e9e4f' },
 ];
-const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow'];
+const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','sales'];
 
 // ── 데이터 저장소 ───────────────────────────────────
 let store = {

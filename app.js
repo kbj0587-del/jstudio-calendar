@@ -3,18 +3,19 @@
    ═══════════════════════════════════════════════ */
 
 // ── 상수 ──────────────────────────────────────────
-const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow'];
+const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','sales'];
 
 const DEFAULT_CATS = [
-  { id: 'daeggang',    name: '대강',    color: '#e07b20', system: true },
-  { id: 'incentive',  name: '인센티브', color: '#7c3aed', system: true },
-  { id: 'trial',      name: '체험수업', color: '#0891b2', system: true },
-  { id: 'review',     name: '리뷰체험', color: '#e91e8c', system: true },
-  { id: 'classnoshow',name: '수업노쇼', color: '#e03050', system: true },
-  { id: 'noshow',     name: '노쇼',    color: '#e03050' },
-  { id: 'makeup',     name: '보강',    color: '#1a8fc7' },
-  { id: 'info',       name: '중요정보', color: '#c88a00' },
-  { id: 'other',      name: '기타',    color: '#2e9e4f' },
+  { id: 'daeggang',    name: '대강',      color: '#e07b20', system: true },
+  { id: 'incentive',  name: '인센티브',   color: '#7c3aed', system: true },
+  { id: 'trial',      name: '체험수업',   color: '#0891b2', system: true },
+  { id: 'review',     name: '리뷰체험',   color: '#e91e8c', system: true },
+  { id: 'classnoshow',name: '수업노쇼',   color: '#e03050', system: true },
+  { id: 'sales',      name: '매출(등록)', color: '#059669', system: true },
+  { id: 'noshow',     name: '노쇼',      color: '#e03050' },
+  { id: 'makeup',     name: '보강',      color: '#1a8fc7' },
+  { id: 'info',       name: '중요정보',   color: '#c88a00' },
+  { id: 'other',      name: '기타',      color: '#2e9e4f' },
 ];
 
 const PALETTE_COLORS = [
@@ -239,9 +240,16 @@ function collectExtraFields(type) {
       f.noshow        = document.getElementById('fNoshow')?.checked || false;
       break;
     case 'classnoshow':
-      f.studentName   = document.getElementById('fStudentName')?.value.trim() || '';
-      f.studentContact= document.getElementById('fStudentContact')?.value.trim() || '';
-      f.className     = document.getElementById('fClassName')?.value.trim() || '';
+      f.studentName    = document.getElementById('fStudentName')?.value.trim() || '';
+      f.studentContact = document.getElementById('fStudentContact')?.value.trim() || '';
+      f.className      = document.getElementById('fClassName')?.value.trim() || '';
+      break;
+    case 'sales':
+      f.clientName  = document.getElementById('fSalesClientName')?.value.trim() || '';
+      f.regType     = document.querySelector('input[name="salesRegType"]:checked')?.value || '신규';
+      f.duration    = document.querySelector('input[name="salesDuration"]:checked')?.value || '1개월';
+      f.freq        = document.querySelector('input[name="salesFreq"]:checked')?.value || '주3회';
+      f.payment     = Number(document.getElementById('fSalesPayment')?.value) || 0;
       break;
   }
   return f;
@@ -289,6 +297,13 @@ function autoTitle(type, f) {
       const cls   = f.className   ? ` (${f.className})` : '';
       return `${sName}${cls}`;
     }
+    case 'sales': {
+      const name  = f.clientName || '매출등록';
+      const rtype = f.regType    ? ` · ${f.regType}` : '';
+      const mem   = (f.duration || f.freq) ? ` · ${f.duration||''}${f.freq ? ' '+f.freq : ''}` : '';
+      const pay   = f.payment    ? ` · ${Number(f.payment).toLocaleString()}원` : '';
+      return `${name}${rtype}${mem}${pay}`;
+    }
     default: return '';
   }
 }
@@ -334,6 +349,11 @@ function getChipText(ev) {
       const sName = f.studentName || ev.title;
       const cls   = f.className ? ` (${f.className})` : '';
       return `🚫${sName}${cls}`;
+    }
+    case 'sales': {
+      const name = f.clientName || ev.title;
+      const pay  = f.payment ? ` ${Number(f.payment).toLocaleString()}원` : '';
+      return `${name}${pay}`;
     }
     default: return ev.title;
   }
@@ -396,6 +416,13 @@ function getExtraSummaryHtml(ev) {
       const cls     = f.className ? ` | ${esc(f.className)}` : '';
       const contact = f.studentContact ? ` | ${esc(f.studentContact)}` : '';
       return `<div class="lv-extra-info lv-extra-noshow">🚫 ${esc(f.studentName||'-')}${cls}${contact}</div>`;
+    }
+    case 'sales': {
+      if (!f.clientName && !f.payment) return '';
+      const rtype = f.regType  ? ` | ${esc(f.regType)}` : '';
+      const mem   = (f.duration||f.freq) ? ` | ${esc((f.duration||'')+(f.freq?' '+f.freq:''))}` : '';
+      const pay   = f.payment  ? ` | ${Number(f.payment).toLocaleString()}원` : '';
+      return `<div class="lv-extra-info lv-extra-sales">💵 ${esc(f.clientName||'-')}${rtype}${mem}${pay}</div>`;
     }
     default: return '';
   }
@@ -539,6 +566,31 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-val">${esc(f.className || '-')}</span>
           </div>
         </div>`;
+    case 'sales': {
+      const mem = `${f.duration || '-'} ${f.freq || ''}`.trim();
+      return `
+        <div class="detail-extra-section">
+          <div class="detail-label">💵 매출 정보</div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">고객 이름</span>
+            <span class="detail-extra-val">${esc(f.clientName || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">등록 구분</span>
+            <span class="detail-extra-val">
+              <span class="sales-reg-badge sales-reg-${f.regType||'신규'}">${esc(f.regType || '-')}</span>
+            </span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">회원권</span>
+            <span class="detail-extra-val">${esc(mem)}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">결제 금액</span>
+            <span class="detail-extra-val detail-amt"><strong>${f.payment ? Number(f.payment).toLocaleString()+'원' : '-'}</strong></span>
+          </div>
+        </div>`;
+    }
     default: return '';
   }
 }
@@ -1110,6 +1162,15 @@ function renderCurrentView() {
   else                        renderCalendar();
 }
 
+// ── 어코디언 토글 ────────────────────────────────
+function toggleAccordion(bodyId, headerEl) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const isNowCollapsed = body.classList.toggle('acc-collapsed');
+  const chev = headerEl?.querySelector('.acc-chevron');
+  if (chev) chev.style.transform = isNowCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+}
+
 // ── 월별 인센티브 정산 요약 ───────────────────────
 function renderIncentiveSummary(monthStr) {
   const incEvents = events.filter(ev =>
@@ -1139,6 +1200,9 @@ function renderIncentiveSummary(monthStr) {
   let grandTotal = 0;
   staffNames.forEach(n => { grandTotal += staffMap[n].trial.total + staffMap[n].consult.total; });
 
+  const totalCount = incEvents.length;
+  const bodyId = `acc-inc-${monthStr}`;
+
   let rows = '';
   staffNames.forEach(name => {
     const d     = staffMap[name];
@@ -1156,23 +1220,29 @@ function renderIncentiveSummary(monthStr) {
 
   return `
     <div class="inc-summary-section">
-      <div class="inc-summary-header">
-        <span class="inc-summary-title">💰 인센티브 정산</span>
-        <span class="inc-summary-grand">${grandTotal.toLocaleString()}원</span>
+      <div class="inc-summary-header acc-trigger" onclick="toggleAccordion('${bodyId}',this)">
+        <div class="acc-header-left">
+          <span class="inc-summary-title">💰 인센티브 정산</span>
+          <span class="acc-count-badge">${totalCount}건</span>
+        </div>
+        <div class="acc-header-right">
+          <span class="inc-summary-grand">${grandTotal.toLocaleString()}원</span>
+          <span class="acc-chevron">▼</span>
+        </div>
       </div>
-      <div class="inc-summary-list">${rows}</div>
+      <div class="inc-summary-list acc-body" id="${bodyId}">${rows}</div>
     </div>`;
 }
 
-// ── 월별 대강 정산 요약 ───────────────────────────
+// ── 월별 대강 현황 요약 ───────────────────────────
 function renderDaeggangSummary(monthStr) {
   const dgEvents = events.filter(ev =>
     ev.type === 'daeggang' && ev.date.startsWith(monthStr)
   );
   if (!dgEvents.length) return '';
 
-  // 날짜순 정렬
   const sorted = [...dgEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+  const bodyId = `acc-daeg-${monthStr}`;
 
   let rows = '';
   sorted.forEach(ev => {
@@ -1180,22 +1250,23 @@ function renderDaeggangSummary(monthStr) {
     const [,, ed] = ev.date.split('-');
     const dow  = ['일','월','화','수','목','금','토'][new Date(ev.date).getDay()];
     const time = ev.time ? ` ${ev.time}` : '';
-    const a    = f.instructorA || '?';
-    const b    = f.instructorB || '?';
     rows += `
       <div class="ms-row">
         <span class="ms-date">${Number(ed)}일(${dow})${time}</span>
-        <span class="ms-content">${esc(a)} → ${esc(b)}</span>
+        <span class="ms-content">${esc(f.instructorA||'?')} → ${esc(f.instructorB||'?')}</span>
       </div>`;
   });
 
   return `
     <div class="ms-section ms-section--daeggang">
-      <div class="ms-header">
-        <span class="ms-title">🔄 대강 현황</span>
-        <span class="ms-count">${dgEvents.length}건</span>
+      <div class="ms-header acc-trigger" onclick="toggleAccordion('${bodyId}',this)">
+        <div class="acc-header-left">
+          <span class="ms-title">🔄 대강 현황</span>
+          <span class="acc-count-badge">${dgEvents.length}건</span>
+        </div>
+        <span class="acc-chevron">▼</span>
       </div>
-      <div class="ms-list">${rows}</div>
+      <div class="ms-list acc-body" id="${bodyId}">${rows}</div>
     </div>`;
 }
 
@@ -1207,6 +1278,7 @@ function renderClassNoshowSummary(monthStr) {
   if (!nsEvents.length) return '';
 
   const sorted = [...nsEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+  const bodyId = `acc-ns-${monthStr}`;
 
   let rows = '';
   sorted.forEach(ev => {
@@ -1214,23 +1286,84 @@ function renderClassNoshowSummary(monthStr) {
     const [,, ed] = ev.date.split('-');
     const dow  = ['일','월','화','수','목','금','토'][new Date(ev.date).getDay()];
     const time = ev.time ? ` ${ev.time}` : '';
-    const name = f.studentName  || '-';
-    const cls  = f.className    ? ` · ${f.className}` : '';
+    const cls  = f.className      ? ` · ${f.className}` : '';
     const tel  = f.studentContact ? ` · ${f.studentContact}` : '';
     rows += `
       <div class="ms-row">
         <span class="ms-date">${Number(ed)}일(${dow})${time}</span>
-        <span class="ms-content ms-noshow">${esc(name)}${esc(cls)}${esc(tel)}</span>
+        <span class="ms-content ms-noshow">${esc(f.studentName||'-')}${esc(cls)}${esc(tel)}</span>
       </div>`;
   });
 
   return `
     <div class="ms-section ms-section--noshow">
-      <div class="ms-header">
-        <span class="ms-title">🚫 수업노쇼 현황</span>
-        <span class="ms-count">${nsEvents.length}건</span>
+      <div class="ms-header acc-trigger" onclick="toggleAccordion('${bodyId}',this)">
+        <div class="acc-header-left">
+          <span class="ms-title">🚫 수업노쇼 현황</span>
+          <span class="acc-count-badge">${nsEvents.length}건</span>
+        </div>
+        <span class="acc-chevron">▼</span>
       </div>
-      <div class="ms-list">${rows}</div>
+      <div class="ms-list acc-body" id="${bodyId}">${rows}</div>
+    </div>`;
+}
+
+// ── 월별 매출 요약 ────────────────────────────────
+function renderSalesSummary(monthStr) {
+  const salesEvents = events.filter(ev =>
+    ev.type === 'sales' && ev.date.startsWith(monthStr) && ev.extraFields
+  );
+  if (!salesEvents.length) return '';
+
+  const sorted = [...salesEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+  const bodyId  = `acc-sales-${monthStr}`;
+
+  let grandTotal = 0;
+  salesEvents.forEach(ev => { grandTotal += Number(ev.extraFields?.payment) || 0; });
+
+  // 구분별 소계
+  const byType = {};
+  salesEvents.forEach(ev => {
+    const t = ev.extraFields?.regType || '신규';
+    byType[t] = (byType[t] || 0) + 1;
+  });
+  const typeSummary = Object.entries(byType)
+    .map(([t, c]) => `${t} ${c}건`).join(' · ');
+
+  let rows = '';
+  sorted.forEach(ev => {
+    const f    = ev.extraFields || {};
+    const [,, ed] = ev.date.split('-');
+    const dow  = ['일','월','화','수','목','금','토'][new Date(ev.date).getDay()];
+    const mem  = `${f.duration||''}${f.freq ? ' '+f.freq : ''}`.trim();
+    const pay  = f.payment ? Number(f.payment).toLocaleString()+'원' : '-';
+    const regClass = `sales-badge--${f.regType||'신규'}`;
+    rows += `
+      <div class="ms-row ms-row--sales">
+        <span class="ms-date">${Number(ed)}일(${dow})</span>
+        <span class="ms-content">
+          <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
+          <span class="sales-badge ${regClass}">${esc(f.regType||'-')}</span>
+          ${mem ? `<span class="ms-sales-mem">${esc(mem)}</span>` : ''}
+        </span>
+        <span class="ms-sales-pay">${pay}</span>
+      </div>`;
+  });
+
+  return `
+    <div class="ms-section ms-section--sales">
+      <div class="ms-header acc-trigger" onclick="toggleAccordion('${bodyId}',this)">
+        <div class="acc-header-left">
+          <span class="ms-title">💵 매출 현황</span>
+          <span class="acc-count-badge">${salesEvents.length}건</span>
+          <span class="ms-type-summary">${typeSummary}</span>
+        </div>
+        <div class="acc-header-right">
+          <span class="ms-grand">${grandTotal.toLocaleString()}원</span>
+          <span class="acc-chevron">▼</span>
+        </div>
+      </div>
+      <div class="ms-list acc-body" id="${bodyId}">${rows}</div>
     </div>`;
 }
 
@@ -1333,6 +1466,7 @@ function renderListViewAll() {
   });
 
   // 월별 정산 섹션 추가
+  html += renderSalesSummary(monthStr);
   html += renderIncentiveSummary(monthStr);
   html += renderDaeggangSummary(monthStr);
   html += renderClassNoshowSummary(monthStr);
@@ -1945,6 +2079,68 @@ function renderExtraFields(catId, ev) {
       setTimeout(() => document.getElementById('fStudentName')?.focus(), 80);
       break;
     }
+
+    case 'sales': {
+      const regType  = f.regType   || '신규';
+      const duration = f.duration  || '3개월';
+      const freq     = f.freq      || '주3회';
+      const payment  = f.payment   !== undefined ? f.payment : '';
+
+      const regOpts  = ['신규','재등록','휴면'].map(v =>
+        `<label class="sales-radio-label${regType===v?' active':''}">
+          <input type="radio" name="salesRegType" value="${v}" ${regType===v?'checked':''}/>
+          <span>${v}</span>
+        </label>`).join('');
+      const durOpts  = ['1개월','3개월','6개월'].map(v =>
+        `<label class="sales-radio-label${duration===v?' active':''}">
+          <input type="radio" name="salesDuration" value="${v}" ${duration===v?'checked':''}/>
+          <span>${v}</span>
+        </label>`).join('');
+      const freqOpts = ['주1회','주2회','주3회','주5회'].map(v =>
+        `<label class="sales-radio-label${freq===v?' active':''}">
+          <input type="radio" name="salesFreq" value="${v}" ${freq===v?'checked':''}/>
+          <span>${v}</span>
+        </label>`).join('');
+
+      container.innerHTML = `
+        <div class="form-group">
+          <label>고객 이름 <span class="required">*</span></label>
+          <input type="text" id="fSalesClientName" placeholder="고객 이름" value="${esc(f.clientName||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>등록 구분 <span class="required">*</span></label>
+          <div class="sales-radio-group">${regOpts}</div>
+        </div>
+        <div class="form-group">
+          <label>회원권 기간</label>
+          <div class="sales-radio-group">${durOpts}</div>
+        </div>
+        <div class="form-group">
+          <label>회원권 횟수</label>
+          <div class="sales-radio-group">${freqOpts}</div>
+        </div>
+        <div class="form-group">
+          <label>결제 금액 <span class="required">*</span></label>
+          <div class="input-with-unit">
+            <input type="number" id="fSalesPayment" placeholder="0" min="0" step="10000" value="${payment}"/>
+            <span class="input-unit">원</span>
+          </div>
+        </div>`;
+
+      // 라디오 active 스타일 동기화
+      container.querySelectorAll('input[type="radio"]').forEach(r => {
+        r.addEventListener('change', () => {
+          const grp = r.closest('.sales-radio-group');
+          if (!grp) return;
+          grp.querySelectorAll('.sales-radio-label').forEach(l => l.classList.remove('active'));
+          r.closest('.sales-radio-label')?.classList.add('active');
+        });
+      });
+
+      setTimeout(() => document.getElementById('fSalesClientName')?.focus(), 80);
+      break;
+    }
+
     default:
       container.innerHTML = '';
   }

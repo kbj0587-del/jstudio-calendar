@@ -1529,6 +1529,53 @@ body {
 [data-theme="dark"] .calc-amt { color: #a78bfa; }
 .calc-placeholder { color: var(--text-muted); font-size: 12px; font-style: italic; }
 
+/* ══════════════ 어코디언 공통 ══════════════ */
+.acc-trigger {
+  cursor: pointer;
+  user-select: none;
+}
+.acc-trigger:hover { filter: brightness(0.97); }
+.acc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.acc-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.acc-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--border);
+  color: var(--text-muted);
+}
+.acc-chevron {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: transform 0.22s ease;
+  margin-left: 2px;
+}
+.acc-body {
+  overflow: hidden;
+  max-height: 3000px;
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+  opacity: 1;
+}
+.acc-body.acc-collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+}
+
 /* ══════════════ 인센티브 정산 (리스트 보기) ══════════════ */
 .inc-summary-section {
   margin: 16px 0 8px;
@@ -1588,19 +1635,22 @@ body {
 }
 [data-theme="dark"] .inc-summary-amount { color: #a78bfa; }
 
-/* ══════════════ 월별 현황 섹션 (대강 / 수업노쇼) ══════════════ */
+/* ══════════════ 월별 현황 섹션 (대강 / 수업노쇼 / 매출) ══════════════ */
 .ms-section {
   margin: 12px 0 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: hidden; /* acc-body의 max-height:0 클리핑에 필요 */
 }
 .ms-section--daeggang .ms-header {
   background: color-mix(in srgb, #e07b20 10%, var(--surface2));
 }
 .ms-section--noshow .ms-header {
   background: color-mix(in srgb, #e03050 10%, var(--surface2));
+}
+.ms-section--sales .ms-header {
+  background: color-mix(in srgb, #059669 10%, var(--surface2));
 }
 .ms-header {
   display: flex;
@@ -1645,6 +1695,112 @@ body {
   font-weight: 500;
 }
 [data-theme="dark"] .ms-noshow { color: #ff6b6b; }
+
+/* 매출 현황 전용 */
+.ms-grand {
+  font-size: 15px;
+  font-weight: 800;
+  color: #059669;
+  white-space: nowrap;
+}
+[data-theme="dark"] .ms-grand { color: #34d399; }
+.ms-type-summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ms-row--sales {
+  align-items: center;
+}
+.ms-row--sales .ms-content {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1;
+}
+.ms-sales-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+.ms-sales-mem {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ms-sales-pay {
+  font-weight: 700;
+  font-size: 13px;
+  color: #059669;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+[data-theme="dark"] .ms-sales-pay { color: #34d399; }
+
+/* 등록구분 배지 */
+.sales-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.sales-badge--신규, .sales-reg-신규 { background: #dcfce7; color: #166534; }
+.sales-badge--재등록, .sales-reg-재등록 { background: #dbeafe; color: #1e40af; }
+.sales-badge--휴면, .sales-reg-휴면 { background: #fef3c7; color: #92400e; }
+[data-theme="dark"] .sales-badge--신규  { background: #14532d; color: #86efac; }
+[data-theme="dark"] .sales-badge--재등록 { background: #1e3a5f; color: #93c5fd; }
+[data-theme="dark"] .sales-badge--휴면  { background: #451a03; color: #fcd34d; }
+
+/* 리스트뷰 extra 색상 */
+.lv-extra-sales { color: #059669; }
+[data-theme="dark"] .lv-extra-sales { color: #34d399; }
+
+/* 상세보기 매출 배지 */
+.sales-reg-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 매출 폼 라디오 버튼 */
+.sales-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sales-radio-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--tr);
+  color: var(--text-muted);
+}
+.sales-radio-label input[type="radio"] { display: none; }
+.sales-radio-label.active,
+.sales-radio-label:has(input:checked) {
+  border-color: #059669;
+  color: #059669;
+  background: color-mix(in srgb, #059669 10%, var(--surface));
+  font-weight: 600;
+}
+[data-theme="dark"] .sales-radio-label.active,
+[data-theme="dark"] .sales-radio-label:has(input:checked) {
+  border-color: #34d399;
+  color: #34d399;
+  background: color-mix(in srgb, #34d399 12%, var(--surface));
+}
 
 /* ══════════════ 스크롤바 ══════════════ */
 ::-webkit-scrollbar       { width: 5px; }
