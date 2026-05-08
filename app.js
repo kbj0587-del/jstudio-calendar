@@ -290,6 +290,14 @@ function autoTitle(type, f) {
   }
 }
 
+// 시스템 카테고리는 extraFields로 제목을 재계산 (저장된 ev.title에 계산식이 들어있던 구버전 데이터 대응)
+function getDisplayTitle(ev) {
+  if (SYSTEM_CAT_IDS.includes(ev.type) && ev.extraFields) {
+    return autoTitle(ev.type, ev.extraFields) || ev.title || '';
+  }
+  return ev.title || '';
+}
+
 function getChipText(ev) {
   const f = ev.extraFields;
   if (!f) return ev.title;
@@ -1652,7 +1660,7 @@ function performSearch() {
     const catName = getCat(ev.type).name;
     const memo    = stripHtml(ev.desc || '');
     return [
-      ev.title, catName, memo,
+      ev.title, getDisplayTitle(ev), catName, memo,
       f.clientName, f.clientContact,
       f.memberName, f.staffName,
       f.studentName, f.studentContact,
@@ -1700,9 +1708,10 @@ function performSearch() {
       infoLines.push(`📝 ${highlightMatch(snip, q)}`);
     }
 
-    const titleHtml = ev.title && ev.title.toLowerCase().includes(ql)
-      ? highlightMatch(ev.title, q)
-      : esc(ev.title || '');
+    const displayTitle = getDisplayTitle(ev);
+    const titleHtml = displayTitle && displayTitle.toLowerCase().includes(ql)
+      ? highlightMatch(displayTitle, q)
+      : esc(displayTitle);
 
     html += `
       <div class="search-result-item" onclick="openDayModalFromList('${ev.date}','${ev.id}');closeSearch()">
@@ -1953,7 +1962,7 @@ function renderListView() {
         ${esc(cat.name)}
       </span>
       <div class="list-event-info">
-        <div class="list-event-title">${esc(ev.title)}</div>
+        <div class="list-event-title">${esc(getDisplayTitle(ev))}</div>
         ${ev.time ? `<div class="list-event-time">⏰ ${esc(ev.time)}</div>` : ''}
       </div>
       <span class="list-event-arrow">›</span>`;
@@ -2000,7 +2009,7 @@ function renderDetailView() {
         </span>
         ${ev.time ? `<span style="font-size:12px;color:var(--text-muted)">⏰ ${esc(ev.time)}</span>` : ''}
       </div>
-      <div class="detail-event-title">${esc(ev.title)}</div>
+      <div class="detail-event-title">${esc(getDisplayTitle(ev))}</div>
       <div class="detail-meta">
         <span>📅 ${formatDateKo(ev.date)}</span>
       </div>
