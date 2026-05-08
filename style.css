@@ -1926,6 +1926,50 @@ body {
   background: color-mix(in srgb, #34d399 12%, var(--surface));
 }
 
+/* ══════════════ 인센티브 매출 연동 ══════════════ */
+.inc-sales-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 14px 0 12px;
+}
+.inc-sales-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 4px 0;
+  user-select: none;
+}
+.inc-sales-toggle-label input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.inc-sales-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 7px 12px;
+  margin: 10px 0 12px;
+}
+#incSalesFields { padding-bottom: 4px; }
+
+/* 매출 연동 배지 */
+.sales-badge--linked {
+  background: color-mix(in srgb, #7c3aed 14%, var(--surface));
+  color: #7c3aed;
+}
+[data-theme="dark"] .sales-badge--linked {
+  background: color-mix(in srgb, #a78bfa 18%, var(--surface));
+  color: #a78bfa;
+}
+
 /* ══════════════ 검색 오버레이 ══════════════ */
 .search-overlay {
   position: fixed;

@@ -222,6 +222,16 @@ function collectExtraFields(type) {
         f.consultIncentiveAmt = calcAmt;
         f.incentiveAmt        = String(calcAmt);
       }
+      // 매출 연동 정보
+      const salesLink = document.getElementById('fIncSalesLink');
+      if (salesLink?.checked) {
+        f.linkedSales = {
+          regType:  document.querySelector('input[name="incSalesRegType"]:checked')?.value  || '신규',
+          duration: document.querySelector('input[name="incSalesDuration"]:checked')?.value || '1개월',
+          freq:     document.querySelector('input[name="incSalesFreq"]:checked')?.value     || '주3회',
+          payment:  Number(document.getElementById('fIncSalesPayment')?.value) || 0,
+        };
+      }
       break;
     }
     case 'trial': {
@@ -479,6 +489,28 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-val detail-amt">${amtStr}</span>
           </div>`;
       }
+      const linkedSalesHtml = f.linkedSales ? (() => {
+        const ls  = f.linkedSales;
+        const mem = `${ls.duration||''}${ls.freq ? ' '+ls.freq : ''}`.trim();
+        const pay = ls.payment ? Number(ls.payment).toLocaleString()+'원' : '-';
+        return `
+        <div class="detail-extra-section">
+          <div class="detail-label">매출(등록) 정보</div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">등록구분</span>
+            <span class="detail-extra-val"><span class="sales-badge sales-badge--${ls.regType||'신규'}">${esc(ls.regType||'신규')}</span></span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">회원권</span>
+            <span class="detail-extra-val">${esc(mem||'-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">결제금액</span>
+            <span class="detail-extra-val detail-amt">${pay}</span>
+          </div>
+        </div>`;
+      })() : '';
+
       return `
         <div class="detail-extra-section">
           <div class="detail-label">인센티브 정보</div>
@@ -487,7 +519,7 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-val">${esc(iType)}</span>
           </div>
           ${extraRows}
-        </div>`;
+        </div>${linkedSalesHtml}`;
     }
     case 'trial': {
       const cnt        = f.personCount || 1;
@@ -1338,13 +1370,18 @@ function renderSalesSummary(monthStr) {
     ev.type === 'trial' && ev.date.startsWith(monthStr) &&
     ev.extraFields && Number(ev.extraFields.trialFee) > 0
   );
+  // 인센티브에 매출 연동 정보가 입력된 이벤트
+  const linkedEvents = events.filter(ev =>
+    ev.type === 'incentive' && ev.date.startsWith(monthStr) && ev.extraFields?.linkedSales
+  );
 
-  if (!salesEvents.length && !trialEvents.length) return '';
+  if (!salesEvents.length && !trialEvents.length && !linkedEvents.length) return '';
 
   // 날짜순 통합 정렬
   const allItems = [
     ...salesEvents.map(ev => ({ ...ev, _kind: 'sales' })),
     ...trialEvents.map(ev => ({ ...ev, _kind: 'trial' })),
+    ...linkedEvents.map(ev => ({ ...ev, _kind: 'linked' })),
   ].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
 
   const bodyId = `acc-sales-${monthStr}`;
@@ -1356,6 +1393,7 @@ function renderSalesSummary(monthStr) {
     const f = ev.extraFields;
     grandTotal += Number(f.trialTotal) || (Number(f.trialFee) * (Number(f.personCount) || 1));
   });
+  linkedEvents.forEach(ev => { grandTotal += Number(ev.extraFields?.linkedSales?.payment) || 0; });
 
   // 구분별 소계 문자열
   const byRegType = {};
@@ -1364,7 +1402,8 @@ function renderSalesSummary(monthStr) {
     byRegType[t] = (byRegType[t] || 0) + 1;
   });
   const salesParts = Object.entries(byRegType).map(([t, c]) => `${t} ${c}건`);
-  if (trialEvents.length) salesParts.push(`체험 ${trialEvents.length}건`);
+  if (trialEvents.length)  salesParts.push(`체험 ${trialEvents.length}건`);
+  if (linkedEvents.length) salesParts.push(`연동등록 ${linkedEvents.length}건`);
   const typeSummary = salesParts.join(' · ');
 
   // 행 생성
@@ -1387,7 +1426,7 @@ function renderSalesSummary(monthStr) {
           </span>
           <span class="ms-sales-pay">${pay}</span>
         </div>`;
-    } else {
+    } else if (item._kind === 'trial') {
       // 체험수업 유료 건
       const cnt    = Number(f.personCount) || 1;
       const total  = Number(f.trialTotal) || (Number(f.trialFee) * cnt);
@@ -1400,6 +1439,22 @@ function renderSalesSummary(monthStr) {
             <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
             <span class="sales-badge sales-badge--trial">체험수업</span>
             ${cntStr ? `<span class="ms-sales-mem">${esc(cntStr)}</span>` : ''}
+          </span>
+          <span class="ms-sales-pay">${pay}</span>
+        </div>`;
+    } else {
+      // 인센티브 연동 매출
+      const ls    = f.linkedSales || {};
+      const badge = f.incentiveType === '상담등록' ? '상담>등록' : '체험>등록';
+      const mem   = `${ls.duration||''}${ls.freq ? ' '+ls.freq : ''}`.trim();
+      const pay   = ls.payment ? Number(ls.payment).toLocaleString()+'원' : '-';
+      rows += `
+        <div class="ms-row ms-row--sales ms-row-clickable" onclick="openDayModalFromList('${item.date}','${item.id}')">
+          <span class="ms-date">${Number(ed)}일(${dow})</span>
+          <span class="ms-content">
+            <span class="ms-sales-name">${esc(f.memberName||'-')}</span>
+            <span class="sales-badge sales-badge--linked">${esc(badge)}</span>
+            ${mem ? `<span class="ms-sales-mem">${esc(mem)}</span>` : ''}
           </span>
           <span class="ms-sales-pay">${pay}</span>
         </div>`;
@@ -2167,6 +2222,41 @@ function renderExtraFields(catId, ev) {
             </div>
           </div>
           <div class="incentive-calc-info" id="incentiveCalcInfo">${calcHtml}</div>
+        </div>
+        <div class="inc-sales-divider"></div>
+        <div class="form-group" style="margin-bottom:4px">
+          <label class="inc-sales-toggle-label">
+            <input type="checkbox" id="fIncSalesLink" ${f.linkedSales ? 'checked' : ''}/>
+            <span>💵 매출(등록) 정보 함께 입력</span>
+          </label>
+        </div>
+        <div id="incSalesFields" style="display:${f.linkedSales ? '' : 'none'}">
+          <div class="inc-sales-note">아래 정보는 매출 현황에도 함께 표시됩니다</div>
+          <div class="form-group">
+            <label>등록구분</label>
+            <div class="sales-radio-group" id="incSalesRegGroup">
+              ${['신규','재등록','휴면'].map(v => `<label class="sales-radio-label${(f.linkedSales?.regType||'신규')===v?' active':''}"><input type="radio" name="incSalesRegType" value="${v}" ${(f.linkedSales?.regType||'신규')===v?'checked':''}/>${v}</label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group">
+            <label>회원권 기간</label>
+            <div class="sales-radio-group" id="incSalesDurGroup">
+              ${['1개월','3개월','6개월'].map(v => `<label class="sales-radio-label${(f.linkedSales?.duration||'1개월')===v?' active':''}"><input type="radio" name="incSalesDuration" value="${v}" ${(f.linkedSales?.duration||'1개월')===v?'checked':''}/>${v}</label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group">
+            <label>수업 횟수</label>
+            <div class="sales-radio-group" id="incSalesFreqGroup">
+              ${['주1회','주2회','주3회','주5회'].map(v => `<label class="sales-radio-label${(f.linkedSales?.freq||'주3회')===v?' active':''}"><input type="radio" name="incSalesFreq" value="${v}" ${(f.linkedSales?.freq||'주3회')===v?'checked':''}/>${v}</label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group">
+            <label>결제금액</label>
+            <div class="input-with-unit">
+              <input type="number" id="fIncSalesPayment" placeholder="0" min="0" step="10000" value="${f.linkedSales?.payment||''}"/>
+              <span class="input-unit">원</span>
+            </div>
+          </div>
         </div>`;
 
       // 체험등록 자동계산
@@ -2232,6 +2322,22 @@ function renderExtraFields(catId, ev) {
 
       // 초기 계산 표시
       updateTrialCalc();
+
+      // 매출 연동 토글
+      document.getElementById('fIncSalesLink')?.addEventListener('change', e => {
+        document.getElementById('incSalesFields').style.display = e.target.checked ? '' : 'none';
+      });
+      // 매출 연동 라디오 그룹 active 클래스 처리
+      ['incSalesRegGroup','incSalesDurGroup','incSalesFreqGroup'].forEach(grpId => {
+        const grp = document.getElementById(grpId);
+        if (!grp) return;
+        grp.querySelectorAll('.sales-radio-label').forEach(lbl => {
+          lbl.addEventListener('click', () => {
+            grp.querySelectorAll('.sales-radio-label').forEach(l => l.classList.remove('active'));
+            lbl.classList.add('active');
+          });
+        });
+      });
 
       setTimeout(() => document.getElementById('fStaffName')?.focus(), 80);
       break;
