@@ -1440,6 +1440,57 @@ function renderSalesSummary(monthStr) {
     </div>`;
 }
 
+// ── 리스트 뷰용 시스템 카테고리 타이틀 (금액 제외) ──
+function getSysListTitle(ev) {
+  const f = ev.extraFields || {};
+  switch (ev.type) {
+    case 'sales': {
+      const name  = f.clientName || '매출등록';
+      const rtype = f.regType ? ` · ${f.regType}` : '';
+      const mem   = (f.duration || f.freq)
+        ? ` · ${(f.duration || '') + (f.freq ? ' ' + f.freq : '')}` : '';
+      return `${name}${rtype}${mem}`;
+    }
+    case 'incentive': {
+      const iType = f.incentiveType || '체험등록';
+      const staff = f.staffName ? ` · ${f.staffName}` : '';
+      return `${iType}${staff}`;
+    }
+    case 'trial': {
+      const name = f.clientName || '체험수업';
+      const cnt  = Number(f.personCount) || 1;
+      const ns   = f.noshow ? ' ⚠노쇼' : '';
+      return (cnt > 1 ? `${name} 外 ${cnt - 1}명` : name) + ns;
+    }
+    case 'review':
+      return (f.clientName || '리뷰체험') + (f.noshow ? ' ⚠노쇼' : '');
+    case 'daeggang':
+      return f.instructorA
+        ? `${f.instructorA} → ${f.instructorB || '?'} 대강`
+        : (ev.title || '대강');
+    case 'classnoshow':
+      return f.studentName
+        ? `${f.studentName}${f.className ? ' · ' + f.className : ''}`
+        : (ev.title || '수업노쇼');
+    default:
+      return ev.title || '';
+  }
+}
+
+// ── 리스트 뷰 오른쪽 정렬 금액 ────────────────────
+function getSysPayAmt(ev) {
+  const f = ev.extraFields;
+  if (!f) return 0;
+  switch (ev.type) {
+    case 'sales':     return Number(f.payment) || 0;
+    case 'incentive': return Number(f.incentiveAmt) || 0;
+    case 'trial':
+      return Number(f.trialTotal) ||
+             (Number(f.trialFee) * (Number(f.personCount) || 1)) || 0;
+    default: return 0;
+  }
+}
+
 // ── 목록 보기 렌더링 — 현재 달만 표시 ────────────
 function renderListViewAll() {
   const body = document.getElementById('listViewBody');
@@ -1522,17 +1573,40 @@ function renderListViewAll() {
           <div class="lv-holiday-name">🎌 ${esc(item.title)}</div>
         </div>`;
     } else {
-      const cat     = getCat(item.type);
+      const cat      = getCat(item.type);
+      const isSys    = SYSTEM_CAT_IDS.includes(item.type);
       const isNoshow = item.extraFields?.noshow === true;
+
+      let infoHtml;
+      if (isSys) {
+        // 시스템 카테고리: 타이틀(금액 제외) + 금액 오른쪽 정렬, 중복 없음
+        const title  = getSysListTitle(item);
+        const payAmt = getSysPayAmt(item);
+        const timeHtml = item.time
+          ? `<span class="lv-time lv-time-inline">⏰ ${esc(item.time)}</span>` : '';
+        const amtHtml  = payAmt > 0
+          ? `<span class="lv-sys-amount">${payAmt.toLocaleString()}원</span>` : '';
+        infoHtml = `
+          <div class="lv-sys-row">
+            <div class="lv-sys-main">
+              <span class="lv-title">${esc(title)}</span>
+              ${timeHtml}
+            </div>
+            ${amtHtml}
+          </div>`;
+      } else {
+        // 일반 카테고리: 기존 레이아웃
+        infoHtml = `
+          <div class="lv-title">${esc(item.title)}</div>
+          ${item.time ? `<div class="lv-time">⏰ ${esc(item.time)}</div>` : ''}
+          ${getExtraSummaryHtml(item)}`;
+      }
+
       html += `
         <div class="lv-event-item${isNoshow ? ' lv-item-noshow' : ''}" onclick="openDayModalFromList('${item.date}','${item.id}')">
           ${dayHtml}
           <div class="lv-color-bar" style="background:${cat.color}"></div>
-          <div class="lv-info">
-            <div class="lv-title">${esc(item.title)}</div>
-            ${item.time ? `<div class="lv-time">⏰ ${esc(item.time)}</div>` : ''}
-            ${getExtraSummaryHtml(item)}
-          </div>
+          <div class="lv-info">${infoHtml}</div>
           <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">${esc(cat.name)}</span>
         </div>`;
     }

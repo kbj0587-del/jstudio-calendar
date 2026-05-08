@@ -322,6 +322,40 @@ body {
   white-space: nowrap;
 }
 
+/* ── 시스템 카테고리 리스트 행 (금액 오른쪽 정렬) ── */
+.lv-sys-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+.lv-sys-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.lv-sys-main .lv-title {
+  /* 시스템 카테고리에서는 줄임표 없이 */
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+.lv-time-inline {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.lv-sys-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ── 리스트 보기 extraFields 서브 정보 ── */
 .lv-extra-info {
   font-size: 12px;
