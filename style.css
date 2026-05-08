@@ -1752,9 +1752,11 @@ body {
 .sales-badge--신규, .sales-reg-신규 { background: #dcfce7; color: #166534; }
 .sales-badge--재등록, .sales-reg-재등록 { background: #dbeafe; color: #1e40af; }
 .sales-badge--휴면, .sales-reg-휴면 { background: #fef3c7; color: #92400e; }
-[data-theme="dark"] .sales-badge--신규  { background: #14532d; color: #86efac; }
-[data-theme="dark"] .sales-badge--재등록 { background: #1e3a5f; color: #93c5fd; }
-[data-theme="dark"] .sales-badge--휴면  { background: #451a03; color: #fcd34d; }
+.sales-badge--trial { background: #e0f2fe; color: #075985; }
+[data-theme="dark"] .sales-badge--신규   { background: #14532d; color: #86efac; }
+[data-theme="dark"] .sales-badge--재등록  { background: #1e3a5f; color: #93c5fd; }
+[data-theme="dark"] .sales-badge--휴면   { background: #451a03; color: #fcd34d; }
+[data-theme="dark"] .sales-badge--trial  { background: #0c2a3e; color: #7dd3fc; }
 
 /* 리스트뷰 extra 색상 */
 .lv-extra-sales { color: #059669; }

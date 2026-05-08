@@ -1310,44 +1310,81 @@ function renderClassNoshowSummary(monthStr) {
 
 // ── 월별 매출 요약 ────────────────────────────────
 function renderSalesSummary(monthStr) {
+  // 매출(등록) 이벤트
   const salesEvents = events.filter(ev =>
     ev.type === 'sales' && ev.date.startsWith(monthStr) && ev.extraFields
   );
-  if (!salesEvents.length) return '';
+  // 체험수업 중 체험비가 입력된(결제된) 이벤트
+  const trialEvents = events.filter(ev =>
+    ev.type === 'trial' && ev.date.startsWith(monthStr) &&
+    ev.extraFields && Number(ev.extraFields.trialFee) > 0
+  );
 
-  const sorted = [...salesEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
-  const bodyId  = `acc-sales-${monthStr}`;
+  if (!salesEvents.length && !trialEvents.length) return '';
 
+  // 날짜순 통합 정렬
+  const allItems = [
+    ...salesEvents.map(ev => ({ ...ev, _kind: 'sales' })),
+    ...trialEvents.map(ev => ({ ...ev, _kind: 'trial' })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+
+  const bodyId = `acc-sales-${monthStr}`;
+
+  // 합계 계산
   let grandTotal = 0;
   salesEvents.forEach(ev => { grandTotal += Number(ev.extraFields?.payment) || 0; });
+  trialEvents.forEach(ev => {
+    const f = ev.extraFields;
+    grandTotal += Number(f.trialTotal) || (Number(f.trialFee) * (Number(f.personCount) || 1));
+  });
 
-  // 구분별 소계
-  const byType = {};
+  // 구분별 소계 문자열
+  const byRegType = {};
   salesEvents.forEach(ev => {
     const t = ev.extraFields?.regType || '신규';
-    byType[t] = (byType[t] || 0) + 1;
+    byRegType[t] = (byRegType[t] || 0) + 1;
   });
-  const typeSummary = Object.entries(byType)
-    .map(([t, c]) => `${t} ${c}건`).join(' · ');
+  const salesParts = Object.entries(byRegType).map(([t, c]) => `${t} ${c}건`);
+  if (trialEvents.length) salesParts.push(`체험 ${trialEvents.length}건`);
+  const typeSummary = salesParts.join(' · ');
 
+  // 행 생성
   let rows = '';
-  sorted.forEach(ev => {
-    const f    = ev.extraFields || {};
-    const [,, ed] = ev.date.split('-');
-    const dow  = ['일','월','화','수','목','금','토'][new Date(ev.date).getDay()];
-    const mem  = `${f.duration||''}${f.freq ? ' '+f.freq : ''}`.trim();
-    const pay  = f.payment ? Number(f.payment).toLocaleString()+'원' : '-';
-    const regClass = `sales-badge--${f.regType||'신규'}`;
-    rows += `
-      <div class="ms-row ms-row--sales">
-        <span class="ms-date">${Number(ed)}일(${dow})</span>
-        <span class="ms-content">
-          <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
-          <span class="sales-badge ${regClass}">${esc(f.regType||'-')}</span>
-          ${mem ? `<span class="ms-sales-mem">${esc(mem)}</span>` : ''}
-        </span>
-        <span class="ms-sales-pay">${pay}</span>
-      </div>`;
+  allItems.forEach(item => {
+    const f   = item.extraFields || {};
+    const [,, ed] = item.date.split('-');
+    const dow = ['일','월','화','수','목','금','토'][new Date(item.date).getDay()];
+
+    if (item._kind === 'sales') {
+      const mem = `${f.duration||''}${f.freq ? ' '+f.freq : ''}`.trim();
+      const pay = f.payment ? Number(f.payment).toLocaleString()+'원' : '-';
+      rows += `
+        <div class="ms-row ms-row--sales">
+          <span class="ms-date">${Number(ed)}일(${dow})</span>
+          <span class="ms-content">
+            <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
+            <span class="sales-badge sales-badge--${f.regType||'신규'}">${esc(f.regType||'-')}</span>
+            ${mem ? `<span class="ms-sales-mem">${esc(mem)}</span>` : ''}
+          </span>
+          <span class="ms-sales-pay">${pay}</span>
+        </div>`;
+    } else {
+      // 체험수업 유료 건
+      const cnt   = Number(f.personCount) || 1;
+      const total = Number(f.trialTotal) || (Number(f.trialFee) * cnt);
+      const pay   = total > 0 ? total.toLocaleString()+'원' : '-';
+      const cntStr = cnt > 1 ? ` · ${cnt}명` : '';
+      rows += `
+        <div class="ms-row ms-row--sales">
+          <span class="ms-date">${Number(ed)}일(${dow})</span>
+          <span class="ms-content">
+            <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
+            <span class="sales-badge sales-badge--trial">체험수업</span>
+            ${cntStr ? `<span class="ms-sales-mem">${esc(cntStr)}</span>` : ''}
+          </span>
+          <span class="ms-sales-pay">${pay}</span>
+        </div>`;
+    }
   });
 
   return `
@@ -1355,7 +1392,7 @@ function renderSalesSummary(monthStr) {
       <div class="ms-header acc-trigger" onclick="toggleAccordion('${bodyId}',this)">
         <div class="acc-header-left">
           <span class="ms-title">💵 매출 현황</span>
-          <span class="acc-count-badge">${salesEvents.length}건</span>
+          <span class="acc-count-badge">${allItems.length}건</span>
           <span class="ms-type-summary">${typeSummary}</span>
         </div>
         <div class="acc-header-right">
