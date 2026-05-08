@@ -2250,10 +2250,16 @@ function renderExtraFields(catId, ev) {
               ${['주1회','주2회','주3회','주5회'].map(v => `<label class="sales-radio-label${(f.linkedSales?.freq||'주3회')===v?' active':''}"><input type="radio" name="incSalesFreq" value="${v}" ${(f.linkedSales?.freq||'주3회')===v?'checked':''}/>${v}</label>`).join('')}
             </div>
           </div>
-          <div class="form-group">
-            <label>결제금액</label>
+          <div class="form-group" id="incSalesPayGroup">
+            <label>결제금액
+              <span id="incSalesPayNote" class="inc-sales-auto-note"${isConsult ? '' : ' style="display:none"'}>⟳ 인센티브 등록금액 자동 반영</span>
+            </label>
             <div class="input-with-unit">
-              <input type="number" id="fIncSalesPayment" placeholder="0" min="0" step="10000" value="${f.linkedSales?.payment||''}"/>
+              <input type="number" id="fIncSalesPayment" placeholder="0" min="0" step="10000"
+                     value="${isConsult
+                       ? ((Number(f.registerAmt||0) * Math.max(1, Number(f.personCount||1))) || '')
+                       : (f.linkedSales?.payment||'')}"
+                     ${isConsult ? 'readonly' : ''}/>
               <span class="input-unit">원</span>
             </div>
           </div>
@@ -2294,6 +2300,15 @@ function renderExtraFields(catId, ev) {
         }
       };
 
+      // 상담등록 결제금액 → 매출 연동 자동 반영
+      const syncConsultPayment = () => {
+        const payEl = document.getElementById('fIncSalesPayment');
+        if (!payEl || !payEl.readOnly) return;
+        const reg = Number(document.getElementById('fRegisterAmt')?.value) || 0;
+        const cnt = Math.max(1, Number(document.getElementById('fConsultPersonCount')?.value) || 1);
+        payEl.value = (reg * cnt) || '';
+      };
+
       // 라디오 버튼 변경 이벤트
       container.querySelectorAll('input[name="incentiveType"]').forEach(radio => {
         radio.addEventListener('change', () => {
@@ -2311,13 +2326,22 @@ function renderExtraFields(catId, ev) {
           } else {
             updateCalc();
           }
+          // 매출 연동 결제금액 readonly 처리
+          const payEl   = document.getElementById('fIncSalesPayment');
+          const payNote = document.getElementById('incSalesPayNote');
+          if (payEl) {
+            payEl.readOnly = toConsult;
+            if (payNote) payNote.style.display = toConsult ? '' : 'none';
+            if (toConsult) syncConsultPayment();
+            else payEl.value = '';
+          }
         });
       });
 
       document.getElementById('fTrialIncentiveAmt')?.addEventListener('input', updateTrialCalc);
       document.getElementById('fTrialPersonCount')?.addEventListener('input', updateTrialCalc);
-      document.getElementById('fRegisterAmt')?.addEventListener('input', updateCalc);
-      document.getElementById('fConsultPersonCount')?.addEventListener('input', updateCalc);
+      document.getElementById('fRegisterAmt')?.addEventListener('input', () => { updateCalc(); syncConsultPayment(); });
+      document.getElementById('fConsultPersonCount')?.addEventListener('input', () => { updateCalc(); syncConsultPayment(); });
       document.getElementById('fConsultRate')?.addEventListener('input', updateCalc);
 
       // 초기 계산 표시

@@ -1959,6 +1959,18 @@ body {
   margin: 10px 0 12px;
 }
 #incSalesFields { padding-bottom: 4px; }
+.inc-sales-auto-note {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  margin-left: 6px;
+  opacity: 0.85;
+}
+#fIncSalesPayment[readonly] {
+  background: var(--surface2);
+  color: var(--text-muted);
+  cursor: default;
+}
 
 /* 매출 연동 배지 */
 .sales-badge--linked {
