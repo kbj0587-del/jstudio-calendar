@@ -1600,6 +1600,125 @@ function openDayModalFromList(dateStr, eventId) {
 }
 
 // ═════════════════════════════════════════════════
+// 검색
+// ═════════════════════════════════════════════════
+
+function openSearch() {
+  const overlay = document.getElementById('searchOverlay');
+  overlay.classList.remove('hidden');
+  const inp = document.getElementById('searchInput');
+  inp.value = '';
+  document.getElementById('btnSearchClear').classList.add('hidden');
+  document.getElementById('searchResults').innerHTML =
+    '<div class="search-hint">회원이름, 연락처, 메모, 카테고리, 제목으로 검색할 수 있습니다.</div>';
+  setTimeout(() => inp.focus(), 80);
+}
+
+function closeSearch() {
+  document.getElementById('searchOverlay').classList.add('hidden');
+}
+
+function stripHtml(html) {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
+function highlightMatch(text, q) {
+  if (!text || !q) return esc(String(text || ''));
+  const idx = String(text).toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) return esc(String(text));
+  const s = String(text);
+  return esc(s.slice(0, idx))
+    + `<mark class="sr-mark">${esc(s.slice(idx, idx + q.length))}</mark>`
+    + esc(s.slice(idx + q.length));
+}
+
+function performSearch() {
+  const q = (document.getElementById('searchInput').value || '').trim();
+  const clearBtn = document.getElementById('btnSearchClear');
+  clearBtn.classList.toggle('hidden', !q);
+  const resultsEl = document.getElementById('searchResults');
+
+  if (!q) {
+    resultsEl.innerHTML = '<div class="search-hint">회원이름, 연락처, 메모, 카테고리, 제목으로 검색할 수 있습니다.</div>';
+    return;
+  }
+
+  const ql = q.toLowerCase();
+  const matches = events.filter(ev => {
+    const f = ev.extraFields || {};
+    const catName = getCat(ev.type).name;
+    const memo    = stripHtml(ev.desc || '');
+    return [
+      ev.title, catName, memo,
+      f.clientName, f.clientContact,
+      f.memberName, f.staffName,
+      f.studentName, f.studentContact,
+      f.instructorA, f.instructorB,
+      f.className, f.regType, f.incentiveType,
+    ].some(s => s && String(s).toLowerCase().includes(ql));
+  }).sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!matches.length) {
+    resultsEl.innerHTML = `<div class="search-empty">「${esc(q)}」 검색 결과가 없습니다.</div>`;
+    return;
+  }
+
+  const DAYS  = ['일','월','화','수','목','금','토'];
+  const alpha = isDark() ? 0.22 : 0.13;
+  let html = `<div class="search-count">${matches.length}건 검색됨</div>`;
+
+  matches.forEach(ev => {
+    const [ey, em, ed] = ev.date.split('-').map(Number);
+    const dow  = DAYS[new Date(ey, em - 1, ed).getDay()];
+    const cat  = getCat(ev.type);
+    const f    = ev.extraFields || {};
+    const memo = stripHtml(ev.desc || '');
+
+    // 매칭된 필드 강조 정보 줄
+    const infoLines = [];
+    const addIfMatch = (icon, val) => {
+      if (val && String(val).toLowerCase().includes(ql))
+        infoLines.push(`${icon} ${highlightMatch(String(val), q)}`);
+    };
+    addIfMatch('👤', f.clientName);
+    addIfMatch('📞', f.clientContact);
+    addIfMatch('👤', f.memberName);
+    addIfMatch('🧑‍🏫', f.staffName);
+    addIfMatch('👤', f.studentName);
+    addIfMatch('📞', f.studentContact);
+    addIfMatch('🔄', f.instructorA);
+    addIfMatch('🔄', f.instructorB);
+    addIfMatch('📚', f.className);
+    addIfMatch('🏷️', f.regType);
+    addIfMatch('🏷️', f.incentiveType);
+    if (memo && memo.toLowerCase().includes(ql)) {
+      const start = Math.max(0, memo.toLowerCase().indexOf(ql) - 15);
+      const snip  = (start > 0 ? '…' : '') + memo.slice(start, start + 70) + (start + 70 < memo.length ? '…' : '');
+      infoLines.push(`📝 ${highlightMatch(snip, q)}`);
+    }
+
+    const titleHtml = ev.title && ev.title.toLowerCase().includes(ql)
+      ? highlightMatch(ev.title, q)
+      : esc(ev.title || '');
+
+    html += `
+      <div class="search-result-item" onclick="openDayModalFromList('${ev.date}','${ev.id}');closeSearch()">
+        <div class="sr-date">${ey}년 ${String(em).padStart(2,'0')}월 ${String(ed).padStart(2,'0')}일(${dow})</div>
+        <div class="sr-main">
+          <span class="sr-badge" style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">${esc(cat.name)}</span>
+          <span class="sr-title">${titleHtml}</span>
+        </div>
+        ${infoLines.length ? `<div class="sr-info">${infoLines.join(' · ')}</div>` : ''}
+      </div>`;
+  });
+
+  resultsEl.innerHTML = html;
+}
+
+// ═════════════════════════════════════════════════
 // 달력 렌더링
 // ═════════════════════════════════════════════════
 
@@ -3403,9 +3522,25 @@ function bindStaticEvents() {
     if (e.target.id === 'pinResetOverlay') closePinResetModal();
   });
 
+  // ── 검색 ──
+  document.getElementById('btnSearch')?.addEventListener('click', openSearch);
+  document.getElementById('btnSearchClose')?.addEventListener('click', closeSearch);
+  document.getElementById('btnSearchClear')?.addEventListener('click', () => {
+    document.getElementById('searchInput').value = '';
+    performSearch();
+    document.getElementById('searchInput').focus();
+  });
+  document.getElementById('searchInput')?.addEventListener('input', performSearch);
+  document.getElementById('searchOverlay')?.addEventListener('click', e => {
+    if (e.target.id === 'searchOverlay') closeSearch();
+  });
+
   // ── ESC ──
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if (!document.getElementById('searchOverlay').classList.contains('hidden')) {
+      closeSearch(); return;
+    }
     closeDayModal();
     closeSettings();
     closeMiniCal();
