@@ -249,6 +249,8 @@ function collectExtraFields(type) {
       f.clientName    = document.getElementById('fClientName')?.value.trim() || '';
       f.clientContact = document.getElementById('fClientContact')?.value.trim() || '';
       f.noshow        = document.getElementById('fNoshow')?.checked || false;
+      f.reserved      = document.getElementById('fReserved')?.checked || false;
+      f.reserveName   = document.getElementById('fReserveName')?.value.trim() || '';
       break;
     case 'classnoshow':
       f.studentName    = document.getElementById('fStudentName')?.value.trim() || '';
@@ -327,7 +329,9 @@ function getChipText(ev) {
       return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns;
     }
     case 'review':
-      return (f.clientName || ev.title) + (f.noshow ? ' ⚠노쇼' : '');
+      return (f.clientName || ev.title)
+        + (f.noshow ? ' ⚠노쇼' : '')
+        + (f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅') : '');
     case 'classnoshow': {
       const sName = f.studentName || ev.title;
       const cls   = f.className ? ` (${f.className})` : '';
@@ -549,6 +553,9 @@ function getExtraDetailHtml(ev) {
     }
     case 'review': {
       const noshowHtml = f.noshow ? `<span class="detail-noshow-badge">🚫 노쇼</span>` : '';
+      const resBadge   = f.reserved
+        ? `<span class="review-res-badge review-res-badge--yes">📅 예약완료</span>`
+        : `<span class="review-res-badge review-res-badge--no">⬜ 미예약</span>`;
       return `
         <div class="detail-extra-section">
           <div class="detail-label">리뷰체험 정보</div>
@@ -560,6 +567,15 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-label">연락처</span>
             <span class="detail-extra-val">${esc(f.clientContact || '-')}</span>
           </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">수업 예약</span>
+            <span class="detail-extra-val">${resBadge}</span>
+          </div>
+          ${f.reserved && f.reserveName ? `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">예약자 이름</span>
+            <span class="detail-extra-val"><strong>${esc(f.reserveName)}</strong></span>
+          </div>` : ''}
         </div>`;
     }
     case 'classnoshow':
@@ -1501,8 +1517,12 @@ function getSysListTitle(ev) {
       const ns   = f.noshow ? ' ⚠노쇼' : '';
       return (cnt > 1 ? `${name} 外 ${cnt - 1}명` : name) + ns;
     }
-    case 'review':
-      return (f.clientName || '리뷰체험') + (f.noshow ? ' ⚠노쇼' : '');
+    case 'review': {
+      const rvName = f.clientName || '리뷰체험';
+      const rvNs   = f.noshow ? ' ⚠노쇼' : '';
+      const rvRes  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅예약완료') : ' ⬜미예약';
+      return `${rvName}${rvNs}${rvRes}`;
+    }
     case 'daeggang':
       return f.instructorA
         ? `${f.instructorA} → ${f.instructorB || '?'} 대강`
@@ -2439,7 +2459,24 @@ function renderExtraFields(catId, ev) {
             <input type="checkbox" id="fNoshow" ${f.noshow ? 'checked' : ''}/>
             <span class="noshow-check-text">🚫 노쇼</span>
           </label>
+        </div>
+        <div class="review-res-divider"></div>
+        <div class="form-group" style="margin-bottom:6px">
+          <label class="noshow-check-label">
+            <input type="checkbox" id="fReserved" ${f.reserved ? 'checked' : ''}/>
+            <span class="noshow-check-text">📅 수업 예약 완료</span>
+          </label>
+        </div>
+        <div id="reserveNameGroup" style="display:${f.reserved ? '' : 'none'}">
+          <div class="form-group">
+            <label>예약자 이름 <span class="required">*</span></label>
+            <input type="text" id="fReserveName" placeholder="예약 등록 이름" value="${esc(f.reserveName||'')}"/>
+          </div>
         </div>`;
+      document.getElementById('fReserved')?.addEventListener('change', e => {
+        document.getElementById('reserveNameGroup').style.display = e.target.checked ? '' : 'none';
+        if (e.target.checked) setTimeout(() => document.getElementById('fReserveName')?.focus(), 50);
+      });
       setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
       break;
     }

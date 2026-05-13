@@ -465,13 +465,29 @@ body {
 .day-cell:hover       { border-color: var(--accent); background: var(--surface2); transform: scale(1.015); }
 .day-cell:active      { transform: scale(0.99); }
 .day-cell.other-month { opacity: 0.28; }
-.day-cell.today       { border-color: var(--accent); background: color-mix(in srgb,var(--accent) 7%,var(--surface)); }
+.day-cell.today {
+  border-color: var(--accent);
+  border-width: 2px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 28%, transparent);
+}
 .day-cell.has-event   { border-color: color-mix(in srgb,var(--accent) 40%,var(--border)); }
 
 .day-num {
   font-size: 14px; font-weight: 700; line-height: 1;
 }
-.day-cell.today .day-num { color: var(--accent); font-weight: 800; }
+.day-cell.today .day-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff !important;
+  font-weight: 800;
+  font-size: 13px;
+}
 
 /* 이벤트 칩 */
 .event-chip {
@@ -1924,6 +1940,32 @@ body {
   border-color: #34d399;
   color: #34d399;
   background: color-mix(in srgb, #34d399 12%, var(--surface));
+}
+
+/* ══════════════ 리뷰체험 예약 ══════════════ */
+.review-res-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0 10px;
+}
+.review-res-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+.review-res-badge--yes {
+  background: color-mix(in srgb, #059669 14%, var(--surface));
+  color: #059669;
+}
+.review-res-badge--no {
+  background: var(--surface2);
+  color: var(--text-muted);
+}
+[data-theme="dark"] .review-res-badge--yes {
+  background: color-mix(in srgb, #34d399 16%, var(--surface));
+  color: #34d399;
 }
 
 /* ══════════════ 인센티브 매출 연동 ══════════════ */
