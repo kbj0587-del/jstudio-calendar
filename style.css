@@ -477,18 +477,6 @@ body {
 .day-num {
   font-size: 14px; font-weight: 700; line-height: 1;
 }
-.day-cell.today .day-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff !important;
-  font-weight: 800;
-  font-size: 13px;
-}
 
 /* 이벤트 칩 */
 .event-chip {

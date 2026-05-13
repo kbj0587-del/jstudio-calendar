@@ -1850,8 +1850,7 @@ function renderCalendar() {
     const numEl = document.createElement('div');
     numEl.className = 'day-num';
     numEl.textContent = d;
-    if (dateStr === todayStr)        numEl.style.color = 'var(--accent)';
-    else if (dow === 0 || holiday)   numEl.style.color = 'var(--sunday)';
+    if      (dow === 0 || holiday)   numEl.style.color = 'var(--sunday)';
     else if (dow === 6)              numEl.style.color = 'var(--saturday)';
     cell.appendChild(numEl);
 
