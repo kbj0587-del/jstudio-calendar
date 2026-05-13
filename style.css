@@ -294,12 +294,6 @@ body {
 }
 .lv-day  { font-size: 17px; font-weight: 700; line-height: 1.1; }
 .lv-dow  { font-size: 10px; color: inherit; opacity: 0.65; margin-top: 1px; }
-.lv-color-bar {
-  width: 3px;
-  height: 38px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
 .lv-info { flex: 1; min-width: 0; }
 .lv-title {
   font-size: 14px;

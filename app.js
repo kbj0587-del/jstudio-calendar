@@ -1660,7 +1660,6 @@ function renderListViewAll() {
       html += `
         <div class="lv-event-item${isNoshow ? ' lv-item-noshow' : ''}" onclick="openDayModalFromList('${item.date}','${item.id}')">
           ${dayHtml}
-          <div class="lv-color-bar" style="background:${cat.color}"></div>
           <div class="lv-info">${infoHtml}</div>
           <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">${esc(cat.name)}</span>
         </div>`;
@@ -1888,7 +1887,7 @@ function renderCalendar() {
         const cat  = getCat(ev.type);
         const chip = document.createElement('div');
         chip.className = 'event-chip';
-        chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:var(--text);border-left:2px solid ${cat.color};`;
+        chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:var(--text);`;
         chip.textContent   = `[${cat.name}] ` + (ev.time ? ev.time + ' ' : '') + getChipText(ev);
         cell.appendChild(chip);
       });
