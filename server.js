@@ -38,7 +38,7 @@ const DEFAULT_CATS = [
   { id: 'trial',      name: '체험수업',   color: '#0891b2', system: true },
   { id: 'review',     name: '리뷰체험',   color: '#e91e8c', system: true },
   { id: 'classnoshow',name: '수업노쇼',   color: '#e03050', system: true },
-  { id: 'sales',      name: '매출(등록)', color: '#059669', system: true },
+  { id: 'sales',      name: '매출/등록', color: '#059669', system: true },
   { id: 'noshow',     name: '노쇼',      color: '#e03050' },
   { id: 'makeup',     name: '보강',      color: '#1a8fc7' },
   { id: 'info',       name: '중요정보',   color: '#c88a00' },

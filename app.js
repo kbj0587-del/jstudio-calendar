@@ -11,7 +11,7 @@ const DEFAULT_CATS = [
   { id: 'trial',      name: '체험수업',   color: '#0891b2', system: true },
   { id: 'review',     name: '리뷰체험',   color: '#e91e8c', system: true },
   { id: 'classnoshow',name: '수업노쇼',   color: '#e03050', system: true },
-  { id: 'sales',      name: '매출(등록)', color: '#059669', system: true },
+  { id: 'sales',      name: '매출/등록', color: '#059669', system: true },
   { id: 'noshow',     name: '노쇼',      color: '#e03050' },
   { id: 'makeup',     name: '보강',      color: '#1a8fc7' },
   { id: 'info',       name: '중요정보',   color: '#c88a00' },
@@ -499,7 +499,7 @@ function getExtraDetailHtml(ev) {
         const pay = ls.payment ? Number(ls.payment).toLocaleString()+'원' : '-';
         return `
         <div class="detail-extra-section">
-          <div class="detail-label">매출(등록) 정보</div>
+          <div class="detail-label">매출/등록 정보</div>
           <div class="detail-extra-row">
             <span class="detail-extra-label">등록구분</span>
             <span class="detail-extra-val"><span class="sales-badge sales-badge--${ls.regType||'신규'}">${esc(ls.regType||'신규')}</span></span>
@@ -1377,7 +1377,7 @@ function renderClassNoshowSummary(monthStr) {
 
 // ── 월별 매출 요약 ────────────────────────────────
 function renderSalesSummary(monthStr) {
-  // 매출(등록) 이벤트
+  // 매출/등록 이벤트
   const salesEvents = events.filter(ev =>
     ev.type === 'sales' && ev.date.startsWith(monthStr) && ev.extraFields
   );
@@ -2245,7 +2245,7 @@ function renderExtraFields(catId, ev) {
         <div class="form-group" style="margin-bottom:4px">
           <label class="inc-sales-toggle-label">
             <input type="checkbox" id="fIncSalesLink" ${f.linkedSales ? 'checked' : ''}/>
-            <span>💵 매출(등록) 정보 함께 입력</span>
+            <span>💵 매출/등록 정보 함께 입력</span>
           </label>
         </div>
         <div id="incSalesFields" style="display:${f.linkedSales ? '' : 'none'}">
