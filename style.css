@@ -277,35 +277,56 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 5px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background var(--tr);
 }
 .lv-event-item:hover,
 .lv-event-item:active { background: var(--surface2); }
+
+/* 날짜 열: 날짜 + 요일 가로 배치 */
 .lv-date-col {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 28px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 2px;
   flex-shrink: 0;
+  white-space: nowrap;
   color: var(--text);
+  min-width: 36px;
 }
-.lv-day  { font-size: 15px; font-weight: 700; line-height: 1.1; }
-.lv-dow  { font-size: 9px; color: inherit; opacity: 0.65; margin-top: 1px; }
+.lv-day { font-size: 14px; font-weight: 700; line-height: 1; }
+.lv-dow { font-size: 10px; color: inherit; opacity: 0.65; }
+
+/* 정보 열 */
 .lv-info { flex: 1; min-width: 0; }
+.lv-info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
 .lv-title {
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+/* 시스템 카테고리 제목은 줄바꿈 허용 */
+.lv-title-sys {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 .lv-time {
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 1px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .lv-badge {
   font-size: 10px;
@@ -315,35 +336,8 @@ body {
   flex-shrink: 0;
   white-space: nowrap;
 }
-
-/* ── 시스템 카테고리 리스트 행 (금액 오른쪽 정렬) ── */
-.lv-sys-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-}
-.lv-sys-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-}
-.lv-sys-main .lv-title {
-  /* 시스템 카테고리에서는 줄임표 없이 */
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-}
-.lv-time-inline {
-  font-size: 12px;
-  color: var(--text-muted);
-}
 .lv-sys-amount {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -352,9 +346,9 @@ body {
 
 /* ── 리스트 보기 extraFields 서브 정보 ── */
 .lv-extra-info {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  margin-top: 3px;
+  margin-top: 2px;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -2190,6 +2184,6 @@ body {
   .day-num       { font-size: 13px; }
   .mobile-bar    { height: 4px; }
   .lv-title      { font-size: 13px; }
-  .lv-day        { font-size: 15px; }
+  .lv-day        { font-size: 14px; }
   .view-toggle-btn { padding: 4px 8px; font-size: 14px; }
 }

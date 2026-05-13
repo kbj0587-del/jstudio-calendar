@@ -1620,8 +1620,7 @@ function renderListViewAll() {
                   : isSat          ? 'var(--saturday)' : '';
     const dayHtml = `
       <div class="lv-date-col"${dateClr ? ` style="color:${dateClr}"` : ''}>
-        <span class="lv-day">${String(ed).padStart(2, '0')}</span>
-        <span class="lv-dow">${dowStr}</span>
+        <span class="lv-day">${ed}</span><span class="lv-dow">${dowStr}</span>
       </div>`;
 
     if (item.isHoliday) {
@@ -1636,24 +1635,21 @@ function renderListViewAll() {
       const isSys    = SYSTEM_CAT_IDS.includes(item.type);
       const isNoshow = item.extraFields?.noshow === true;
 
+      const timeHtml = item.time ? `<span class="lv-time">⏰ ${esc(item.time)}</span>` : '';
       let infoHtml;
       if (isSys) {
-        // 시스템 카테고리: 타이틀만 표시 (금액은 하단 정산 섹션에서만 표시)
-        const title    = getSysListTitle(item);
-        const timeHtml = item.time
-          ? `<span class="lv-time lv-time-inline">⏰ ${esc(item.time)}</span>` : '';
+        const title = getSysListTitle(item);
         infoHtml = `
-          <div class="lv-sys-row">
-            <div class="lv-sys-main">
-              <span class="lv-title">${esc(title)}</span>
-              ${timeHtml}
-            </div>
+          <div class="lv-info-row">
+            <span class="lv-title lv-title-sys">${esc(title)}</span>
+            ${timeHtml}
           </div>`;
       } else {
-        // 일반 카테고리: 기존 레이아웃
         infoHtml = `
-          <div class="lv-title">${esc(item.title)}</div>
-          ${item.time ? `<div class="lv-time">⏰ ${esc(item.time)}</div>` : ''}
+          <div class="lv-info-row">
+            <span class="lv-title">${esc(item.title)}</span>
+            ${timeHtml}
+          </div>
           ${getExtraSummaryHtml(item)}`;
       }
 
