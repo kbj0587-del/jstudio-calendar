@@ -1607,6 +1607,14 @@ function renderListViewAll() {
       <span class="lv-month-count">${countTxt}</span>
     </div>`;
 
+  // 주 구분선용 — 각 항목의 주(週) 시작일(일요일) 계산
+  const getWeekStart = dateStr => {
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() - d.getDay());
+    return d.toISOString().slice(0, 10);
+  };
+  let prevWeekStart = null;
+
   allItems.forEach(item => {
     const [ey, em, ed] = item.date.split('-').map(Number);
     const dow     = new Date(ey, em-1, ed).getDay();
@@ -1618,46 +1626,37 @@ function renderListViewAll() {
     const dateClr = isToday        ? 'var(--accent)'
                   : isHol || isSun ? 'var(--sunday)'
                   : isSat          ? 'var(--saturday)' : '';
-    const dayHtml = `
-      <div class="lv-date-col"${dateClr ? ` style="color:${dateClr}"` : ''}>
-        <span class="lv-day">${ed}</span><span class="lv-dow">${dowStr}</span>
-      </div>`;
+
+    // 주 구분선 삽입
+    const wStart = getWeekStart(item.date);
+    if (prevWeekStart !== null && wStart !== prevWeekStart) {
+      html += `<div class="lv-week-divider"></div>`;
+    }
+    prevWeekStart = wStart;
+
+    const dateDow = `<span class="lv-date-dow"${dateClr ? ` style="color:${dateClr}"` : ''}>${ed}${dowStr}</span>`;
 
     if (item.isHoliday) {
       html += `
         <div class="lv-holiday-item">
-          ${dayHtml}
-          <div class="lv-holiday-bar"></div>
+          ${dateDow}
           <div class="lv-holiday-name">🎌 ${esc(item.title)}</div>
         </div>`;
     } else {
       const cat      = getCat(item.type);
       const isSys    = SYSTEM_CAT_IDS.includes(item.type);
       const isNoshow = item.extraFields?.noshow === true;
-
+      const titleStr = isSys ? getSysListTitle(item) : getDisplayTitle(item);
       const timeHtml = item.time ? `<span class="lv-time">⏰ ${esc(item.time)}</span>` : '';
-      let infoHtml;
-      if (isSys) {
-        const title = getSysListTitle(item);
-        infoHtml = `
-          <div class="lv-info-row">
-            <span class="lv-title lv-title-sys">${esc(title)}</span>
-            ${timeHtml}
-          </div>`;
-      } else {
-        infoHtml = `
-          <div class="lv-info-row">
-            <span class="lv-title">${esc(item.title)}</span>
-            ${timeHtml}
-          </div>
-          ${getExtraSummaryHtml(item)}`;
-      }
+      const extraHtml = isSys ? '' : getExtraSummaryHtml(item);
 
       html += `
         <div class="lv-event-item${isNoshow ? ' lv-item-noshow' : ''}" onclick="openDayModalFromList('${item.date}','${item.id}')">
-          ${dayHtml}
-          <div class="lv-info">${infoHtml}</div>
+          ${dateDow}
           <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">${esc(cat.name)}</span>
+          <span class="lv-title">${esc(titleStr)}</span>
+          ${timeHtml}
+          ${extraHtml}
         </div>`;
     }
   });

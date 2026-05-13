@@ -184,21 +184,13 @@ body {
 .lv-holiday-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 12px;
+  gap: 6px;
+  padding: 4px 8px;
   background: rgba(214,48,80,0.05);
   border-bottom: 1px solid var(--border);
 }
 [data-theme="dark"] .lv-holiday-item {
   background: rgba(255,107,107,0.07);
-}
-.lv-holiday-bar {
-  width: 3px;
-  min-width: 3px;
-  height: 28px;
-  border-radius: 2px;
-  background: var(--sunday);
-  opacity: 0.7;
 }
 .lv-holiday-name {
   font-size: 13px;
@@ -273,10 +265,20 @@ body {
   border-radius: 10px;
   padding: 1px 8px;
 }
+/* 주 구분선 */
+.lv-week-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 8px;
+  opacity: 0.7;
+}
+
+/* 이벤트 행 — 왼쪽 정렬, flex-wrap */
 .lv-event-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 3px 6px;
   padding: 5px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -285,49 +287,16 @@ body {
 .lv-event-item:hover,
 .lv-event-item:active { background: var(--surface2); }
 
-/* 날짜 열: 날짜 + 요일 가로 배치 */
-.lv-date-col {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 2px;
-  flex-shrink: 0;
-  white-space: nowrap;
-  color: var(--text);
-  min-width: 36px;
-}
-.lv-day { font-size: 14px; font-weight: 700; line-height: 1; }
-.lv-dow { font-size: 10px; color: inherit; opacity: 0.65; }
-
-/* 정보 열 */
-.lv-info { flex: 1; min-width: 0; }
-.lv-info-row {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  min-width: 0;
-}
-.lv-title {
+/* 날짜+요일 (13화) */
+.lv-date-dow {
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
-}
-/* 시스템 카테고리 제목은 줄바꿈 허용 */
-.lv-title-sys {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-}
-.lv-time {
-  font-size: 11px;
-  color: var(--text-muted);
-  white-space: nowrap;
   flex-shrink: 0;
+  min-width: 30px;
 }
+
+/* 카테고리 배지 */
 .lv-badge {
   font-size: 10px;
   font-weight: 600;
@@ -336,23 +305,43 @@ body {
   flex-shrink: 0;
   white-space: nowrap;
 }
+
+/* 제목 — 일반 폰트 */
+.lv-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 시간 */
+.lv-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .lv-sys-amount {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-/* ── 리스트 보기 extraFields 서브 정보 ── */
+/* ── 추가 서브 정보 (두 번째 줄) ── */
 .lv-extra-info {
+  flex-basis: 100%;
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 2px;
   display: flex;
   align-items: center;
   gap: 5px;
   flex-wrap: wrap;
+  padding-left: 2px;
 }
 .lv-extra-noshow { color: #e03050; }
 .lv-event-item.lv-item-noshow { background: color-mix(in srgb, #e03050 7%, var(--surface)); }
