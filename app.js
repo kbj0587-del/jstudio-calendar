@@ -238,6 +238,8 @@ function collectExtraFields(type) {
       f.clientName    = document.getElementById('fClientName')?.value.trim() || '';
       f.clientContact = document.getElementById('fClientContact')?.value.trim() || '';
       f.noshow        = document.getElementById('fNoshow')?.checked || false;
+      f.reserved      = document.getElementById('fReserved')?.checked || false;
+      f.reserveName   = document.getElementById('fReserveName')?.value.trim() || '';
       const trialFee  = Number(document.getElementById('fTrialFee')?.value) || 0;
       const persons   = Math.max(1, Number(document.getElementById('fPersonCount')?.value) || 1);
       f.trialFee      = trialFee;
@@ -326,7 +328,8 @@ function getChipText(ev) {
       const base = f.clientName || ev.title;
       const cnt  = f.personCount || 1;
       const ns   = f.noshow ? ' ⚠노쇼' : '';
-      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns;
+      const res  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅') : '';
+      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res;
     }
     case 'review':
       return (f.clientName || ev.title)
@@ -533,6 +536,9 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-label">체험 금액</span>
             <span class="detail-extra-val detail-amt">${f.trialFee.toLocaleString()}원 × ${cnt}명 = <strong>${(f.trialTotal || f.trialFee * cnt).toLocaleString()}원</strong></span>
           </div>` : '';
+      const resBadge   = f.reserved
+        ? `<span class="review-res-badge review-res-badge--yes">📅 예약완료</span>`
+        : `<span class="review-res-badge review-res-badge--no">⬜ 미예약</span>`;
       return `
         <div class="detail-extra-section">
           <div class="detail-label">체험수업 정보</div>
@@ -549,6 +555,15 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-val">${cnt}명</span>
           </div>
           ${feeRow}
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">수업 예약</span>
+            <span class="detail-extra-val">${resBadge}</span>
+          </div>
+          ${f.reserved && f.reserveName ? `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">예약자 이름</span>
+            <span class="detail-extra-val"><strong>${esc(f.reserveName)}</strong></span>
+          </div>` : ''}
         </div>`;
     }
     case 'review': {
@@ -1515,7 +1530,8 @@ function getSysListTitle(ev) {
       const name = f.clientName || '체험수업';
       const cnt  = Number(f.personCount) || 1;
       const ns   = f.noshow ? ' ⚠노쇼' : '';
-      return (cnt > 1 ? `${name} 外 ${cnt - 1}명` : name) + ns;
+      const res  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅예약완료') : ' ⬜미예약';
+      return (cnt > 1 ? `${name} 外 ${cnt - 1}명` : name) + ns + res;
     }
     case 'review': {
       const rvName = f.clientName || '리뷰체험';
@@ -2422,6 +2438,19 @@ function renderExtraFields(catId, ev) {
             <input type="checkbox" id="fNoshow" ${f.noshow ? 'checked' : ''}/>
             <span class="noshow-check-text">🚫 노쇼</span>
           </label>
+        </div>
+        <div class="review-res-divider"></div>
+        <div class="form-group" style="margin-bottom:6px">
+          <label class="noshow-check-label">
+            <input type="checkbox" id="fReserved" ${f.reserved ? 'checked' : ''}/>
+            <span class="noshow-check-text">📅 수업 예약 완료</span>
+          </label>
+        </div>
+        <div id="reserveNameGroup" style="display:${f.reserved ? '' : 'none'}">
+          <div class="form-group">
+            <label>예약자 이름</label>
+            <input type="text" id="fReserveName" placeholder="예약 등록 이름" value="${esc(f.reserveName||'')}"/>
+          </div>
         </div>`;
 
       const updateTrialFeeCalc = () => {
@@ -2436,6 +2465,10 @@ function renderExtraFields(catId, ev) {
       };
       document.getElementById('fTrialFee')?.addEventListener('input', updateTrialFeeCalc);
       document.getElementById('fPersonCount')?.addEventListener('input', updateTrialFeeCalc);
+      document.getElementById('fReserved')?.addEventListener('change', e => {
+        document.getElementById('reserveNameGroup').style.display = e.target.checked ? '' : 'none';
+        if (e.target.checked) setTimeout(() => document.getElementById('fReserveName')?.focus(), 50);
+      });
 
       setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
       break;
