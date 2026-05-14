@@ -188,6 +188,7 @@ body {
   padding: 4px 8px;
   background: rgba(214,48,80,0.05);
   border-bottom: 1px solid var(--border);
+  break-inside: avoid;
 }
 [data-theme="dark"] .lv-holiday-item {
   background: rgba(255,107,107,0.07);
@@ -265,12 +266,25 @@ body {
   border-radius: 10px;
   padding: 1px 8px;
 }
-/* 주 구분선 */
+/* ── 이벤트 항목 그리드 (데스크탑 2단) ── */
+.lv-items-grid {
+  columns: 2;
+  column-gap: 0;
+  break-inside: avoid;        /* 브라우저 힌트 */
+}
+@media (max-width: 768px) {
+  .lv-items-grid { columns: 1; }
+}
+
+/* 주 구분선 — 양쪽 단에 걸쳐 표시, 뚜렷하게 */
 .lv-week-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 2px 8px;
-  opacity: 0.7;
+  column-span: all;           /* 2단 모두 가로로 가로지름 */
+  display: block;
+  height: 0;
+  border: none;
+  border-top: 2px solid var(--border);
+  margin: 8px 0;
+  opacity: 1;
 }
 
 /* 이벤트 행 — 왼쪽 정렬, flex-wrap */
@@ -283,6 +297,7 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background var(--tr);
+  break-inside: avoid;        /* 항목이 컬럼 경계에서 잘리지 않게 */
 }
 .lv-event-item:hover,
 .lv-event-item:active { background: var(--surface2); }

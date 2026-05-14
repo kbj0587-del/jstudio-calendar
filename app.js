@@ -1605,7 +1605,8 @@ function renderListViewAll() {
     <div class="lv-month-header">
       ${currentYear}년 ${currentMonth + 1}월
       <span class="lv-month-count">${countTxt}</span>
-    </div>`;
+    </div>
+    <div class="lv-items-grid">`;
 
   // 주 구분선용 — 각 항목의 주(週) 시작일(일요일) 계산
   const getWeekStart = dateStr => {
@@ -1660,6 +1661,8 @@ function renderListViewAll() {
         </div>`;
     }
   });
+
+  html += '</div>'; // lv-items-grid
 
   // 월별 정산 섹션 추가
   html += renderSalesSummary(monthStr);
