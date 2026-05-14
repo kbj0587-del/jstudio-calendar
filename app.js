@@ -260,10 +260,11 @@ function collectExtraFields(type) {
       f.className      = document.getElementById('fClassName')?.value.trim() || '';
       break;
     case 'sales': {
-      f.clientName    = document.getElementById('fSalesClientName')?.value.trim() || '';
-      f.regType       = document.querySelector('input[name="salesRegType"]:checked')?.value || '신규';
-      f.payment       = Number(document.getElementById('fSalesPayment')?.value) || 0;
-      if (f.regType === '개인레슨') {
+      f.clientName  = document.getElementById('fSalesClientName')?.value.trim() || '';
+      f.regType     = document.querySelector('input[name="salesRegType"]:checked')?.value || '신규';
+      f.lessonType  = document.querySelector('input[name="salesLessonType"]:checked')?.value || '그룹';
+      f.payment     = Number(document.getElementById('fSalesPayment')?.value) || 0;
+      if (f.lessonType === '개인레슨') {
         f.sessionCount = Number(document.getElementById('fSalesSessionCount')?.value) || 0;
         f.duration     = '';
         f.freq         = '';
@@ -302,13 +303,16 @@ function autoTitle(type, f) {
       return `${sName}${cls}`;
     }
     case 'sales': {
-      const name  = f.clientName || '매출등록';
-      const rtype = f.regType    ? ` · ${f.regType}` : '';
-      const mem   = f.regType === '개인레슨'
+      const name    = f.clientName || '매출등록';
+      const isP     = f.lessonType === '개인레슨' || f.regType === '개인레슨';
+      const effReg  = f.regType === '개인레슨' ? '신규' : (f.regType || '신규');
+      const rtype   = ` · ${effReg}`;
+      const ltype   = isP ? ' · 개인레슨' : (f.lessonType === '그룹' ? ' · 그룹' : '');
+      const mem     = isP
         ? (f.sessionCount ? ` · ${f.sessionCount}회` : '')
         : (f.duration || f.freq) ? ` · ${f.duration||''}${f.freq ? ' '+f.freq : ''}` : '';
-      const pay   = f.payment    ? ` · ${Number(f.payment).toLocaleString()}원` : '';
-      return `${name}${rtype}${mem}${pay}`;
+      const pay     = f.payment ? ` · ${Number(f.payment).toLocaleString()}원` : '';
+      return `${name}${rtype}${ltype}${mem}${pay}`;
     }
     default: return '';
   }
@@ -419,12 +423,15 @@ function getExtraSummaryHtml(ev) {
     }
     case 'sales': {
       if (!f.clientName && !f.payment) return '';
-      const rtype = f.regType ? ` | ${esc(f.regType)}` : '';
-      const mem   = f.regType === '개인레슨'
+      const isP    = f.lessonType === '개인레슨' || f.regType === '개인레슨';
+      const effReg = f.regType === '개인레슨' ? '신규' : (f.regType || '신규');
+      const rtype  = ` | ${esc(effReg)}`;
+      const ltype  = isP ? ' | 개인레슨' : (f.lessonType === '그룹' ? ' | 그룹' : '');
+      const mem    = isP
         ? (f.sessionCount ? ` | ${f.sessionCount}회` : '')
         : (f.duration||f.freq) ? ` | ${esc((f.duration||'')+(f.freq?' '+f.freq:''))}` : '';
-      const pay   = f.payment ? ` | ${Number(f.payment).toLocaleString()}원` : '';
-      return `<div class="lv-extra-info lv-extra-sales">💵 ${esc(f.clientName||'-')}${rtype}${mem}${pay}</div>`;
+      const pay    = f.payment ? ` | ${Number(f.payment).toLocaleString()}원` : '';
+      return `<div class="lv-extra-info lv-extra-sales">💵 ${esc(f.clientName||'-')}${rtype}${ltype}${mem}${pay}</div>`;
     }
     default: return '';
   }
@@ -623,8 +630,10 @@ function getExtraDetailHtml(ev) {
           </div>
         </div>`;
     case 'sales': {
-      const isPersonal = f.regType === '개인레슨';
-      const memRow = isPersonal
+      const isP    = f.lessonType === '개인레슨' || f.regType === '개인레슨';
+      const effReg = f.regType === '개인레슨' ? '신규' : (f.regType || '신규');
+      const lType  = isP ? '개인레슨' : (f.lessonType || '그룹');
+      const memRow = isP
         ? `<div class="detail-extra-row">
             <span class="detail-extra-label">수업 횟수</span>
             <span class="detail-extra-val">${f.sessionCount ? f.sessionCount+'회' : '-'}</span>
@@ -643,7 +652,13 @@ function getExtraDetailHtml(ev) {
           <div class="detail-extra-row">
             <span class="detail-extra-label">등록 구분</span>
             <span class="detail-extra-val">
-              <span class="sales-reg-badge sales-reg-${f.regType||'신규'}">${esc(f.regType || '-')}</span>
+              <span class="sales-reg-badge sales-reg-${effReg}">${esc(effReg)}</span>
+            </span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">수업 유형</span>
+            <span class="detail-extra-val">
+              <span class="sales-reg-badge sales-lesson-${lType}">${esc(lType)}</span>
             </span>
           </div>
           ${memRow}
@@ -1463,9 +1478,10 @@ function renderSalesSummary(monthStr) {
     const dow = ['일','월','화','수','목','금','토'][new Date(item.date).getDay()];
 
     if (item._kind === 'sales') {
-      const isPersonal = f.regType === '개인레슨';
-      const mem = isPersonal
-        ? (f.sessionCount ? `${f.sessionCount}회` : '')
+      const isP    = f.lessonType === '개인레슨' || f.regType === '개인레슨';
+      const effReg = f.regType === '개인레슨' ? '신규' : (f.regType || '신규');
+      const mem    = isP
+        ? (f.sessionCount ? `개인 ${f.sessionCount}회` : '개인레슨')
         : `${f.duration||''}${f.freq ? ' '+f.freq : ''}`.trim();
       const pay = f.payment ? Number(f.payment).toLocaleString()+'원' : '-';
       rows += `
@@ -1473,7 +1489,7 @@ function renderSalesSummary(monthStr) {
           <span class="ms-date">${Number(ed)}일(${dow})</span>
           <span class="ms-content">
             <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
-            <span class="sales-badge sales-badge--${f.regType||'신규'}">${esc(f.regType||'-')}</span>
+            <span class="sales-badge sales-badge--${effReg}">${esc(effReg)}</span>
             ${mem ? `<span class="ms-sales-mem">${esc(mem)}</span>` : ''}
           </span>
           <span class="ms-sales-pay">${pay}</span>
@@ -1535,12 +1551,14 @@ function getSysListTitle(ev) {
   const f = ev.extraFields || {};
   switch (ev.type) {
     case 'sales': {
-      const name  = f.clientName || '매출등록';
-      const rtype = f.regType ? ` · ${f.regType}` : '';
-      const mem   = f.regType === '개인레슨'
+      const name   = f.clientName || '매출등록';
+      const isP    = f.lessonType === '개인레슨' || f.regType === '개인레슨';
+      const effReg = f.regType === '개인레슨' ? '신규' : (f.regType || '신규');
+      const ltype  = isP ? ' · 개인레슨' : (f.lessonType === '그룹' ? ' · 그룹' : '');
+      const mem    = isP
         ? (f.sessionCount ? ` · ${f.sessionCount}회` : '')
         : (f.duration || f.freq) ? ` · ${(f.duration||'')+(f.freq?' '+f.freq:'')}` : '';
-      return `${name}${rtype}${mem}`;
+      return `${name} · ${effReg}${ltype}${mem}`;
     }
     case 'incentive': {
       const iType  = f.incentiveType || '체험등록';
@@ -2550,24 +2568,31 @@ function renderExtraFields(catId, ev) {
     }
 
     case 'sales': {
-      const regType      = f.regType      || '신규';
+      // 구버전 호환: regType이 '개인레슨'이었던 경우 lessonType으로 마이그레이션
+      const regType      = (f.regType === '개인레슨') ? '신규' : (f.regType || '신규');
+      const lessonType   = f.lessonType || (f.regType === '개인레슨' ? '개인레슨' : '그룹');
       const duration     = f.duration     || '3개월';
       const freq         = f.freq         || '주3회';
       const sessionCount = f.sessionCount !== undefined ? f.sessionCount : '';
       const payment      = f.payment      !== undefined ? f.payment : '';
-      const isPersonal   = regType === '개인레슨';
+      const isPersonal   = lessonType === '개인레슨';
 
-      const regOpts  = ['신규','재등록','휴면','개인레슨'].map(v =>
+      const regOpts    = ['신규','재등록','휴면'].map(v =>
         `<label class="sales-radio-label${regType===v?' active':''}">
           <input type="radio" name="salesRegType" value="${v}" ${regType===v?'checked':''}/>
           <span>${v}</span>
         </label>`).join('');
-      const durOpts  = ['1개월','3개월','6개월'].map(v =>
+      const lessonOpts = ['그룹','개인레슨'].map(v =>
+        `<label class="sales-radio-label${lessonType===v?' active':''}">
+          <input type="radio" name="salesLessonType" value="${v}" ${lessonType===v?'checked':''}/>
+          <span>${v}</span>
+        </label>`).join('');
+      const durOpts    = ['1개월','3개월','6개월'].map(v =>
         `<label class="sales-radio-label${duration===v?' active':''}">
           <input type="radio" name="salesDuration" value="${v}" ${duration===v?'checked':''}/>
           <span>${v}</span>
         </label>`).join('');
-      const freqOpts = ['주1회','주2회','주3회','주5회'].map(v =>
+      const freqOpts   = ['주1회','주2회','주3회','주5회'].map(v =>
         `<label class="sales-radio-label${freq===v?' active':''}">
           <input type="radio" name="salesFreq" value="${v}" ${freq===v?'checked':''}/>
           <span>${v}</span>
@@ -2581,6 +2606,10 @@ function renderExtraFields(catId, ev) {
         <div class="form-group">
           <label>등록 구분 <span class="required">*</span></label>
           <div class="sales-radio-group">${regOpts}</div>
+        </div>
+        <div class="form-group">
+          <label>수업 유형</label>
+          <div class="sales-radio-group">${lessonOpts}</div>
         </div>
         <div class="form-group" id="salesDurationGroup" style="${isPersonal ? 'display:none' : ''}">
           <label>회원권 기간</label>
@@ -2605,7 +2634,7 @@ function renderExtraFields(catId, ev) {
           </div>
         </div>`;
 
-      // 라디오 active 스타일 + 개인레슨 전환 처리
+      // 라디오 active 스타일 + 수업유형 전환 처리
       container.querySelectorAll('input[type="radio"]').forEach(r => {
         r.addEventListener('change', () => {
           const grp = r.closest('.sales-radio-group');
@@ -2613,7 +2642,7 @@ function renderExtraFields(catId, ev) {
             grp.querySelectorAll('.sales-radio-label').forEach(l => l.classList.remove('active'));
             r.closest('.sales-radio-label')?.classList.add('active');
           }
-          if (r.name === 'salesRegType') {
+          if (r.name === 'salesLessonType') {
             const personal = r.value === '개인레슨';
             document.getElementById('salesDurationGroup').style.display = personal ? 'none' : '';
             document.getElementById('salesFreqGroup').style.display     = personal ? 'none' : '';
