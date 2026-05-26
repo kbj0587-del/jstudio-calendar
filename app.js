@@ -3,7 +3,9 @@
    ═══════════════════════════════════════════════ */
 
 // ── 상수 ──────────────────────────────────────────
-const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','sales'];
+const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','sales','consult'];
+// 일정 상태(취소/변경)를 지원하는 카테고리
+const STATUS_CAT_IDS = ['trial','review','consult'];
 
 const DEFAULT_CATS = [
   { id: 'daeggang',    name: '대강',      color: '#e07b20', system: true },
@@ -11,7 +13,8 @@ const DEFAULT_CATS = [
   { id: 'trial',      name: '체험수업',   color: '#0891b2', system: true },
   { id: 'review',     name: '리뷰체험',   color: '#e91e8c', system: true },
   { id: 'classnoshow',name: '수업노쇼',   color: '#e03050', system: true },
-  { id: 'sales',      name: '매출/등록', color: '#059669', system: true },
+  { id: 'sales',      name: '매출/등록',  color: '#059669', system: true },
+  { id: 'consult',    name: '상담',       color: '#0d9488', system: true },
   { id: 'noshow',     name: '노쇼',      color: '#e03050' },
   { id: 'makeup',     name: '보강',      color: '#1a8fc7' },
   { id: 'info',       name: '중요정보',   color: '#c88a00' },
@@ -204,14 +207,14 @@ function collectExtraFields(type) {
       f.staffName     = document.getElementById('fStaffName')?.value.trim() || '';
       f.memberName    = document.getElementById('fMemberName')?.value.trim() || '';
       if (iType === '체험등록') {
-        const perAmt    = Number(document.getElementById('fTrialIncentiveAmt')?.value) || 0;
+        const perAmt    = parseAmt('fTrialIncentiveAmt');
         const persons   = Math.max(1, Number(document.getElementById('fTrialPersonCount')?.value) || 1);
         const totalAmt  = perAmt * persons;
         f.trialIncentiveAmt = perAmt;
         f.personCount       = persons;
         f.incentiveAmt      = String(totalAmt);
       } else {
-        const regAmt  = Number(document.getElementById('fRegisterAmt')?.value) || 0;
+        const regAmt  = parseAmt('fRegisterAmt');
         const persons = Math.max(1, Number(document.getElementById('fConsultPersonCount')?.value) || 1);
         const rate    = Number(document.getElementById('fConsultRate')?.value) || incentiveDefaults.consultRate;
         const totalReg = regAmt * persons;
@@ -229,7 +232,7 @@ function collectExtraFields(type) {
           regType:  document.querySelector('input[name="incSalesRegType"]:checked')?.value  || '신규',
           duration: document.querySelector('input[name="incSalesDuration"]:checked')?.value || '1개월',
           freq:     document.querySelector('input[name="incSalesFreq"]:checked')?.value     || '주3회',
-          payment:  Number(document.getElementById('fIncSalesPayment')?.value) || 0,
+          payment:  parseAmt('fIncSalesPayment'),
         };
       }
       break;
@@ -240,7 +243,8 @@ function collectExtraFields(type) {
       f.noshow        = document.getElementById('fNoshow')?.checked || false;
       f.reserved      = document.getElementById('fReserved')?.checked || false;
       f.reserveName   = document.getElementById('fReserveName')?.value.trim() || '';
-      const trialFee  = Number(document.getElementById('fTrialFee')?.value) || 0;
+      f.status        = document.querySelector('input[name="apptStatus"]:checked')?.value || '';
+      const trialFee  = parseAmt('fTrialFee');
       const persons   = Math.max(1, Number(document.getElementById('fPersonCount')?.value) || 1);
       f.trialFee      = trialFee;
       f.personCount   = persons;
@@ -253,6 +257,13 @@ function collectExtraFields(type) {
       f.noshow        = document.getElementById('fNoshow')?.checked || false;
       f.reserved      = document.getElementById('fReserved')?.checked || false;
       f.reserveName   = document.getElementById('fReserveName')?.value.trim() || '';
+      f.status        = document.querySelector('input[name="apptStatus"]:checked')?.value || '';
+      break;
+    case 'consult':
+      f.clientName    = document.getElementById('fClientName')?.value.trim() || '';
+      f.clientContact = document.getElementById('fClientContact')?.value.trim() || '';
+      f.memo          = document.getElementById('fConsultMemo')?.value.trim() || '';
+      f.status        = document.querySelector('input[name="apptStatus"]:checked')?.value || '';
       break;
     case 'classnoshow':
       f.studentName    = document.getElementById('fStudentName')?.value.trim() || '';
@@ -263,7 +274,7 @@ function collectExtraFields(type) {
       f.clientName  = document.getElementById('fSalesClientName')?.value.trim() || '';
       f.regType     = document.querySelector('input[name="salesRegType"]:checked')?.value || '신규';
       f.lessonType  = document.querySelector('input[name="salesLessonType"]:checked')?.value || '그룹';
-      f.payment     = Number(document.getElementById('fSalesPayment')?.value) || 0;
+      f.payment     = parseAmt('fSalesPayment');
       if (f.lessonType === '개인레슨') {
         f.sessionCount = Number(document.getElementById('fSalesSessionCount')?.value) || 0;
         f.duration     = '';
@@ -296,7 +307,8 @@ function autoTitle(type, f) {
       const cnt  = f.personCount || 1;
       return cnt > 1 ? `${name} 外 ${cnt - 1}명` : name;
     }
-    case 'review': return f.clientName || '리뷰체험';
+    case 'review':  return f.clientName || '리뷰체험';
+    case 'consult': return f.clientName || '상담';
     case 'classnoshow': {
       const sName = f.studentName || '수업노쇼';
       const cls   = f.className   ? ` (${f.className})` : '';
@@ -343,12 +355,17 @@ function getChipText(ev) {
       const cnt  = f.personCount || 1;
       const ns   = f.noshow ? ' ⚠노쇼' : '';
       const res  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅') : '';
-      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res;
+      const st   = f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '';
+      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res + st;
     }
     case 'review':
       return (f.clientName || ev.title)
         + (f.noshow ? ' ⚠노쇼' : '')
-        + (f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅') : '');
+        + (f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅') : '')
+        + (f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '');
+    case 'consult':
+      return (f.clientName || ev.title)
+        + (f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '');
     case 'classnoshow': {
       const sName = f.studentName || ev.title;
       const cls   = f.className ? ` (${f.className})` : '';
@@ -583,6 +600,11 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-label">예약자 이름</span>
             <span class="detail-extra-val"><strong>${esc(f.reserveName)}</strong></span>
           </div>` : ''}
+          ${f.status ? `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">일정 상태</span>
+            <span class="detail-extra-val">${getStatusBadge(f.status)}</span>
+          </div>` : ''}
         </div>`;
     }
     case 'review': {
@@ -609,6 +631,35 @@ function getExtraDetailHtml(ev) {
           <div class="detail-extra-row">
             <span class="detail-extra-label">예약자 이름</span>
             <span class="detail-extra-val"><strong>${esc(f.reserveName)}</strong></span>
+          </div>` : ''}
+          ${f.status ? `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">일정 상태</span>
+            <span class="detail-extra-val">${getStatusBadge(f.status)}</span>
+          </div>` : ''}
+        </div>`;
+    }
+    case 'consult': {
+      return `
+        <div class="detail-extra-section">
+          <div class="detail-label">상담 정보</div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">이름</span>
+            <span class="detail-extra-val">${esc(f.clientName || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">연락처</span>
+            <span class="detail-extra-val">${esc(f.clientContact || '-')}</span>
+          </div>
+          ${f.memo ? `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">메모</span>
+            <span class="detail-extra-val">${esc(f.memo)}</span>
+          </div>` : ''}
+          ${f.status ? `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">일정 상태</span>
+            <span class="detail-extra-val">${getStatusBadge(f.status)}</span>
           </div>` : ''}
         </div>`;
     }
@@ -676,6 +727,75 @@ function hexToRgba(hex, a) {
   if (hex.length === 3) hex = hex.split('').map(c => c+c).join('');
   const n = parseInt(hex, 16);
   return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+
+// ── 일정 상태 헬퍼 ───────────────────────────────
+function getStatusBadge(status) {
+  if (status === 'cancelled') return `<span class="appt-status-badge appt-cancelled">❌ 취소</span>`;
+  if (status === 'changed')   return `<span class="appt-status-badge appt-changed">🔄 일정변경</span>`;
+  return '';
+}
+function renderStatusFieldHtml(status) {
+  return [['','정상'],['changed','일정변경'],['cancelled','취소']].map(([v, l]) =>
+    `<label class="sales-radio-label${(status||'')=== v?' active':''}">
+      <input type="radio" name="apptStatus" value="${v}" ${(status||'')=== v?'checked':''}/>
+      <span>${l}</span>
+    </label>`
+  ).join('');
+}
+function bindStatusRadios(container) {
+  container.querySelectorAll('input[name="apptStatus"]').forEach(r => {
+    r.addEventListener('change', () => {
+      container.querySelectorAll('.status-radio-grp .sales-radio-label').forEach(l => l.classList.remove('active'));
+      r.closest('.sales-radio-label')?.classList.add('active');
+    });
+  });
+}
+
+// ── 금액 입력: 천단위 콤마 ────────────────────────
+function parseAmt(id) {
+  const el = document.getElementById(id);
+  return el ? (Number(el.value.replace(/,/g, '')) || 0) : 0;
+}
+function initAmtInput(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // 초기값 포맷
+  const raw = el.value.replace(/,/g, '');
+  if (raw && !isNaN(raw) && raw !== '') el.value = Number(raw).toLocaleString('ko-KR');
+  if (el.readOnly) return;   // readonly(자동계산)는 이벤트 불필요
+  el.addEventListener('input', () => {
+    const digits = el.value.replace(/[^0-9]/g, '');
+    el.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+  });
+}
+// 콤마 포함 금액을 HTML value 속성용 문자열로 반환
+function fmtAmt(v) {
+  const n = Number(v);
+  return (v !== '' && v !== undefined && v !== null && !isNaN(n) && n > 0)
+    ? n.toLocaleString('ko-KR') : '';
+}
+
+// ── 전화번호: 자동 하이픈 ────────────────────────
+function formatTel(d) {
+  if (d.startsWith('02')) {
+    if (d.length <= 2) return d;
+    if (d.length <= 6) return `${d.slice(0,2)}-${d.slice(2)}`;
+    return `${d.slice(0,2)}-${d.slice(2,6)}-${d.slice(6,10)}`;
+  }
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0,3)}-${d.slice(3)}`;
+  return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7,11)}`;
+}
+function initTelInput(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const raw = el.value.replace(/[^0-9]/g, '');
+  if (raw) el.value = formatTel(raw);
+  el.addEventListener('input', () => {
+    const digits = el.value.replace(/[^0-9]/g, '');
+    el.value = formatTel(digits);
+  });
 }
 
 // ── HTML 이스케이프 ──────────────────────────────
@@ -1571,13 +1691,20 @@ function getSysListTitle(ev) {
       const cnt  = Number(f.personCount) || 1;
       const ns   = f.noshow ? ' ⚠노쇼' : '';
       const res  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅예약완료') : ' ⬜미예약';
-      return (cnt > 1 ? `${name} 外 ${cnt - 1}명` : name) + ns + res;
+      const st   = f.status === 'cancelled' ? ' ❌취소' : f.status === 'changed' ? ' 🔄변경' : '';
+      return (cnt > 1 ? `${name} 外 ${cnt - 1}명` : name) + ns + res + st;
     }
     case 'review': {
       const rvName = f.clientName || '리뷰체험';
       const rvNs   = f.noshow ? ' ⚠노쇼' : '';
       const rvRes  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅예약완료') : ' ⬜미예약';
-      return `${rvName}${rvNs}${rvRes}`;
+      const rvSt   = f.status === 'cancelled' ? ' ❌취소' : f.status === 'changed' ? ' 🔄변경' : '';
+      return `${rvName}${rvNs}${rvRes}${rvSt}`;
+    }
+    case 'consult': {
+      const name = f.clientName || '상담';
+      const st   = f.status === 'cancelled' ? ' ❌취소' : f.status === 'changed' ? ' 🔄변경' : '';
+      return `${name}${st}`;
     }
     case 'daeggang':
       return f.instructorA
@@ -1700,18 +1827,24 @@ function renderListViewAll() {
           <div class="lv-holiday-name">🎌 ${esc(item.title)}</div>
         </div>`;
     } else {
-      const cat      = getCat(item.type);
-      const isSys    = SYSTEM_CAT_IDS.includes(item.type);
-      const isNoshow = item.extraFields?.noshow === true;
-      const titleStr = isSys ? getSysListTitle(item) : getDisplayTitle(item);
-      const timeHtml = item.time ? `<span class="lv-time">⏰ ${esc(item.time)}</span>` : '';
-      const extraHtml = isSys ? '' : getExtraSummaryHtml(item);
+      const cat         = getCat(item.type);
+      const isSys       = SYSTEM_CAT_IDS.includes(item.type);
+      const isNoshow    = item.extraFields?.noshow === true;
+      const evStatus    = STATUS_CAT_IDS.includes(item.type) ? (item.extraFields?.status || '') : '';
+      const isCancelled = evStatus === 'cancelled';
+      const isChanged   = evStatus === 'changed';
+      const titleStr    = isSys ? getSysListTitle(item) : getDisplayTitle(item);
+      const timeHtml    = item.time ? `<span class="lv-time">⏰ ${esc(item.time)}</span>` : '';
+      const extraHtml   = isSys ? '' : getExtraSummaryHtml(item);
+      const statusHtml  = isCancelled ? `<span class="lv-status-badge lv-status-cancelled">취소</span>`
+                        : isChanged   ? `<span class="lv-status-badge lv-status-changed">일정변경</span>` : '';
 
       html += `
-        <div class="lv-event-item${isNoshow ? ' lv-item-noshow' : ''}" onclick="openDayModalFromList('${item.date}','${item.id}')">
+        <div class="lv-event-item${isNoshow ? ' lv-item-noshow' : ''}${isCancelled ? ' lv-item-cancelled' : ''}" onclick="openDayModalFromList('${item.date}','${item.id}')">
           ${dateDow}
           <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">${esc(cat.name)}</span>
-          <span class="lv-title">${esc(titleStr)}</span>
+          <span class="lv-title${isCancelled ? ' lv-title-strike' : ''}">${esc(titleStr)}</span>
+          ${statusHtml}
           ${timeHtml}
           ${extraHtml}
         </div>`;
@@ -1938,10 +2071,11 @@ function renderCalendar() {
     } else {
       // PC: 기존 텍스트 칩 표시
       dayEvts.slice(0, 3).forEach(ev => {
-        const cat  = getCat(ev.type);
+        const cat        = getCat(ev.type);
+        const cancelled  = STATUS_CAT_IDS.includes(ev.type) && ev.extraFields?.status === 'cancelled';
         const chip = document.createElement('div');
-        chip.className = 'event-chip';
-        chip.style.cssText = `background:${hexToRgba(cat.color,alpha)};color:var(--text);`;
+        chip.className = 'event-chip' + (cancelled ? ' chip-cancelled' : '');
+        chip.style.cssText = `background:${hexToRgba(cat.color, cancelled ? 0.08 : alpha)};color:var(--text);`;
         chip.textContent   = `[${cat.name}] ` + (ev.time ? ev.time + ' ' : '') + getChipText(ev);
         cell.appendChild(chip);
       });
@@ -2080,16 +2214,18 @@ function renderListView() {
   }
 
   dayEvts.forEach(ev => {
-    const cat  = getCat(ev.type);
+    const cat       = getCat(ev.type);
+    const cancelled = STATUS_CAT_IDS.includes(ev.type) && ev.extraFields?.status === 'cancelled';
+    const changed   = STATUS_CAT_IDS.includes(ev.type) && ev.extraFields?.status === 'changed';
     const item = document.createElement('div');
-    item.className = 'list-event-item';
+    item.className = 'list-event-item' + (cancelled ? ' item-cancelled' : '');
     item.innerHTML = `
       <span class="list-event-badge"
-        style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">
+        style="background:${hexToRgba(cat.color, cancelled ? 0.08 : alpha)};color:var(--text)">
         ${esc(cat.name)}
       </span>
       <div class="list-event-info">
-        <div class="list-event-title">${esc(getDisplayTitle(ev))}</div>
+        <div class="list-event-title${cancelled ? ' title-strike' : ''}">${esc(getDisplayTitle(ev))}${cancelled ? ' <span class="appt-status-badge appt-cancelled" style="font-size:10px">취소</span>' : changed ? ' <span class="appt-status-badge appt-changed" style="font-size:10px">변경</span>' : ''}</div>
         ${ev.time ? `<div class="list-event-time">⏰ ${esc(ev.time)}</div>` : ''}
       </div>
       <span class="list-event-arrow">›</span>`;
@@ -2339,7 +2475,7 @@ function renderExtraFields(catId, ev) {
 
       // 체험등록 자동계산
       const updateTrialCalc = () => {
-        const perAmt = Number(document.getElementById('fTrialIncentiveAmt')?.value) || 0;
+        const perAmt = parseAmt('fTrialIncentiveAmt');
         const cnt    = Math.max(1, Number(document.getElementById('fTrialPersonCount')?.value) || 1);
         const total  = perAmt * cnt;
         const el     = document.getElementById('incentiveTrialCalcInfo');
@@ -2355,7 +2491,7 @@ function renderExtraFields(catId, ev) {
 
       // 상담등록 자동계산
       const updateCalc = () => {
-        const reg  = Number(document.getElementById('fRegisterAmt')?.value) || 0;
+        const reg  = parseAmt('fRegisterAmt');
         const cnt  = Math.max(1, Number(document.getElementById('fConsultPersonCount')?.value) || 1);
         const rt   = Number(document.getElementById('fConsultRate')?.value) || incentiveDefaults.consultRate;
         const totalReg = reg * cnt;
@@ -2376,9 +2512,10 @@ function renderExtraFields(catId, ev) {
       const syncConsultPayment = () => {
         const payEl = document.getElementById('fIncSalesPayment');
         if (!payEl || !payEl.readOnly) return;
-        const reg = Number(document.getElementById('fRegisterAmt')?.value) || 0;
+        const reg = parseAmt('fRegisterAmt');
         const cnt = Math.max(1, Number(document.getElementById('fConsultPersonCount')?.value) || 1);
-        payEl.value = (reg * cnt) || '';
+        const tot = reg * cnt;
+        payEl.value = tot ? tot.toLocaleString('ko-KR') : '';
       };
 
       // 라디오 버튼 변경 이벤트
@@ -2491,6 +2628,11 @@ function renderExtraFields(catId, ev) {
             <label>예약자 이름</label>
             <input type="text" id="fReserveName" placeholder="예약 등록 이름" value="${esc(f.reserveName||'')}"/>
           </div>
+        </div>
+        <div class="review-res-divider"></div>
+        <div class="form-group">
+          <label>일정 상태</label>
+          <div class="sales-radio-group status-radio-grp">${renderStatusFieldHtml(f.status||'')}</div>
         </div>`;
 
       const updateTrialFeeCalc = () => {
@@ -2509,6 +2651,7 @@ function renderExtraFields(catId, ev) {
         document.getElementById('reserveNameGroup').style.display = e.target.checked ? '' : 'none';
         if (e.target.checked) setTimeout(() => document.getElementById('fReserveName')?.focus(), 50);
       });
+      bindStatusRadios(container);
 
       setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
       break;
@@ -2541,11 +2684,41 @@ function renderExtraFields(catId, ev) {
             <label>예약자 이름 <span class="required">*</span></label>
             <input type="text" id="fReserveName" placeholder="예약 등록 이름" value="${esc(f.reserveName||'')}"/>
           </div>
+        </div>
+        <div class="review-res-divider"></div>
+        <div class="form-group">
+          <label>일정 상태</label>
+          <div class="sales-radio-group status-radio-grp">${renderStatusFieldHtml(f.status||'')}</div>
         </div>`;
       document.getElementById('fReserved')?.addEventListener('change', e => {
         document.getElementById('reserveNameGroup').style.display = e.target.checked ? '' : 'none';
         if (e.target.checked) setTimeout(() => document.getElementById('fReserveName')?.focus(), 50);
       });
+      bindStatusRadios(container);
+      setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
+      break;
+    }
+    case 'consult': {
+      container.innerHTML = `
+        <div class="form-group">
+          <label>이름 <span class="required">*</span></label>
+          <input type="text" id="fClientName" placeholder="상담자 이름" value="${esc(f.clientName||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>연락처</label>
+          <input type="tel" id="fClientContact" placeholder="010-0000-0000" value="${esc(f.clientContact||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>메모</label>
+          <textarea id="fConsultMemo" placeholder="상담 내용을 입력하세요" rows="3" style="resize:vertical">${esc(f.memo||'')}</textarea>
+        </div>
+        <div class="review-res-divider"></div>
+        <div class="form-group">
+          <label>일정 상태</label>
+          <div class="sales-radio-group status-radio-grp">${renderStatusFieldHtml(f.status||'')}</div>
+        </div>`;
+      initTelInput('fClientContact');
+      bindStatusRadios(container);
       setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
       break;
     }

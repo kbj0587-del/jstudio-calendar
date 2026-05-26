@@ -1882,6 +1882,48 @@ body {
 .lv-extra-sales { color: #059669; }
 [data-theme="dark"] .lv-extra-sales { color: #34d399; }
 
+/* ── 일정 취소 / 변경 스타일 ── */
+/* 취소 — 칩 */
+.chip-cancelled {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+/* 취소 — 리스트 항목 */
+.lv-item-cancelled { opacity: 0.65; }
+.lv-title-strike   { text-decoration: line-through; color: var(--text-muted); }
+/* 취소 — 일별 모달 */
+.item-cancelled    { opacity: 0.65; }
+.title-strike      { text-decoration: line-through; color: var(--text-muted); }
+
+/* 상태 배지 (취소/변경) */
+.lv-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.lv-status-cancelled { background: #fde8ec; color: #e03050; }
+.lv-status-changed   { background: #fff7e6; color: #b45309; }
+[data-theme="dark"] .lv-status-cancelled { background: #3a0d18; color: #ff8099; }
+[data-theme="dark"] .lv-status-changed   { background: #2a1a00; color: #fbbf24; }
+
+/* 상세팝업 상태 배지 */
+.appt-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.appt-cancelled { background: #fde8ec; color: #e03050; }
+.appt-changed   { background: #fff7e6; color: #b45309; }
+[data-theme="dark"] .appt-cancelled { background: #3a0d18; color: #ff8099; }
+[data-theme="dark"] .appt-changed   { background: #2a1a00; color: #fbbf24; }
+
 /* 상세보기 매출 배지 */
 .sales-reg-badge {
   display: inline-flex;
