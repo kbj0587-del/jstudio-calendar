@@ -3139,39 +3139,110 @@ function closeSettings() {
 function renderCategoryList() {
   const el = document.getElementById('categoryList');
   el.innerHTML = '';
+
+  // ── 드래그 상태 ──────────────────────────────────
+  let dragSrc = null;   // 드래그 중인 category 객체
+
   settingsDraft.categories.forEach(cat => {
     const isSys = SYSTEM_CAT_IDS.includes(cat.id);
     const row = document.createElement('div');
     row.className = 'category-row' + (isSys ? ' category-row--system' : '');
+    row.draggable = true;
+
+    // 드래그 핸들
+    const handle = document.createElement('span');
+    handle.className = 'cat-drag-handle';
+    handle.textContent = '⠿';
+    handle.title = '드래그하여 순서 변경';
+    row.appendChild(handle);
 
     if (isSys) {
       // 고정 카테고리: 이름 고정, 색상만 변경 가능
-      row.innerHTML = `
+      const inner = document.createElement('span');
+      inner.className = 'cat-row-inner';
+      inner.innerHTML = `
         <span class="cat-lock-icon">🔒</span>
         <span class="cat-color-dot" style="background:${cat.color}"></span>
         <span class="cat-name-fixed">${esc(cat.name)}</span>
         <input class="cat-color-input" type="color" value="${cat.color}" title="색상 변경 가능"/>`;
-      row.querySelector('.cat-color-input').addEventListener('input', e => {
+      inner.querySelector('.cat-color-input').addEventListener('input', e => {
         cat.color = e.target.value;
-        row.querySelector('.cat-color-dot').style.background = e.target.value;
+        inner.querySelector('.cat-color-dot').style.background = e.target.value;
       });
+      row.appendChild(inner);
     } else {
       // 사용자 카테고리: 이름·색상 변경 + 삭제 가능
-      row.innerHTML = `
+      const inner = document.createElement('span');
+      inner.className = 'cat-row-inner';
+      inner.innerHTML = `
         <span class="cat-color-dot" style="background:${cat.color}"></span>
         <input class="cat-name-input"  type="text"  value="${esc(cat.name)}" />
         <input class="cat-color-input" type="color" value="${cat.color}" />
         <button class="btn-cat-delete">×</button>`;
-      row.querySelector('.cat-name-input').addEventListener('input', e => { cat.name = e.target.value; });
-      row.querySelector('.cat-color-input').addEventListener('input', e => {
+      inner.querySelector('.cat-name-input').addEventListener('input', e => { cat.name = e.target.value; });
+      inner.querySelector('.cat-color-input').addEventListener('input', e => {
         cat.color = e.target.value;
-        row.querySelector('.cat-color-dot').style.background = e.target.value;
+        inner.querySelector('.cat-color-dot').style.background = e.target.value;
       });
-      row.querySelector('.btn-cat-delete').addEventListener('click', () => {
+      inner.querySelector('.btn-cat-delete').addEventListener('click', () => {
         settingsDraft.categories = settingsDraft.categories.filter(c => c !== cat);
         renderCategoryList();
       });
+      row.appendChild(inner);
     }
+
+    // ── HTML5 Drag & Drop 이벤트 ─────────────────
+    row.addEventListener('dragstart', e => {
+      dragSrc = cat;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', ''); // Firefox 필수
+      // 약간의 지연 후 스타일 적용 (캡처 이미지가 스타일 반영 전에 찍힘)
+      requestAnimationFrame(() => row.classList.add('cat-dragging'));
+    });
+
+    row.addEventListener('dragend', () => {
+      dragSrc = null;
+      el.querySelectorAll('.cat-dragging, .cat-drag-over-top, .cat-drag-over-bot')
+        .forEach(r => r.classList.remove('cat-dragging','cat-drag-over-top','cat-drag-over-bot'));
+    });
+
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (!dragSrc || dragSrc === cat) return;
+      e.dataTransfer.dropEffect = 'move';
+      // 마우스 위치로 위/아래 삽입 구분
+      const rect = row.getBoundingClientRect();
+      const mid  = rect.top + rect.height / 2;
+      el.querySelectorAll('.cat-drag-over-top,.cat-drag-over-bot')
+        .forEach(r => r.classList.remove('cat-drag-over-top','cat-drag-over-bot'));
+      row.classList.add(e.clientY < mid ? 'cat-drag-over-top' : 'cat-drag-over-bot');
+    });
+
+    row.addEventListener('dragleave', e => {
+      // 자식 요소로 이동 시 무시
+      if (row.contains(e.relatedTarget)) return;
+      row.classList.remove('cat-drag-over-top','cat-drag-over-bot');
+    });
+
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!dragSrc || dragSrc === cat) return;
+      const cats   = settingsDraft.categories;
+      const srcIdx = cats.indexOf(dragSrc);
+      let   dstIdx = cats.indexOf(cat);
+      if (srcIdx < 0 || dstIdx < 0) return;
+
+      // 아래쪽 절반에 드롭하면 대상 다음에 삽입
+      const rect = row.getBoundingClientRect();
+      const insertAfter = e.clientY >= rect.top + rect.height / 2;
+      cats.splice(srcIdx, 1);
+      dstIdx = cats.indexOf(cat); // splice 후 재계산
+      cats.splice(insertAfter ? dstIdx + 1 : dstIdx, 0, dragSrc);
+
+      dragSrc = null;
+      renderCategoryList();
+    });
+
     el.appendChild(row);
   });
 }

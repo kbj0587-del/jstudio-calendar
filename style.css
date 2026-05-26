@@ -889,8 +889,43 @@ body {
   display: flex; align-items: center; gap: 8px;
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 7px 10px;
+  transition: opacity var(--tr), box-shadow var(--tr);
+  position: relative;
 }
 .category-row--system { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+
+/* 드래그 핸들 */
+.cat-drag-handle {
+  font-size: 16px;
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+  padding: 0 2px;
+  line-height: 1;
+  user-select: none;
+  touch-action: none;
+}
+.cat-drag-handle:active { cursor: grabbing; }
+
+/* 드래그 중인 행 */
+.cat-dragging {
+  opacity: 0.35;
+  box-shadow: none !important;
+}
+
+/* 드롭 대상 — 위쪽 */
+.cat-drag-over-top {
+  box-shadow: 0 -3px 0 var(--accent);
+}
+/* 드롭 대상 — 아래쪽 */
+.cat-drag-over-bot {
+  box-shadow: 0 3px 0 var(--accent);
+}
+
+/* inner 래퍼 (핸들 제외 나머지 영역) */
+.cat-row-inner {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+}
 .cat-color-dot  { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
 .cat-name-input {
   flex: 1; background: transparent; border: none; color: var(--text);
