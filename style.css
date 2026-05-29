@@ -423,6 +423,26 @@ body {
   border-radius: 8px;
 }
 [data-theme="dark"] .lv-noshow-tag { background: #3a1020; }
+.lv-reg-tag {
+  display: inline-block;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+[data-theme="dark"] .lv-reg-tag { background: #0d2e1a; color: #4ade80; }
+.lv-inc-tag {
+  display: inline-block;
+  background: #f3e8ff;
+  color: #7c3aed;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+[data-theme="dark"] .lv-inc-tag { background: #2d1a3e; color: #c084fc; }
 
 /* ══════════════ 월 네비 ══════════════ */
 .month-nav {

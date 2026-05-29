@@ -249,6 +249,28 @@ function collectExtraFields(type) {
       f.trialFee      = trialFee;
       f.personCount   = persons;
       f.trialTotal    = trialFee > 0 ? trialFee * persons : 0;
+      // 체험 후 등록
+      const trialRegLink = document.getElementById('fTrialRegLink');
+      if (trialRegLink?.checked) {
+        const trLType = document.querySelector('input[name="trialLinkedLessonType"]:checked')?.value || '그룹';
+        const trIsP   = trLType === '개인레슨';
+        f.linkedRegistration = {
+          regType:      document.querySelector('input[name="trialLinkedRegType"]:checked')?.value || '신규',
+          lessonType:   trLType,
+          duration:     trIsP ? '' : (document.querySelector('input[name="trialLinkedDuration"]:checked')?.value || '3개월'),
+          freq:         trIsP ? '' : (document.querySelector('input[name="trialLinkedFreq"]:checked')?.value || '주3회'),
+          sessionCount: trIsP ? (Number(document.getElementById('fTrialLinkedSessionCount')?.value) || 0) : 0,
+          payment:      parseAmt('fTrialLinkedPayment'),
+        };
+        const trialIncLink = document.getElementById('fTrialIncLink');
+        if (trialIncLink?.checked) {
+          f.linkedIncentive = {
+            staffName:  document.getElementById('fTrialLinkedStaff')?.value.trim() || '',
+            memberName: document.getElementById('fTrialLinkedMember')?.value.trim() || '',
+            amt:        parseAmt('fTrialLinkedIncAmt'),
+          };
+        } else { delete f.linkedIncentive; }
+      } else { delete f.linkedRegistration; delete f.linkedIncentive; }
       break;
     }
     case 'review':
@@ -259,12 +281,35 @@ function collectExtraFields(type) {
       f.reserveName   = document.getElementById('fReserveName')?.value.trim() || '';
       f.status        = document.querySelector('input[name="apptStatus"]:checked')?.value || '';
       break;
-    case 'consult':
+    case 'consult': {
       f.clientName    = document.getElementById('fClientName')?.value.trim() || '';
       f.clientContact = document.getElementById('fClientContact')?.value.trim() || '';
       f.memo          = document.getElementById('fConsultMemo')?.value.trim() || '';
       f.status        = document.querySelector('input[name="apptStatus"]:checked')?.value || '';
+      // 상담 후 등록
+      const consultRegLink = document.getElementById('fConsultRegLink');
+      if (consultRegLink?.checked) {
+        const csLType = document.querySelector('input[name="consultLinkedLessonType"]:checked')?.value || '그룹';
+        const csIsP   = csLType === '개인레슨';
+        f.linkedRegistration = {
+          regType:      document.querySelector('input[name="consultLinkedRegType"]:checked')?.value || '신규',
+          lessonType:   csLType,
+          duration:     csIsP ? '' : (document.querySelector('input[name="consultLinkedDuration"]:checked')?.value || '3개월'),
+          freq:         csIsP ? '' : (document.querySelector('input[name="consultLinkedFreq"]:checked')?.value || '주3회'),
+          sessionCount: csIsP ? (Number(document.getElementById('fConsultLinkedSessionCount')?.value) || 0) : 0,
+          payment:      parseAmt('fConsultLinkedPayment'),
+        };
+        const consultIncLink = document.getElementById('fConsultIncLink');
+        if (consultIncLink?.checked) {
+          f.linkedIncentive = {
+            staffName:  document.getElementById('fConsultLinkedStaff')?.value.trim() || '',
+            memberName: document.getElementById('fConsultLinkedMember')?.value.trim() || '',
+            amt:        parseAmt('fConsultLinkedIncAmt'),
+          };
+        } else { delete f.linkedIncentive; }
+      } else { delete f.linkedRegistration; delete f.linkedIncentive; }
       break;
+    }
     case 'classnoshow':
       f.studentName    = document.getElementById('fStudentName')?.value.trim() || '';
       f.studentContact = document.getElementById('fStudentContact')?.value.trim() || '';
@@ -424,13 +469,22 @@ function getExtraSummaryHtml(ev) {
       const cnt     = f.personCount || 1;
       const cntStr  = cnt > 1 ? ` | ${cnt}명` : '';
       const feeStr  = f.trialTotal > 0 ? ` | ${f.trialTotal.toLocaleString()}원` : '';
-      return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${cntStr}${feeStr}${noshow}</div>`;
+      const regTag  = f.linkedRegistration ? ` <span class="lv-reg-tag">✅등록</span>` : '';
+      const incTag  = f.linkedIncentive ? ` <span class="lv-inc-tag">💜인센티브</span>` : '';
+      return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${cntStr}${feeStr}${noshow}${regTag}${incTag}</div>`;
     }
     case 'review': {
       if (!f.clientName && !f.clientContact) return '';
       const contact = f.clientContact ? ` | ${esc(f.clientContact)}` : '';
       const noshow  = f.noshow ? ` <span class="lv-noshow-tag">노쇼</span>` : '';
       return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${noshow}</div>`;
+    }
+    case 'consult': {
+      if (!f.clientName && !f.clientContact && !f.linkedRegistration) return '';
+      const contact  = f.clientContact ? ` | ${esc(f.clientContact)}` : '';
+      const regTag   = f.linkedRegistration ? ` <span class="lv-reg-tag">✅등록</span>` : '';
+      const incTag   = f.linkedIncentive ? ` <span class="lv-inc-tag">💜인센티브</span>` : '';
+      return `<div class="lv-extra-info">🗣 ${esc(f.clientName||'-')}${contact}${regTag}${incTag}</div>`;
     }
     case 'classnoshow': {
       if (!f.studentName && !f.className) return '';
@@ -575,6 +629,50 @@ function getExtraDetailHtml(ev) {
       const resBadge   = f.reserved
         ? `<span class="review-res-badge review-res-badge--yes">📅 예약완료</span>`
         : `<span class="review-res-badge review-res-badge--no">⬜ 미예약</span>`;
+      const trialLinkedHtml = f.linkedRegistration ? (() => {
+        const lr  = f.linkedRegistration;
+        const isP = lr.lessonType === '개인레슨';
+        const mem = isP
+          ? (lr.sessionCount ? `${lr.sessionCount}회` : '-')
+          : `${lr.duration||''}${lr.freq ? ' '+lr.freq : ''}`.trim() || '-';
+        const pay = lr.payment ? Number(lr.payment).toLocaleString()+'원' : '-';
+        const incHtml = f.linkedIncentive ? `
+          <div class="detail-extra-section">
+            <div class="detail-label">💜 인센티브 정보</div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">담당 강사</span>
+              <span class="detail-extra-val">${esc(f.linkedIncentive.staffName||'-')}</span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">회원 이름</span>
+              <span class="detail-extra-val">${esc(f.linkedIncentive.memberName||'-')}</span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">인센티브 금액</span>
+              <span class="detail-extra-val detail-amt"><strong>${f.linkedIncentive.amt ? Number(f.linkedIncentive.amt).toLocaleString()+'원' : '-'}</strong></span>
+            </div>
+          </div>` : '';
+        return `
+          <div class="detail-extra-section">
+            <div class="detail-label">✅ 등록 정보</div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">등록 구분</span>
+              <span class="detail-extra-val"><span class="sales-reg-badge sales-reg-${lr.regType||'신규'}">${esc(lr.regType||'신규')}</span></span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">수업 유형</span>
+              <span class="detail-extra-val"><span class="sales-reg-badge sales-lesson-${lr.lessonType||'그룹'}">${esc(lr.lessonType||'그룹')}</span></span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">${isP ? '수업 횟수' : '회원권'}</span>
+              <span class="detail-extra-val">${esc(mem)}</span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">결제 금액</span>
+              <span class="detail-extra-val detail-amt"><strong>${pay}</strong></span>
+            </div>
+          </div>${incHtml}`;
+      })() : '';
       return `
         <div class="detail-extra-section">
           <div class="detail-label">체험수업 정보</div>
@@ -605,7 +703,7 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-label">일정 상태</span>
             <span class="detail-extra-val">${getStatusBadge(f.status)}</span>
           </div>` : ''}
-        </div>`;
+        </div>${trialLinkedHtml}`;
     }
     case 'review': {
       const noshowHtml = f.noshow ? `<span class="detail-noshow-badge">🚫 노쇼</span>` : '';
@@ -640,6 +738,50 @@ function getExtraDetailHtml(ev) {
         </div>`;
     }
     case 'consult': {
+      const consultLinkedHtml = f.linkedRegistration ? (() => {
+        const lr  = f.linkedRegistration;
+        const isP = lr.lessonType === '개인레슨';
+        const mem = isP
+          ? (lr.sessionCount ? `${lr.sessionCount}회` : '-')
+          : `${lr.duration||''}${lr.freq ? ' '+lr.freq : ''}`.trim() || '-';
+        const pay = lr.payment ? Number(lr.payment).toLocaleString()+'원' : '-';
+        const incHtml = f.linkedIncentive ? `
+          <div class="detail-extra-section">
+            <div class="detail-label">💜 인센티브 정보</div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">담당 강사</span>
+              <span class="detail-extra-val">${esc(f.linkedIncentive.staffName||'-')}</span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">회원 이름</span>
+              <span class="detail-extra-val">${esc(f.linkedIncentive.memberName||'-')}</span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">인센티브 금액</span>
+              <span class="detail-extra-val detail-amt"><strong>${f.linkedIncentive.amt ? Number(f.linkedIncentive.amt).toLocaleString()+'원' : '-'}</strong></span>
+            </div>
+          </div>` : '';
+        return `
+          <div class="detail-extra-section">
+            <div class="detail-label">✅ 등록 정보</div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">등록 구분</span>
+              <span class="detail-extra-val"><span class="sales-reg-badge sales-reg-${lr.regType||'신규'}">${esc(lr.regType||'신규')}</span></span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">수업 유형</span>
+              <span class="detail-extra-val"><span class="sales-reg-badge sales-lesson-${lr.lessonType||'그룹'}">${esc(lr.lessonType||'그룹')}</span></span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">${isP ? '수업 횟수' : '회원권'}</span>
+              <span class="detail-extra-val">${esc(mem)}</span>
+            </div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">결제 금액</span>
+              <span class="detail-extra-val detail-amt"><strong>${pay}</strong></span>
+            </div>
+          </div>${incHtml}`;
+      })() : '';
       return `
         <div class="detail-extra-section">
           <div class="detail-label">상담 정보</div>
@@ -661,7 +803,7 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-label">일정 상태</span>
             <span class="detail-extra-val">${getStatusBadge(f.status)}</span>
           </div>` : ''}
-        </div>`;
+        </div>${consultLinkedHtml}`;
     }
     case 'classnoshow':
       return `
@@ -1373,7 +1515,12 @@ function renderIncentiveSummary(monthStr) {
   const incEvents = events.filter(ev =>
     ev.type === 'incentive' && ev.date.startsWith(monthStr) && ev.extraFields
   );
-  if (!incEvents.length) return '';
+  // 체험수업/상담에 연결된 인센티브 이벤트
+  const regIncEvents = events.filter(ev =>
+    (ev.type === 'trial' || ev.type === 'consult') &&
+    ev.date.startsWith(monthStr) && ev.extraFields?.linkedIncentive
+  );
+  if (!incEvents.length && !regIncEvents.length) return '';
 
   // 담당자별 이벤트 목록 수집
   const staffMap = {};
@@ -1381,7 +1528,16 @@ function renderIncentiveSummary(monthStr) {
     const name = ev.extraFields.staffName?.trim() || '(미입력)';
     if (!staffMap[name]) staffMap[name] = { list: [], total: 0 };
     const amt = Number(ev.extraFields.incentiveAmt) || 0;
-    staffMap[name].list.push({ ev, amt });
+    staffMap[name].list.push({ ev, amt, _kind: 'incentive' });
+    staffMap[name].total += amt;
+  });
+  // 체험/상담 연동 인센티브
+  regIncEvents.forEach(ev => {
+    const li   = ev.extraFields.linkedIncentive;
+    const name = li.staffName?.trim() || '(미입력)';
+    if (!staffMap[name]) staffMap[name] = { list: [], total: 0 };
+    const amt  = Number(li.amt) || 0;
+    staffMap[name].list.push({ ev, amt, _kind: 'reglinked', li });
     staffMap[name].total += amt;
   });
 
@@ -1402,18 +1558,35 @@ function renderIncentiveSummary(monthStr) {
     );
 
     // 구분 소계 뱃지
-    const trialCnt   = list.filter(e => e.ev.extraFields.incentiveType !== '상담등록').length;
-    const consultCnt = list.filter(e => e.ev.extraFields.incentiveType === '상담등록').length;
+    const incOnlyCnt   = list.filter(e => e._kind === 'incentive' && e.ev.extraFields.incentiveType !== '상담등록').length;
+    const incConsultCnt= list.filter(e => e._kind === 'incentive' && e.ev.extraFields.incentiveType === '상담등록').length;
+    const regLinkedCnt = list.filter(e => e._kind === 'reglinked').length;
     const parts = [];
-    if (trialCnt   > 0) parts.push(`체험 ${trialCnt}건`);
-    if (consultCnt > 0) parts.push(`상담 ${consultCnt}건`);
+    if (incOnlyCnt   > 0) parts.push(`체험 ${incOnlyCnt}건`);
+    if (incConsultCnt> 0) parts.push(`상담 ${incConsultCnt}건`);
+    if (regLinkedCnt > 0) parts.push(`등록 ${regLinkedCnt}건`);
 
     // 세부 행 (날짜별)
     let details = '';
-    list.forEach(({ ev, amt }) => {
+    list.forEach(({ ev, amt, _kind, li }) => {
       const f     = ev.extraFields;
       const [,, d] = ev.date.split('-');
       const dow   = DAYS[new Date(ev.date).getDay()];
+
+      if (_kind === 'reglinked') {
+        // 체험/상담에서 연결된 인센티브
+        const iType   = ev.type === 'consult' ? '상담>등록' : '체험>등록';
+        const memberStr = li.memberName ? `<span class="inc-detail-member">${esc(li.memberName)}</span>` : '';
+        details += `
+          <div class="inc-detail-row" onclick="openDayModalFromList('${ev.date}','${ev.id}')">
+            <span class="inc-detail-date">${Number(d)}일(${dow})</span>
+            <span class="inc-detail-type inc-type-trial">${esc(iType)}</span>
+            ${memberStr}
+            <span class="inc-detail-amt">${amt.toLocaleString()}원</span>
+          </div>`;
+        return;
+      }
+
       const iType = f.incentiveType || '체험등록';
       const isConsult = iType === '상담등록';
 
@@ -1458,7 +1631,7 @@ function renderIncentiveSummary(monthStr) {
       <div class="inc-summary-header acc-trigger" onclick="toggleAccordion('${bodyId}',this)">
         <div class="acc-header-left">
           <span class="inc-summary-title">💰 인센티브 정산</span>
-          <span class="acc-count-badge">${incEvents.length}건</span>
+          <span class="acc-count-badge">${incEvents.length + regIncEvents.length}건</span>
         </div>
         <div class="acc-header-right">
           <span class="inc-summary-grand">${grandTotal.toLocaleString()}원</span>
@@ -1558,14 +1731,20 @@ function renderSalesSummary(monthStr) {
   const linkedEvents = events.filter(ev =>
     ev.type === 'incentive' && ev.date.startsWith(monthStr) && ev.extraFields?.linkedSales
   );
+  // 체험수업/상담에서 등록이 연결된 이벤트
+  const regLinkedEvents = events.filter(ev =>
+    (ev.type === 'trial' || ev.type === 'consult') &&
+    ev.date.startsWith(monthStr) && ev.extraFields?.linkedRegistration
+  );
 
-  if (!salesEvents.length && !trialEvents.length && !linkedEvents.length) return '';
+  if (!salesEvents.length && !trialEvents.length && !linkedEvents.length && !regLinkedEvents.length) return '';
 
   // 날짜순 통합 정렬
   const allItems = [
     ...salesEvents.map(ev => ({ ...ev, _kind: 'sales' })),
     ...trialEvents.map(ev => ({ ...ev, _kind: 'trial' })),
     ...linkedEvents.map(ev => ({ ...ev, _kind: 'linked' })),
+    ...regLinkedEvents.map(ev => ({ ...ev, _kind: 'reglinked' })),
   ].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
 
   const bodyId = `acc-sales-${monthStr}`;
@@ -1578,6 +1757,7 @@ function renderSalesSummary(monthStr) {
     grandTotal += Number(f.trialTotal) || (Number(f.trialFee) * (Number(f.personCount) || 1));
   });
   linkedEvents.forEach(ev => { grandTotal += Number(ev.extraFields?.linkedSales?.payment) || 0; });
+  regLinkedEvents.forEach(ev => { grandTotal += Number(ev.extraFields?.linkedRegistration?.payment) || 0; });
 
   // 구분별 소계 문자열
   const byRegType = {};
@@ -1586,8 +1766,9 @@ function renderSalesSummary(monthStr) {
     byRegType[t] = (byRegType[t] || 0) + 1;
   });
   const salesParts = Object.entries(byRegType).map(([t, c]) => `${t} ${c}건`);
-  if (trialEvents.length)  salesParts.push(`체험 ${trialEvents.length}건`);
-  if (linkedEvents.length) salesParts.push(`연동등록 ${linkedEvents.length}건`);
+  if (trialEvents.length)     salesParts.push(`체험 ${trialEvents.length}건`);
+  if (linkedEvents.length)    salesParts.push(`연동등록 ${linkedEvents.length}건`);
+  if (regLinkedEvents.length) salesParts.push(`상담/체험등록 ${regLinkedEvents.length}건`);
   const typeSummary = salesParts.join(' · ');
 
   // 행 생성
@@ -1630,7 +1811,7 @@ function renderSalesSummary(monthStr) {
           </span>
           <span class="ms-sales-pay">${pay}</span>
         </div>`;
-    } else {
+    } else if (item._kind === 'linked') {
       // 인센티브 연동 매출
       const ls    = f.linkedSales || {};
       const badge = f.incentiveType === '상담등록' ? '상담>등록' : '체험>등록';
@@ -1642,6 +1823,28 @@ function renderSalesSummary(monthStr) {
           <span class="ms-content">
             <span class="ms-sales-name">${esc(f.memberName||'-')}</span>
             <span class="sales-badge sales-badge--linked">${esc(badge)}</span>
+            ${mem ? `<span class="ms-sales-mem">${esc(mem)}</span>` : ''}
+          </span>
+          <span class="ms-sales-pay">${pay}</span>
+        </div>`;
+    } else {
+      // 체험수업/상담 등록 연동 매출
+      const lr    = f.linkedRegistration || {};
+      const badge = item.type === 'consult' ? '상담>등록' : '체험>등록';
+      const isP   = lr.lessonType === '개인레슨';
+      const mem   = isP
+        ? (lr.sessionCount ? `개인 ${lr.sessionCount}회` : '개인레슨')
+        : `${lr.duration||''}${lr.freq ? ' '+lr.freq : ''}`.trim();
+      const regBadge = lr.regType || '신규';
+      const pay   = lr.payment ? Number(lr.payment).toLocaleString()+'원' : '-';
+      const clientName = f.clientName || '-';
+      rows += `
+        <div class="ms-row ms-row--sales ms-row-clickable" onclick="openDayModalFromList('${item.date}','${item.id}')">
+          <span class="ms-date">${Number(ed)}일(${dow})</span>
+          <span class="ms-content">
+            <span class="ms-sales-name">${esc(clientName)}</span>
+            <span class="sales-badge sales-badge--linked">${esc(badge)}</span>
+            <span class="sales-badge sales-badge--${regBadge}">${esc(regBadge)}</span>
             ${mem ? `<span class="ms-sales-mem">${esc(mem)}</span>` : ''}
           </span>
           <span class="ms-sales-pay">${pay}</span>
@@ -1692,7 +1895,8 @@ function getSysListTitle(ev) {
       const ns   = f.noshow ? ' ⚠노쇼' : '';
       const res  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅예약완료') : ' ⬜미예약';
       const st   = f.status === 'cancelled' ? ' ❌취소' : f.status === 'changed' ? ' 🔄변경' : '';
-      return (cnt > 1 ? `${name} 外 ${cnt - 1}명` : name) + ns + res + st;
+      const reg  = f.linkedRegistration ? ' ✅등록' : '';
+      return (cnt > 1 ? `${name} 外 ${cnt - 1}명` : name) + ns + res + st + reg;
     }
     case 'review': {
       const rvName = f.clientName || '리뷰체험';
@@ -1704,7 +1908,8 @@ function getSysListTitle(ev) {
     case 'consult': {
       const name = f.clientName || '상담';
       const st   = f.status === 'cancelled' ? ' ❌취소' : f.status === 'changed' ? ' 🔄변경' : '';
-      return `${name}${st}`;
+      const reg  = f.linkedRegistration ? ' ✅등록' : '';
+      return `${name}${st}${reg}`;
     }
     case 'daeggang':
       return f.instructorA
@@ -2642,6 +2847,78 @@ function renderExtraFields(catId, ev) {
         <div class="form-group">
           <label>일정 상태</label>
           <div class="sales-radio-group status-radio-grp">${renderStatusFieldHtml(f.status||'')}</div>
+        </div>
+        <div class="inc-sales-divider"></div>
+        <div class="form-group" style="margin-bottom:4px">
+          <label class="inc-sales-toggle-label">
+            <input type="checkbox" id="fTrialRegLink" ${f.linkedRegistration ? 'checked' : ''}/>
+            <span>✅ 체험 후 등록</span>
+          </label>
+        </div>
+        <div id="trialRegFields" style="display:${f.linkedRegistration ? '' : 'none'}">
+          <div class="inc-sales-note">아래 정보는 매출 현황에도 함께 표시됩니다</div>
+          <div class="form-group">
+            <label>등록 구분</label>
+            <div class="sales-radio-group" id="trialLinkedRegGroup">
+              ${['신규','재등록','휴면'].map(v=>`<label class="sales-radio-label${(f.linkedRegistration?.regType||'신규')===v?' active':''}"><input type="radio" name="trialLinkedRegType" value="${v}" ${(f.linkedRegistration?.regType||'신규')===v?'checked':''}/><span>${v}</span></label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group">
+            <label>수업 유형</label>
+            <div class="sales-radio-group" id="trialLinkedLessonGroup">
+              ${['그룹','개인레슨'].map(v=>`<label class="sales-radio-label${(f.linkedRegistration?.lessonType||'그룹')===v?' active':''}"><input type="radio" name="trialLinkedLessonType" value="${v}" ${(f.linkedRegistration?.lessonType||'그룹')===v?'checked':''}/><span>${v}</span></label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group" id="trialLinkedDurGroup" style="${(f.linkedRegistration?.lessonType==='개인레슨')?'display:none':''}">
+            <label>회원권 기간</label>
+            <div class="sales-radio-group" id="trialLinkedDurRadioGroup">
+              ${['1개월','3개월','6개월'].map(v=>`<label class="sales-radio-label${(f.linkedRegistration?.duration||'3개월')===v?' active':''}"><input type="radio" name="trialLinkedDuration" value="${v}" ${(f.linkedRegistration?.duration||'3개월')===v?'checked':''}/><span>${v}</span></label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group" id="trialLinkedFreqGroup" style="${(f.linkedRegistration?.lessonType==='개인레슨')?'display:none':''}">
+            <label>회원권 횟수</label>
+            <div class="sales-radio-group" id="trialLinkedFreqRadioGroup">
+              ${['주1회','주2회','주3회','주5회'].map(v=>`<label class="sales-radio-label${(f.linkedRegistration?.freq||'주3회')===v?' active':''}"><input type="radio" name="trialLinkedFreq" value="${v}" ${(f.linkedRegistration?.freq||'주3회')===v?'checked':''}/><span>${v}</span></label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group" id="trialLinkedSessionGroup" style="${(f.linkedRegistration?.lessonType==='개인레슨')?'':'display:none'}">
+            <label>수업 횟수</label>
+            <div class="input-with-unit">
+              <input type="number" id="fTrialLinkedSessionCount" placeholder="0" min="1" step="1" value="${f.linkedRegistration?.sessionCount||''}"/>
+              <span class="input-unit">회</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>결제 금액</label>
+            <div class="input-with-unit">
+              <input type="text" inputmode="numeric" id="fTrialLinkedPayment" placeholder="0" value="${fmtAmt(f.linkedRegistration?.payment||'')}"/>
+              <span class="input-unit">원</span>
+            </div>
+          </div>
+          <div class="inc-sales-divider" style="margin:6px 0 4px"></div>
+          <div class="form-group" style="margin-bottom:4px">
+            <label class="inc-sales-toggle-label">
+              <input type="checkbox" id="fTrialIncLink" ${f.linkedIncentive ? 'checked' : ''}/>
+              <span>💜 인센티브 적용</span>
+            </label>
+          </div>
+          <div id="trialIncFields" style="display:${f.linkedIncentive ? '' : 'none'}">
+            <div class="form-group">
+              <label>담당 강사</label>
+              <input type="text" id="fTrialLinkedStaff" placeholder="강사 이름" value="${esc(f.linkedIncentive?.staffName||'')}"/>
+            </div>
+            <div class="form-group">
+              <label>회원 이름</label>
+              <input type="text" id="fTrialLinkedMember" placeholder="회원 이름" value="${esc(f.linkedIncentive?.memberName||'')}"/>
+            </div>
+            <div class="form-group">
+              <label>인센티브 금액</label>
+              <div class="input-with-unit">
+                <input type="text" inputmode="numeric" id="fTrialLinkedIncAmt" placeholder="0" value="${fmtAmt(f.linkedIncentive?.amt||'')}"/>
+                <span class="input-unit">원</span>
+              </div>
+            </div>
+          </div>
         </div>`;
 
       const updateTrialFeeCalc = () => {
@@ -2661,6 +2938,39 @@ function renderExtraFields(catId, ev) {
         if (e.target.checked) setTimeout(() => document.getElementById('fReserveName')?.focus(), 50);
       });
       bindStatusRadios(container);
+
+      // 체험 후 등록 토글
+      document.getElementById('fTrialRegLink')?.addEventListener('change', e => {
+        document.getElementById('trialRegFields').style.display = e.target.checked ? '' : 'none';
+      });
+      // 인센티브 토글
+      document.getElementById('fTrialIncLink')?.addEventListener('change', e => {
+        document.getElementById('trialIncFields').style.display = e.target.checked ? '' : 'none';
+        if (e.target.checked) setTimeout(() => document.getElementById('fTrialLinkedStaff')?.focus(), 50);
+      });
+      // 수업유형 전환
+      container.querySelectorAll('input[name="trialLinkedLessonType"]').forEach(r => {
+        r.addEventListener('change', () => {
+          const isP = r.value === '개인레슨';
+          document.getElementById('trialLinkedDurGroup').style.display     = isP ? 'none' : '';
+          document.getElementById('trialLinkedFreqGroup').style.display    = isP ? 'none' : '';
+          document.getElementById('trialLinkedSessionGroup').style.display = isP ? '' : 'none';
+        });
+      });
+      // 라디오 active 처리
+      ['trialLinkedRegGroup','trialLinkedLessonGroup','trialLinkedDurRadioGroup','trialLinkedFreqRadioGroup'].forEach(grpId => {
+        const grp = document.getElementById(grpId);
+        if (!grp) return;
+        grp.querySelectorAll('.sales-radio-label').forEach(lbl => {
+          lbl.addEventListener('click', () => {
+            grp.querySelectorAll('.sales-radio-label').forEach(l => l.classList.remove('active'));
+            lbl.classList.add('active');
+          });
+        });
+      });
+      // 금액 포맷
+      initAmtInput('fTrialLinkedPayment');
+      initAmtInput('fTrialLinkedIncAmt');
 
       setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
       break;
@@ -2725,9 +3035,115 @@ function renderExtraFields(catId, ev) {
         <div class="form-group">
           <label>일정 상태</label>
           <div class="sales-radio-group status-radio-grp">${renderStatusFieldHtml(f.status||'')}</div>
+        </div>
+        <div class="inc-sales-divider"></div>
+        <div class="form-group" style="margin-bottom:4px">
+          <label class="inc-sales-toggle-label">
+            <input type="checkbox" id="fConsultRegLink" ${f.linkedRegistration ? 'checked' : ''}/>
+            <span>✅ 상담 후 등록</span>
+          </label>
+        </div>
+        <div id="consultRegFields" style="display:${f.linkedRegistration ? '' : 'none'}">
+          <div class="inc-sales-note">아래 정보는 매출 현황에도 함께 표시됩니다</div>
+          <div class="form-group">
+            <label>등록 구분</label>
+            <div class="sales-radio-group" id="consultLinkedRegGroup">
+              ${['신규','재등록','휴면'].map(v=>`<label class="sales-radio-label${(f.linkedRegistration?.regType||'신규')===v?' active':''}"><input type="radio" name="consultLinkedRegType" value="${v}" ${(f.linkedRegistration?.regType||'신규')===v?'checked':''}/><span>${v}</span></label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group">
+            <label>수업 유형</label>
+            <div class="sales-radio-group" id="consultLinkedLessonGroup">
+              ${['그룹','개인레슨'].map(v=>`<label class="sales-radio-label${(f.linkedRegistration?.lessonType||'그룹')===v?' active':''}"><input type="radio" name="consultLinkedLessonType" value="${v}" ${(f.linkedRegistration?.lessonType||'그룹')===v?'checked':''}/><span>${v}</span></label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group" id="consultLinkedDurGroup" style="${(f.linkedRegistration?.lessonType==='개인레슨')?'display:none':''}">
+            <label>회원권 기간</label>
+            <div class="sales-radio-group" id="consultLinkedDurRadioGroup">
+              ${['1개월','3개월','6개월'].map(v=>`<label class="sales-radio-label${(f.linkedRegistration?.duration||'3개월')===v?' active':''}"><input type="radio" name="consultLinkedDuration" value="${v}" ${(f.linkedRegistration?.duration||'3개월')===v?'checked':''}/><span>${v}</span></label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group" id="consultLinkedFreqGroup" style="${(f.linkedRegistration?.lessonType==='개인레슨')?'display:none':''}">
+            <label>회원권 횟수</label>
+            <div class="sales-radio-group" id="consultLinkedFreqRadioGroup">
+              ${['주1회','주2회','주3회','주5회'].map(v=>`<label class="sales-radio-label${(f.linkedRegistration?.freq||'주3회')===v?' active':''}"><input type="radio" name="consultLinkedFreq" value="${v}" ${(f.linkedRegistration?.freq||'주3회')===v?'checked':''}/><span>${v}</span></label>`).join('')}
+            </div>
+          </div>
+          <div class="form-group" id="consultLinkedSessionGroup" style="${(f.linkedRegistration?.lessonType==='개인레슨')?'':'display:none'}">
+            <label>수업 횟수</label>
+            <div class="input-with-unit">
+              <input type="number" id="fConsultLinkedSessionCount" placeholder="0" min="1" step="1" value="${f.linkedRegistration?.sessionCount||''}"/>
+              <span class="input-unit">회</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>결제 금액</label>
+            <div class="input-with-unit">
+              <input type="text" inputmode="numeric" id="fConsultLinkedPayment" placeholder="0" value="${fmtAmt(f.linkedRegistration?.payment||'')}"/>
+              <span class="input-unit">원</span>
+            </div>
+          </div>
+          <div class="inc-sales-divider" style="margin:6px 0 4px"></div>
+          <div class="form-group" style="margin-bottom:4px">
+            <label class="inc-sales-toggle-label">
+              <input type="checkbox" id="fConsultIncLink" ${f.linkedIncentive ? 'checked' : ''}/>
+              <span>💜 인센티브 적용</span>
+            </label>
+          </div>
+          <div id="consultIncFields" style="display:${f.linkedIncentive ? '' : 'none'}">
+            <div class="form-group">
+              <label>담당 강사</label>
+              <input type="text" id="fConsultLinkedStaff" placeholder="강사 이름" value="${esc(f.linkedIncentive?.staffName||'')}"/>
+            </div>
+            <div class="form-group">
+              <label>회원 이름</label>
+              <input type="text" id="fConsultLinkedMember" placeholder="회원 이름" value="${esc(f.linkedIncentive?.memberName||'')}"/>
+            </div>
+            <div class="form-group">
+              <label>인센티브 금액</label>
+              <div class="input-with-unit">
+                <input type="text" inputmode="numeric" id="fConsultLinkedIncAmt" placeholder="0" value="${fmtAmt(f.linkedIncentive?.amt||'')}"/>
+                <span class="input-unit">원</span>
+              </div>
+            </div>
+          </div>
         </div>`;
       initTelInput('fClientContact');
       bindStatusRadios(container);
+
+      // 상담 후 등록 토글
+      document.getElementById('fConsultRegLink')?.addEventListener('change', e => {
+        document.getElementById('consultRegFields').style.display = e.target.checked ? '' : 'none';
+      });
+      // 인센티브 토글
+      document.getElementById('fConsultIncLink')?.addEventListener('change', e => {
+        document.getElementById('consultIncFields').style.display = e.target.checked ? '' : 'none';
+        if (e.target.checked) setTimeout(() => document.getElementById('fConsultLinkedStaff')?.focus(), 50);
+      });
+      // 수업유형 전환
+      container.querySelectorAll('input[name="consultLinkedLessonType"]').forEach(r => {
+        r.addEventListener('change', () => {
+          const isP = r.value === '개인레슨';
+          document.getElementById('consultLinkedDurGroup').style.display     = isP ? 'none' : '';
+          document.getElementById('consultLinkedFreqGroup').style.display    = isP ? 'none' : '';
+          document.getElementById('consultLinkedSessionGroup').style.display = isP ? '' : 'none';
+        });
+      });
+      // 라디오 active 처리
+      ['consultLinkedRegGroup','consultLinkedLessonGroup','consultLinkedDurRadioGroup','consultLinkedFreqRadioGroup'].forEach(grpId => {
+        const grp = document.getElementById(grpId);
+        if (!grp) return;
+        grp.querySelectorAll('.sales-radio-label').forEach(lbl => {
+          lbl.addEventListener('click', () => {
+            grp.querySelectorAll('.sales-radio-label').forEach(l => l.classList.remove('active'));
+            lbl.classList.add('active');
+          });
+        });
+      });
+      // 금액 포맷
+      initAmtInput('fConsultLinkedPayment');
+      initAmtInput('fConsultLinkedIncAmt');
+
       setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
       break;
     }
