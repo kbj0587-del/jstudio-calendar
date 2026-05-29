@@ -1798,6 +1798,7 @@ function renderListViewAll() {
     return d.toISOString().slice(0, 10);
   };
   let prevWeekStart = null;
+  let todayHeaderInserted = false;
 
   allItems.forEach(item => {
     const [ey, em, ed] = item.date.split('-').map(Number);
@@ -1807,22 +1808,30 @@ function renderListViewAll() {
     const isHol   = !!holidaysMap[item.date];
     const isSun   = dow === 0;
     const isSat   = dow === 6;
-    const dateClr = isToday        ? 'var(--accent)'
-                  : isHol || isSun ? 'var(--sunday)'
+    const dateClr = isHol || isSun ? 'var(--sunday)'
                   : isSat          ? 'var(--saturday)' : '';
 
-    // 주 구분선 삽입
+    // 주 구분선 삽입 (오늘 헤더가 없는 주에만)
     const wStart = getWeekStart(item.date);
-    if (prevWeekStart !== null && wStart !== prevWeekStart) {
+    if (prevWeekStart !== null && wStart !== prevWeekStart && !isToday) {
       html += `<div class="lv-week-divider"></div>`;
     }
     prevWeekStart = wStart;
 
-    const dateDow = `<span class="lv-date-dow"${dateClr ? ` style="color:${dateClr}"` : ''}>${ed}${dowStr}</span>`;
+    // 오늘 날짜 헤더 (첫 번째 오늘 항목 앞에 한 번만)
+    if (isToday && !todayHeaderInserted) {
+      todayHeaderInserted = true;
+      html += `<div class="lv-today-divider"><span>오늘</span></div>`;
+    }
+
+    // 오늘 날짜·요일 — 배지 형태
+    const dateDow = isToday
+      ? `<span class="lv-date-dow"><span class="lv-date-today-badge">${ed}${dowStr}</span></span>`
+      : `<span class="lv-date-dow"${dateClr ? ` style="color:${dateClr}"` : ''}>${ed}${dowStr}</span>`;
 
     if (item.isHoliday) {
       html += `
-        <div class="lv-holiday-item">
+        <div class="lv-holiday-item${isToday ? ' lv-item-today' : ''}">
           ${dateDow}
           <div class="lv-holiday-name">🎌 ${esc(item.title)}</div>
         </div>`;
@@ -1840,7 +1849,7 @@ function renderListViewAll() {
                         : isChanged   ? `<span class="lv-status-badge lv-status-changed">일정변경</span>` : '';
 
       html += `
-        <div class="lv-event-item${isNoshow ? ' lv-item-noshow' : ''}${isCancelled ? ' lv-item-cancelled' : ''}" onclick="openDayModalFromList('${item.date}','${item.id}')">
+        <div class="lv-event-item${isToday ? ' lv-item-today' : ''}${isNoshow ? ' lv-item-noshow' : ''}${isCancelled ? ' lv-item-cancelled' : ''}" onclick="openDayModalFromList('${item.date}','${item.id}')">
           ${dateDow}
           <span class="lv-badge" style="background:${hexToRgba(cat.color,alpha)};color:var(--text)">${esc(cat.name)}</span>
           <span class="lv-title${isCancelled ? ' lv-title-strike' : ''}">${esc(titleStr)}</span>

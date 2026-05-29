@@ -287,6 +287,58 @@ body {
   opacity: 1;
 }
 
+/* ── 오늘 날짜 구분선 ── */
+.lv-today-divider {
+  column-span: all;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 6px;
+  margin-top: 4px;
+}
+.lv-today-divider::before,
+.lv-today-divider::after {
+  content: '';
+  flex: 1;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  opacity: 0.5;
+}
+.lv-today-divider > span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  padding: 2px 10px;
+  border-radius: 20px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  white-space: nowrap;
+}
+
+/* 오늘 날짜 항목 배경 */
+.lv-item-today {
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface)) !important;
+  outline: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  outline-offset: -1px;
+}
+.lv-item-today:hover,
+.lv-item-today:active {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface2)) !important;
+}
+
+/* 오늘 날짜·요일 배지 */
+.lv-date-today-badge {
+  background: var(--accent);
+  color: #fff;
+  padding: 1px 7px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* 이벤트 행 — 왼쪽 정렬, flex-wrap */
 .lv-event-item {
   display: flex;
