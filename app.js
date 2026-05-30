@@ -284,7 +284,6 @@ function collectExtraFields(type) {
     case 'consult': {
       f.clientName    = document.getElementById('fClientName')?.value.trim() || '';
       f.clientContact = document.getElementById('fClientContact')?.value.trim() || '';
-      f.memo          = document.getElementById('fConsultMemo')?.value.trim() || '';
       f.status        = document.querySelector('input[name="apptStatus"]:checked')?.value || '';
       // 상담 후 등록
       const consultRegLink = document.getElementById('fConsultRegLink');
@@ -793,11 +792,6 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-label">연락처</span>
             <span class="detail-extra-val">${esc(f.clientContact || '-')}</span>
           </div>
-          ${f.memo ? `
-          <div class="detail-extra-row">
-            <span class="detail-extra-label">메모</span>
-            <span class="detail-extra-val">${esc(f.memo)}</span>
-          </div>` : ''}
           ${f.status ? `
           <div class="detail-extra-row">
             <span class="detail-extra-label">일정 상태</span>
@@ -3082,10 +3076,6 @@ function renderExtraFields(catId, ev) {
         <div class="form-group">
           <label>연락처</label>
           <input type="tel" id="fClientContact" placeholder="010-0000-0000" value="${esc(f.clientContact||'')}"/>
-        </div>
-        <div class="form-group">
-          <label>메모</label>
-          <textarea id="fConsultMemo" placeholder="상담 내용을 입력하세요" rows="3" style="resize:vertical">${esc(f.memo||'')}</textarea>
         </div>
         <div class="review-res-divider"></div>
         <div class="form-group">
