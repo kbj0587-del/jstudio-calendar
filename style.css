@@ -805,19 +805,9 @@ body {
 }
 
 /* ── 인라인 메모 에디터 (상세 뷰) ── */
-.detail-memo-hd {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 8px;
+.detail-memo-wrap {
+  position: relative;
 }
-.detail-memo-hd .detail-label { margin-bottom: 0; }
-.detail-memo-save {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
-  padding: 3px 12px;
-  background: var(--accent); color: #fff;
-  border: none; border-radius: 20px;
-  cursor: pointer; transition: opacity var(--tr);
-}
-.detail-memo-save:hover { opacity: 0.82; }
 .detail-memo-editor {
   font-size: 14px; line-height: 1.7; color: var(--text);
   word-break: break-word;
@@ -828,7 +818,7 @@ body {
   border: 1px solid var(--border);
   background: var(--surface2);
   padding: 10px 12px;
-  transition: border-color var(--tr), box-shadow var(--tr);
+  transition: border-color var(--tr), box-shadow var(--tr), padding-right var(--tr);
   cursor: text;
   box-sizing: border-box;
 }
@@ -836,12 +826,26 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
+.detail-memo-editor.has-changes { padding-right: 52px; }
 .detail-memo-editor:empty::before {
   content: attr(data-placeholder);
   color: var(--text-muted);
   pointer-events: none;
   font-style: italic;
 }
+.detail-memo-save {
+  position: absolute;
+  top: 7px; right: 8px;
+  font-size: 11px; font-weight: 700;
+  padding: 3px 10px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 20px;
+  cursor: pointer;
+  transition: opacity var(--tr), transform var(--tr);
+  white-space: nowrap;
+}
+.detail-memo-save:hover { opacity: 0.85; transform: scale(1.04); }
+.detail-memo-save.hidden { display: none; }
 
 /* 유형 뱃지 */
 .event-type-badge {

@@ -2487,12 +2487,12 @@ function renderDetailView() {
     </div>
     ${getExtraDetailHtml(ev)}
     <div class="detail-section detail-memo-section">
-      <div class="detail-memo-hd">
-        <span class="detail-label">메모</span>
+      <div class="detail-label">메모</div>
+      <div class="detail-memo-wrap">
+        <div class="detail-memo-editor" id="detailMemoEditor" contenteditable="true"
+          data-placeholder="메모를 입력하세요…">${ev.desc || ''}</div>
         <button class="detail-memo-save hidden" id="btnQuickMemoSave">저장</button>
       </div>
-      <div class="detail-memo-editor" id="detailMemoEditor" contenteditable="true"
-        data-placeholder="메모를 입력하세요…">${ev.desc || ''}</div>
     </div>
     ${creatorHtml ? `<div class="detail-section">${creatorHtml}</div>` : ''}`;
 
@@ -2502,7 +2502,9 @@ function renderDetailView() {
   const origMemo    = ev.desc || '';
   if (memoEditor && memoSaveBtn) {
     memoEditor.addEventListener('input', () => {
-      memoSaveBtn.classList.toggle('hidden', memoEditor.innerHTML === origMemo);
+      const changed = memoEditor.innerHTML !== origMemo;
+      memoSaveBtn.classList.toggle('hidden', !changed);
+      memoEditor.classList.toggle('has-changes', changed);
     });
     memoSaveBtn.addEventListener('click', saveQuickMemo);
   }
