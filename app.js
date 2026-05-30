@@ -2492,12 +2492,68 @@ function renderDetailView() {
       </div>
     </div>
     ${getExtraDetailHtml(ev)}
-    ${ev.desc ? `
-    <div class="detail-section">
-      <div class="detail-label">메모</div>
-      <div class="detail-desc">${ev.desc}</div>
-    </div>` : ''}
+    <div class="detail-section detail-memo-section">
+      <div class="detail-memo-hd">
+        <span class="detail-label">메모</span>
+        <button class="detail-memo-save hidden" id="btnQuickMemoSave">저장</button>
+      </div>
+      <div class="detail-memo-editor" id="detailMemoEditor" contenteditable="true"
+        data-placeholder="메모를 입력하세요…">${ev.desc || ''}</div>
+    </div>
     ${creatorHtml ? `<div class="detail-section">${creatorHtml}</div>` : ''}`;
+
+  // 인라인 메모 에디터 이벤트 바인딩
+  const memoEditor  = document.getElementById('detailMemoEditor');
+  const memoSaveBtn = document.getElementById('btnQuickMemoSave');
+  const origMemo    = ev.desc || '';
+  if (memoEditor && memoSaveBtn) {
+    memoEditor.addEventListener('input', () => {
+      memoSaveBtn.classList.toggle('hidden', memoEditor.innerHTML === origMemo);
+    });
+    memoSaveBtn.addEventListener('click', saveQuickMemo);
+  }
+}
+
+/** 상세 뷰에서 메모만 즉시 저장 */
+async function saveQuickMemo() {
+  if (!viewingEventId) return;
+  const idx = events.findIndex(e => e.id === viewingEventId);
+  if (idx === -1) return;
+
+  const memoEditor = document.getElementById('detailMemoEditor');
+  if (!memoEditor) return;
+
+  const newDesc = memoEditor.innerHTML.trim();
+  const now     = new Date().toISOString();
+  const byUser  = currentUser || { id: 'admin', name: '관리자' };
+
+  events[idx] = { ...events[idx], desc: newDesc, updatedBy: byUser, updatedAt: now };
+
+  localStorage.setItem('cc_events', JSON.stringify(events));
+  showToast('메모가 저장되었습니다.');
+
+  if (syncEnabled) {
+    clearTimeout(syncTimer);
+    setSyncStatus('syncing', '동기화 중…');
+    const changedEv = events[idx];
+    const payload   = {
+      events,
+      action:       'update',
+      changedEvent: changedEv,
+      detail:       `${changedEv.title} (${changedEv.date})`,
+    };
+    syncTimer = setTimeout(async () => {
+      try {
+        await apiPost('/api/sync/events', payload);
+        setSyncStatus('online', '✅ 동기화됨');
+      } catch {
+        setSyncStatus('offline', '⚠️ 동기화 실패');
+      }
+    }, 300);
+  }
+
+  renderCurrentView();   // 달력/리스트 뷰 갱신
+  renderDetailView();    // 상세 뷰 갱신 (타임스탬프 반영)
 }
 
 // ── 뷰 3 : 폼 ────────────────────────────────────
