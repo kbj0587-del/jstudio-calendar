@@ -805,10 +805,9 @@ body {
 }
 
 /* ── 인라인 메모 에디터 (상세 뷰) ── */
-.detail-memo-section { padding: 0; }
 .detail-memo-hd {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .detail-memo-hd .detail-label { margin-bottom: 0; }
 .detail-memo-save {
@@ -820,21 +819,22 @@ body {
 }
 .detail-memo-save:hover { opacity: 0.82; }
 .detail-memo-editor {
-  font-size: 14px; line-height: 1.65; color: var(--text);
-  word-break: break-word; min-height: 22px;
+  font-size: 14px; line-height: 1.7; color: var(--text);
+  word-break: break-word;
+  min-height: 64px;
   outline: none;
+  width: 100%;
   border-radius: var(--radius-sm);
-  border: 1px solid transparent;
-  padding: 2px 4px;
-  margin: -2px -4px;
-  transition: background var(--tr), border-color var(--tr), padding var(--tr);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  padding: 10px 12px;
+  transition: border-color var(--tr), box-shadow var(--tr);
   cursor: text;
+  box-sizing: border-box;
 }
 .detail-memo-editor:focus {
-  background: var(--surface2);
-  border-color: var(--border);
-  padding: 8px 10px;
-  margin: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 .detail-memo-editor:empty::before {
   content: attr(data-placeholder);
