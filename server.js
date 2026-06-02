@@ -5,8 +5,12 @@ const crypto   = require('crypto');
 const app      = express();
 const PORT     = process.env.PORT || 8080;
 
-// ── PostgreSQL 연결 (DATABASE_URL 있을 때만) ────────
-const USE_DB = !!process.env.DATABASE_URL;
+// ── 환경 감지 ───────────────────────────────────────
+const IS_VERCEL    = !!process.env.VERCEL;           // Vercel 서버리스
+const IS_SERVERLESS = IS_VERCEL;                     // 확장 가능
+const USE_DB       = !!process.env.DATABASE_URL;
+
+// ── PostgreSQL 연결 ─────────────────────────────────
 let pool = null;
 let reconnectTimer = null;
 
@@ -15,15 +19,26 @@ function createPool() {
   return new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 5,
-    idleTimeoutMillis: 30000,
+    // 서버리스(Vercel)는 커넥션 풀 1개, 일반 서버는 5개
+    max: IS_SERVERLESS ? 1 : 5,
+    idleTimeoutMillis:    IS_SERVERLESS ? 10000 : 30000,
     connectionTimeoutMillis: 10000,
   });
 }
 
-// DB가 끊겼을 때 자동 재연결 (30초 간격, 최대 무한 재시도)
+// pool 에러 → 재연결 예약 (서버리스에선 no-op)
+function attachPoolErrorHandler() {
+  if (!pool || IS_SERVERLESS) return;
+  pool.on('error', (err) => {
+    console.error('⚠️  PostgreSQL pool 오류:', err.message, '→ 재연결 예약');
+    pool = null;
+    scheduleReconnect();
+  });
+}
+
+// DB 자동 재연결 (서버 모드 전용 — 서버리스에선 요청마다 재연결됨)
 function scheduleReconnect(delayMs = 30000) {
-  if (!USE_DB || reconnectTimer) return;
+  if (!USE_DB || IS_SERVERLESS || reconnectTimer) return;
   reconnectTimer = setTimeout(async () => {
     reconnectTimer = null;
     console.log('🔄 DB 자동 재연결 시도 중...');
@@ -32,12 +47,11 @@ function scheduleReconnect(delayMs = 30000) {
       await newPool.query('SELECT 1');
       pool = newPool;
       attachPoolErrorHandler();
-      // 파일 모드로 쌓인 데이터를 DB에 동기화
       await pool.query(
         'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
         [JSON.stringify(store)]
       );
-      console.log('✅ DB 자동 재연결 성공 — 로컬 데이터 DB 동기화 완료');
+      console.log('✅ DB 자동 재연결 성공 — 데이터 DB 동기화 완료');
     } catch (e) {
       console.error('❌ DB 자동 재연결 실패:', e.message, '→ 30초 후 재시도');
       scheduleReconnect(30000);
@@ -45,29 +59,44 @@ function scheduleReconnect(delayMs = 30000) {
   }, delayMs);
 }
 
-// pool 에러 발생 시 자동으로 재연결 예약
-function attachPoolErrorHandler() {
-  if (!pool) return;
-  pool.on('error', (err) => {
-    console.error('⚠️  PostgreSQL pool 오류:', err.message, '→ 재연결 예약');
-    pool = null;
-    scheduleReconnect();
-  });
-}
-
 if (USE_DB) {
   pool = createPool();
   attachPoolErrorHandler();
   const maskedUrl = process.env.DATABASE_URL.replace(/\/\/[^@]+@/, '//****@');
-  console.log('🐘 PostgreSQL 모드 활성화');
+  console.log('🐘 PostgreSQL 모드 활성화' + (IS_SERVERLESS ? ' (서버리스)' : ''));
   console.log(`   DB URL: ${maskedUrl}`);
 } else {
   console.log('📁 파일 저장 모드 (DATABASE_URL 없음)');
-  console.log('⚠️  /tmp 파일은 배포 시마다 초기화됩니다 — 데이터가 영구 보존되지 않습니다!');
-  console.log('⚠️  영구 저장을 위해 Railway에서 DATABASE_URL 환경변수를 설정하세요.');
+}
+
+// ── 서버리스 지연 초기화 ────────────────────────────
+// Vercel에서는 서버 시작 시 initStore()를 못 부르므로
+// 첫 요청 때 한 번만 초기화한다
+let storeReady = false;
+let storeInitPromise = null;
+
+function ensureStore() {
+  if (storeReady) return Promise.resolve();
+  if (storeInitPromise) return storeInitPromise;
+  storeInitPromise = initStore()
+    .then(() => { ensureDefaultAdmin(); storeReady = true; })
+    .catch(err => { storeInitPromise = null; throw err; });
+  return storeInitPromise;
 }
 
 app.use(express.json({ limit: '10mb' }));
+
+// 서버리스 환경: 첫 요청 시 DB/store 초기화 (health check 제외)
+if (IS_SERVERLESS) {
+  app.use(async (req, res, next) => {
+    if (req.path === '/api/health') return next();
+    try { await ensureStore(); next(); }
+    catch (err) {
+      console.error('Store 초기화 실패:', err.message);
+      res.status(503).json({ error: 'starting_up', message: '서버 초기화 중입니다. 잠시 후 다시 시도해주세요.' });
+    }
+  });
+}
 
 // ── 상수 ───────────────────────────────────────────
 const DATA_FILE = '/tmp/jstudio_data.json';
@@ -909,16 +938,21 @@ async function startServer() {
   console.log(`   NODE_ENV    : ${process.env.NODE_ENV || 'development'}`);
   console.log(`   DATABASE_URL: ${USE_DB ? '✅ 설정됨 (PostgreSQL)' : '❌ 없음 (/tmp 파일 모드)'}`);
 
-  await initStore();          // DB or 파일에서 데이터 로드
-  ensureDefaultAdmin();       // 관리자 계정 없으면 자동 생성
+  await ensureStore();   // DB or 파일에서 데이터 로드 (지연 초기화와 공유)
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`✅ 제이스튜디오 캘린더 → http://0.0.0.0:${PORT}`);
-    console.log(`   저장소 : ${USE_DB ? '🐘 PostgreSQL (영구 저장)' : '📁 /tmp 파일 (⚠️ 임시 — 배포 시 삭제됨)'}`);
+    console.log(`   저장소 : ${(USE_DB && pool) ? '🐘 PostgreSQL (영구 저장)' : '📁 /tmp 파일 (⚠️ 임시)'}`);
     console.log(`   관리자 : @${DEFAULT_ADMIN_USERNAME}`);
     console.log(`   헬스체크: /api/health`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   });
 }
-startServer().catch(e => { console.error('❌ 서버 시작 실패:', e); process.exit(1); });
+
+// Vercel: app을 export (서버리스 핸들러로 사용)
+// Railway/로컬: 직접 listen
+module.exports = app;
+if (!IS_VERCEL) {
+  startServer().catch(e => { console.error('❌ 서버 시작 실패:', e); process.exit(1); });
+}
