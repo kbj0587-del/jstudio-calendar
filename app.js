@@ -2655,7 +2655,7 @@ function renderExtraFields(catId, ev) {
             <div class="form-group">
               <label>인센티브 금액 (1인) <span class="required">*</span></label>
               <div class="input-with-unit">
-                <input type="number" id="fTrialIncentiveAmt" placeholder="0" min="0" step="1000" value="${trialAmt}"/>
+                <input type="text" inputmode="numeric" id="fTrialIncentiveAmt" placeholder="0" value="${fmtAmt(trialAmt)}"/>
                 <span class="input-unit">원</span>
               </div>
             </div>
@@ -2676,7 +2676,7 @@ function renderExtraFields(catId, ev) {
             <div class="form-group">
               <label>등록 금액 (1인) <span class="required">*</span></label>
               <div class="input-with-unit">
-                <input type="number" id="fRegisterAmt" placeholder="0" min="0" step="10000" value="${regAmt}"/>
+                <input type="text" inputmode="numeric" id="fRegisterAmt" placeholder="0" value="${fmtAmt(regAmt)}"/>
                 <span class="input-unit">원</span>
               </div>
             </div>
@@ -2729,10 +2729,10 @@ function renderExtraFields(catId, ev) {
               <span id="incSalesPayNote" class="inc-sales-auto-note"${isConsult ? '' : ' style="display:none"'}>⟳ 인센티브 등록금액 자동 반영</span>
             </label>
             <div class="input-with-unit">
-              <input type="number" id="fIncSalesPayment" placeholder="0" min="0" step="10000"
+              <input type="text" inputmode="numeric" id="fIncSalesPayment" placeholder="0"
                      value="${isConsult
-                       ? ((Number(f.registerAmt||0) * Math.max(1, Number(f.personCount||1))) || '')
-                       : (f.linkedSales?.payment||'')}"
+                       ? fmtAmt(Number(f.registerAmt||0) * Math.max(1, Number(f.personCount||1)))
+                       : fmtAmt(f.linkedSales?.payment||'')}"
                      ${isConsult ? 'readonly' : ''}/>
               <span class="input-unit">원</span>
             </div>
@@ -2838,6 +2838,10 @@ function renderExtraFields(catId, ev) {
         });
       });
 
+      // 금액 포맷
+      initAmtInput('fTrialIncentiveAmt');
+      initAmtInput('fRegisterAmt');
+      initAmtInput('fIncSalesPayment');
       setTimeout(() => document.getElementById('fStaffName')?.focus(), 80);
       break;
     }
@@ -2863,7 +2867,7 @@ function renderExtraFields(catId, ev) {
           <div class="form-group">
             <label>체험 금액 (1인)</label>
             <div class="input-with-unit">
-              <input type="number" id="fTrialFee" placeholder="0" min="0" step="1000" value="${trialFeeVal}"/>
+              <input type="text" inputmode="numeric" id="fTrialFee" placeholder="0" value="${fmtAmt(trialFeeVal)}"/>
               <span class="input-unit">원</span>
             </div>
           </div>
@@ -3021,6 +3025,7 @@ function renderExtraFields(catId, ev) {
         });
       });
       // 금액 포맷
+      initAmtInput('fTrialFee');
       initAmtInput('fTrialLinkedPayment');
       initAmtInput('fTrialLinkedIncAmt');
 
@@ -3275,7 +3280,7 @@ function renderExtraFields(catId, ev) {
         <div class="form-group">
           <label>결제 금액 <span class="required">*</span></label>
           <div class="input-with-unit">
-            <input type="number" id="fSalesPayment" placeholder="0" min="0" step="10000" value="${payment}"/>
+            <input type="text" inputmode="numeric" id="fSalesPayment" placeholder="0" value="${fmtAmt(payment)}"/>
             <span class="input-unit">원</span>
           </div>
         </div>`;
@@ -3298,6 +3303,7 @@ function renderExtraFields(catId, ev) {
         });
       });
 
+      initAmtInput('fSalesPayment');
       setTimeout(() => document.getElementById('fSalesClientName')?.focus(), 80);
       break;
     }
