@@ -1,12 +1,15 @@
 {
-  "name": "제이스튜디오 일정 캘린더",
+  "name": "제이스튜디오 캘린더",
   "short_name": "J.STUDIO",
-  "description": "제이스튜디오 수업 노쇼, 보강, 중요 일정 관리",
-  "start_url": "./index.html",
+  "description": "제이스튜디오 수업 일정, 매출, 체험 등 센터 운영 관리 앱",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f0f2f5",
   "theme_color": "#c8960c",
   "orientation": "any",
+  "lang": "ko",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -19,6 +22,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "제이스튜디오 캘린더 홈"
     }
   ]
 }
