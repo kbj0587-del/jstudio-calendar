@@ -2978,7 +2978,7 @@ function renderExtraFields(catId, ev) {
         </div>`;
 
       const updateTrialFeeCalc = () => {
-        const fee = Number(document.getElementById('fTrialFee')?.value) || 0;
+        const fee = parseAmt('fTrialFee');
         const cnt = Math.max(1, Number(document.getElementById('fPersonCount')?.value) || 1);
         const tot = fee * cnt;
         const el  = document.getElementById('trialCalcInfo');
@@ -2989,6 +2989,7 @@ function renderExtraFields(catId, ev) {
       };
       document.getElementById('fTrialFee')?.addEventListener('input', updateTrialFeeCalc);
       document.getElementById('fPersonCount')?.addEventListener('input', updateTrialFeeCalc);
+      initTelInput('fClientContact');
       document.getElementById('fReserved')?.addEventListener('change', e => {
         document.getElementById('reserveNameGroup').style.display = e.target.checked ? '' : 'none';
         if (e.target.checked) setTimeout(() => document.getElementById('fReserveName')?.focus(), 50);
@@ -3066,6 +3067,7 @@ function renderExtraFields(catId, ev) {
           <label>일정 상태</label>
           <div class="sales-radio-group status-radio-grp">${renderStatusFieldHtml(f.status||'')}</div>
         </div>`;
+      initTelInput('fClientContact');
       document.getElementById('fReserved')?.addEventListener('change', e => {
         document.getElementById('reserveNameGroup').style.display = e.target.checked ? '' : 'none';
         if (e.target.checked) setTimeout(() => document.getElementById('fReserveName')?.focus(), 50);
@@ -3214,6 +3216,7 @@ function renderExtraFields(catId, ev) {
           <label>수업명</label>
           <input type="text" id="fClassName" placeholder="노쇼가 발생한 수업명" value="${esc(f.className||'')}"/>
         </div>`;
+      initTelInput('fStudentContact');
       setTimeout(() => document.getElementById('fStudentName')?.focus(), 80);
       break;
     }
@@ -3593,6 +3596,7 @@ async function refreshSync() {
       events = data.events || [];
       settings.categories = data.categories || settings.categories;
       settings.darkMode   = data.darkMode   ?? settings.darkMode;
+      ensureSystemCats(); // 서버 데이터 갱신 후 시스템 카테고리 보장
       syncEnabled = true;
       localStorage.setItem('cc_events', JSON.stringify(events));
       saveSettings();
@@ -4230,8 +4234,8 @@ async function submitPinChange() {
     });
     const data = await resp.json();
     if (resp.ok) {
-      // 자동 로그인이 켜져 있으면 저장된 PIN도 갱신
-      if (localStorage.getItem('cc_autologin') === '1') {
+      // 저장된 자격증명이 있으면 PIN도 함께 갱신 (자동 로그인 유지)
+      if (localStorage.getItem('cc_pin')) {
         localStorage.setItem('cc_pin', newPin);
       }
       showToast('✅ PIN이 변경되었습니다.');
