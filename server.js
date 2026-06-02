@@ -86,7 +86,15 @@ function ensureStore() {
 
 app.use(express.json({ limit: '10mb' }));
 
-// 서버리스 환경: 첫 요청 시 DB/store 초기화 (health check 제외)
+// 정적 파일은 DB 초기화 없이 바로 서빙 (CSS/JS/이미지 등)
+app.use(express.static(__dirname, {
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.js'))
+      res.setHeader('Content-Type', 'application/javascript');
+  }
+}));
+
+// 서버리스 환경: 첫 요청 시 DB/store 초기화 (정적파일·health check 제외)
 if (IS_SERVERLESS) {
   app.use(async (req, res, next) => {
     if (req.path === '/api/health') return next();
@@ -918,14 +926,6 @@ app.get('/manifest.json', (req, res) => {
   res.setHeader('Content-Type', 'application/manifest+json');
   res.sendFile(path.join(__dirname, 'manifest.json'));
 });
-
-// ── 정적 파일 ──────────────────────────────────────
-app.use(express.static(__dirname, {
-  setHeaders(res, filePath) {
-    if (filePath.endsWith('.js'))
-      res.setHeader('Content-Type', 'application/javascript');
-  }
-}));
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
