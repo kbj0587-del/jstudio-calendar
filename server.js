@@ -8,15 +8,56 @@ const PORT     = process.env.PORT || 8080;
 // ── PostgreSQL 연결 (DATABASE_URL 있을 때만) ────────
 const USE_DB = !!process.env.DATABASE_URL;
 let pool = null;
-if (USE_DB) {
+let reconnectTimer = null;
+
+function createPool() {
   const { Pool } = require('pg');
-  pool = new Pool({
+  return new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     max: 5,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
   });
+}
+
+// DB가 끊겼을 때 자동 재연결 (30초 간격, 최대 무한 재시도)
+function scheduleReconnect(delayMs = 30000) {
+  if (!USE_DB || reconnectTimer) return;
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    console.log('🔄 DB 자동 재연결 시도 중...');
+    try {
+      const newPool = createPool();
+      await newPool.query('SELECT 1');
+      pool = newPool;
+      attachPoolErrorHandler();
+      // 파일 모드로 쌓인 데이터를 DB에 동기화
+      await pool.query(
+        'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+        [JSON.stringify(store)]
+      );
+      console.log('✅ DB 자동 재연결 성공 — 로컬 데이터 DB 동기화 완료');
+    } catch (e) {
+      console.error('❌ DB 자동 재연결 실패:', e.message, '→ 30초 후 재시도');
+      scheduleReconnect(30000);
+    }
+  }, delayMs);
+}
+
+// pool 에러 발생 시 자동으로 재연결 예약
+function attachPoolErrorHandler() {
+  if (!pool) return;
+  pool.on('error', (err) => {
+    console.error('⚠️  PostgreSQL pool 오류:', err.message, '→ 재연결 예약');
+    pool = null;
+    scheduleReconnect();
+  });
+}
+
+if (USE_DB) {
+  pool = createPool();
+  attachPoolErrorHandler();
   const maskedUrl = process.env.DATABASE_URL.replace(/\/\/[^@]+@/, '//****@');
   console.log('🐘 PostgreSQL 모드 활성화');
   console.log(`   DB URL: ${maskedUrl}`);
@@ -73,6 +114,7 @@ async function initStore() {
       console.error('   ⚠️  파일 모드로 전환하여 서버를 계속 시작합니다.');
       useDB = false;  // 크래시 대신 파일 모드로 폴백
       pool  = null;
+      scheduleReconnect(30000); // 30초 후 자동 재연결 시도
     }
   }
 
@@ -118,6 +160,7 @@ async function initStore() {
       console.error('   ⚠️  파일 모드로 전환합니다.');
       useDB = false;
       pool  = null;
+      scheduleReconnect(30000);
     }
   }
 
@@ -735,6 +778,8 @@ app.post('/api/db-reconnect', requireAdmin, async (req, res) => {
     });
     await newPool.query('SELECT 1');
     pool = newPool;
+    attachPoolErrorHandler();
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     console.log('✅ DB 재연결 성공 (관리자 요청)');
     // 재연결 후 데이터 동기화
     try {
