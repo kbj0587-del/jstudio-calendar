@@ -75,11 +75,22 @@ if (USE_DB) {
 let storeReady = false;
 let storeInitPromise = null;
 
+let storeLastLoaded = 0;
+// Vercel 서버리스: 5초마다 DB에서 재로드 (인스턴스 간 데이터 불일치 방지)
+const STORE_TTL_MS = IS_SERVERLESS ? 5000 : Infinity;
+
 function ensureStore() {
-  if (storeReady) return Promise.resolve();
+  const stale = (Date.now() - storeLastLoaded) > STORE_TTL_MS;
+  if (storeReady && !stale) return Promise.resolve();
   if (storeInitPromise) return storeInitPromise;
+  storeReady = false;
   storeInitPromise = initStore()
-    .then(() => { ensureDefaultAdmin(); storeReady = true; })
+    .then(() => {
+      ensureDefaultAdmin();
+      storeReady = true;
+      storeLastLoaded = Date.now();
+      storeInitPromise = null;
+    })
     .catch(err => { storeInitPromise = null; throw err; });
   return storeInitPromise;
 }
