@@ -1444,6 +1444,28 @@ body {
 .admin-tab-content { display: block; }
 .admin-tab-content.hidden { display: none; }
 
+/* ── 서버 상태 탭 ── */
+.server-status-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.server-stat-row {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 8px;
+  font-size: 13px;
+}
+.server-stat-label { color: var(--text-muted); flex-shrink: 0; }
+.server-stat-val   { color: var(--text); text-align: right; word-break: break-all; }
+.server-error-msg  {
+  font-size: 11px; color: #e03050;
+  background: #fde8ec; border-radius: 6px;
+  padding: 6px 10px; word-break: break-all;
+}
+[data-theme="dark"] .server-error-msg { background: #3a1020; }
+
 /* ── 사용자 카드 ── */
 .admin-user-list,
 .admin-activity-list {

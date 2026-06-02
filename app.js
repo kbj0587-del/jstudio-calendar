@@ -3833,13 +3833,68 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tab)
   );
-  ['Users','Invites','Activity'].forEach(name => {
+  ['Users','Invites','Activity','Server'].forEach(name => {
     const el = document.getElementById('adminTab' + name);
     if (el) el.classList.toggle('hidden', name.toLowerCase() !== tab);
   });
 
   if (tab === 'users')    loadAdminUsers();
   if (tab === 'activity') loadAdminActivity();
+  if (tab === 'server')   loadServerStatus();
+}
+
+async function loadServerStatus() {
+  const box = document.getElementById('serverStatusBox');
+  if (!box) return;
+  box.innerHTML = '<p class="setting-hint">확인 중…</p>';
+  try {
+    const resp = await fetch('/api/health');
+    const info = await resp.json();
+    const dbOk      = info.db === 'connected';
+    const dbFallback= info.db === 'fallback_file';
+    const dbColor   = dbOk ? '#059669' : (dbFallback ? '#b45309' : '#e03050');
+    const dbIcon    = dbOk ? '✅' : (dbFallback ? '⚠️' : '❌');
+    const dbLabel   = dbOk ? 'PostgreSQL 연결됨 (영구 저장)'
+                    : dbFallback ? '파일 모드 전환됨 (임시 저장 — DB 재연결 필요)'
+                    : !info.dbUrlSet ? 'DATABASE_URL 미설정 (파일 모드)'
+                    : `DB 오류: ${info.dbError || '알 수 없음'}`;
+    box.innerHTML = `
+      <div class="server-stat-row">
+        <span class="server-stat-label">저장소</span>
+        <span class="server-stat-val" style="color:${dbColor};font-weight:700">${dbIcon} ${dbLabel}</span>
+      </div>
+      <div class="server-stat-row">
+        <span class="server-stat-label">일정 수</span>
+        <span class="server-stat-val">${info.events}건</span>
+      </div>
+      <div class="server-stat-row">
+        <span class="server-stat-label">사용자 수</span>
+        <span class="server-stat-val">${info.users}명</span>
+      </div>
+      <div class="server-stat-row">
+        <span class="server-stat-label">확인 시각</span>
+        <span class="server-stat-val">${new Date(info.timestamp).toLocaleTimeString('ko-KR')}</span>
+      </div>
+      ${info.dbError ? `<div class="server-error-msg">🔴 ${esc(info.dbError)}</div>` : ''}`;
+  } catch (e) {
+    box.innerHTML = `<p class="setting-hint" style="color:#e03050">서버 응답 없음: ${esc(e.message)}</p>`;
+  }
+}
+
+async function attemptDbReconnect() {
+  const box = document.getElementById('serverStatusBox');
+  if (box) box.innerHTML = '<p class="setting-hint">DB 재연결 시도 중…</p>';
+  try {
+    const resp = await fetch('/api/db-reconnect', {
+      method: 'POST',
+      headers: adminHeaders(),
+    });
+    const data = await resp.json();
+    showToast(data.ok ? '✅ DB 재연결 성공!' : `❌ 재연결 실패: ${data.message}`);
+    setTimeout(loadServerStatus, 500);
+  } catch (e) {
+    showToast('❌ 서버 오류: ' + e.message);
+  }
 }
 
 // ── 앱 링크 복사 ────────────────────────────────────
@@ -4434,6 +4489,10 @@ function bindStaticEvents() {
   // ── 앱 링크 복사 ──
   document.getElementById('btnCopyAppLink')?.addEventListener('click', copyAppLink);
   document.getElementById('btnGenerateInvite')?.addEventListener('click', copyAppLink);
+
+  // ── 서버 상태 / DB 재연결 ──
+  document.getElementById('btnCheckServerStatus')?.addEventListener('click', loadServerStatus);
+  document.getElementById('btnDbReconnect')?.addEventListener('click', attemptDbReconnect);
 
 
   // ── 데이터 백업 내보내기 (로컬) ──

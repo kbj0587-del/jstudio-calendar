@@ -467,6 +467,7 @@
             </button>
             <button class="admin-tab-btn" data-tab="invites">🔗 앱 공유</button>
             <button class="admin-tab-btn" data-tab="activity">📋 기록</button>
+            <button class="admin-tab-btn" data-tab="server">🗄️ 서버</button>
           </div>
 
           <!-- 사용자 관리 탭 -->
@@ -495,6 +496,17 @@
           <div id="adminTabActivity" class="admin-tab-content hidden">
             <div id="adminActivityList" class="admin-activity-list">
               <p class="setting-hint">불러오는 중…</p>
+            </div>
+          </div>
+
+          <!-- 서버/DB 상태 탭 -->
+          <div id="adminTabServer" class="admin-tab-content hidden">
+            <div id="serverStatusBox" class="server-status-box">
+              <p class="setting-hint">불러오는 중…</p>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+              <button id="btnCheckServerStatus" class="btn-save" style="flex:1">🔄 상태 새로고침</button>
+              <button id="btnDbReconnect" class="btn-save" style="flex:1;background:#7c3aed">🗄️ DB 재연결 시도</button>
             </div>
           </div>
         </div>

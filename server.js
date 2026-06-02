@@ -695,14 +695,16 @@ app.get('/api/holidays/:year', async (req, res) => {
 // 서버 상태 확인 (누구나 접근 가능)
 app.get('/api/health', async (req, res) => {
   const info = {
-    status:    'ok',
-    storage:   USE_DB ? 'postgresql' : 'file(/tmp)',
-    persistent: USE_DB,
-    events:    store.events.length,
-    users:     store.users.length,
-    timestamp: new Date().toISOString(),
+    status:     'ok',
+    storage:    (USE_DB && pool) ? 'postgresql' : (USE_DB ? 'file(/tmp) [DB fallback]' : 'file(/tmp)'),
+    persistent: !!(USE_DB && pool),
+    events:     store.events.length,
+    users:      store.users.length,
+    timestamp:  new Date().toISOString(),
+    dbUrlSet:   USE_DB,
+    poolActive: !!pool,
   };
-  if (USE_DB) {
+  if (USE_DB && pool) {
     try {
       await pool.query('SELECT 1');
       info.db = 'connected';
@@ -711,8 +713,52 @@ app.get('/api/health', async (req, res) => {
       info.dbError = e.message;
       info.status  = 'degraded';
     }
+  } else if (USE_DB && !pool) {
+    info.db     = 'fallback_file';
+    info.dbNote = 'DB 연결 실패로 파일 모드 전환됨 — /api/db-reconnect 로 재연결 시도 가능';
+    info.status = 'degraded';
   }
   res.json(info);
+});
+
+// DB 재연결 시도 (관리자 전용)
+app.post('/api/db-reconnect', requireAdmin, async (req, res) => {
+  if (!USE_DB) return res.json({ ok: false, message: 'DATABASE_URL이 설정되지 않음' });
+  try {
+    const { Pool } = require('pg');
+    const newPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+    await newPool.query('SELECT 1');
+    pool = newPool;
+    console.log('✅ DB 재연결 성공 (관리자 요청)');
+    // 재연결 후 데이터 동기화
+    try {
+      const result = await pool.query('SELECT data FROM jstudio_store WHERE id = 1');
+      if (result.rows.length > 0) {
+        const saved = result.rows[0].data;
+        // 현재 메모리 데이터가 더 최신이므로 DB에 덮어씀
+        await pool.query(
+          'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+          [JSON.stringify(store)]
+        );
+        console.log('✅ 현재 데이터 DB에 동기화 완료');
+      } else {
+        await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
+        console.log('✅ DB 최초 초기화 완료');
+      }
+    } catch (syncErr) {
+      console.error('DB 동기화 오류:', syncErr.message);
+    }
+    res.json({ ok: true, message: 'DB 재연결 및 동기화 성공' });
+  } catch (e) {
+    console.error('DB 재연결 실패:', e.message);
+    res.json({ ok: false, message: e.message });
+  }
 });
 
 // 데이터 전체 백업 (JSON 다운로드) — 관리자 전용
