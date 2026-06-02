@@ -61,53 +61,67 @@ let store = {
 
 // ── DB 초기화 및 데이터 로드 (서버 시작 시 1회) ─────
 async function initStore() {
-  if (USE_DB) {
-    // ── PostgreSQL ──
-    // 연결 테스트
+  let useDB = USE_DB;
+
+  if (useDB) {
+    // ── PostgreSQL 연결 테스트 ──
     try {
       await pool.query('SELECT 1');
       console.log('✅ PostgreSQL 연결 성공');
     } catch (connErr) {
       console.error('❌ PostgreSQL 연결 실패:', connErr.message);
-      console.error('   DATABASE_URL이 올바른지 확인하세요.');
-      throw connErr;
+      console.error('   ⚠️  파일 모드로 전환하여 서버를 계속 시작합니다.');
+      useDB = false;  // 크래시 대신 파일 모드로 폴백
+      pool  = null;
     }
+  }
 
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS jstudio_store (
-        id   INTEGER PRIMARY KEY,
-        data JSONB   NOT NULL
-      )
-    `);
-    const result = await pool.query('SELECT data FROM jstudio_store WHERE id = 1');
-    if (result.rows.length > 0) {
-      const saved = result.rows[0].data;
-      store = { ...store, ...saved };
-      if (!Array.isArray(store.users))       store.users       = [];
-      if (!Array.isArray(store.activityLog)) store.activityLog = [];
-      if (!Array.isArray(store.invites))     store.invites     = [];
-      if (!Array.isArray(store.events))      store.events      = [];
-      if (!Array.isArray(store.categories))  store.categories  = DEFAULT_CATS;
-      if (!store.incentiveDefaults) store.incentiveDefaults = { trialAmount: 10000, consultRate: 5 };
-      // 시스템 카테고리가 DB에 없는 경우 자동 추가 (마이그레이션)
-      SYSTEM_CAT_IDS.forEach(id => {
-        const def = DEFAULT_CATS.find(c => c.id === id);
-        if (!def) return;
-        const existing = store.categories.find(c => c.id === id);
-        if (!existing) {
-          store.categories.unshift({ ...def });
-          console.log(`📌 시스템 카테고리 추가: ${def.name}`);
-        } else {
-          existing.name   = def.name;
-          existing.system = true;
-        }
-      });
-      console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명 | 카테고리 ${store.categories.length}개`);
-    } else {
-      await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
-      console.log('✅ DB 최초 초기화 완료 (새 데이터베이스)');
+  if (useDB) {
+    // ── PostgreSQL 데이터 로드 ──
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS jstudio_store (
+          id   INTEGER PRIMARY KEY,
+          data JSONB   NOT NULL
+        )
+      `);
+      const result = await pool.query('SELECT data FROM jstudio_store WHERE id = 1');
+      if (result.rows.length > 0) {
+        const saved = result.rows[0].data;
+        store = { ...store, ...saved };
+        if (!Array.isArray(store.users))       store.users       = [];
+        if (!Array.isArray(store.activityLog)) store.activityLog = [];
+        if (!Array.isArray(store.invites))     store.invites     = [];
+        if (!Array.isArray(store.events))      store.events      = [];
+        if (!Array.isArray(store.categories))  store.categories  = DEFAULT_CATS;
+        if (!store.incentiveDefaults) store.incentiveDefaults = { trialAmount: 10000, consultRate: 5 };
+        // 시스템 카테고리가 DB에 없는 경우 자동 추가 (마이그레이션)
+        SYSTEM_CAT_IDS.forEach(id => {
+          const def = DEFAULT_CATS.find(c => c.id === id);
+          if (!def) return;
+          const existing = store.categories.find(c => c.id === id);
+          if (!existing) {
+            store.categories.unshift({ ...def });
+            console.log(`📌 시스템 카테고리 추가: ${def.name}`);
+          } else {
+            existing.name   = def.name;
+            existing.system = true;
+          }
+        });
+        console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명 | 카테고리 ${store.categories.length}개`);
+      } else {
+        await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
+        console.log('✅ DB 최초 초기화 완료 (새 데이터베이스)');
+      }
+    } catch (dbErr) {
+      console.error('❌ DB 초기화 오류:', dbErr.message);
+      console.error('   ⚠️  파일 모드로 전환합니다.');
+      useDB = false;
+      pool  = null;
     }
-  } else {
+  }
+
+  if (!useDB) {
     // ── 파일 폴백 ──
     try {
       if (fs.existsSync(DATA_FILE)) {
@@ -130,7 +144,7 @@ async function initStore() {
 
 // ── 저장 (fire-and-forget) ──────────────────────────
 function saveToFile() {
-  if (USE_DB) {
+  if (USE_DB && pool) {
     pool.query(
       'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
       [JSON.stringify(store)]
