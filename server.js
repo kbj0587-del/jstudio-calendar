@@ -885,12 +885,10 @@ app.post('/api/admin/restore', requireAdmin, (req, res) => {
   const stats = { events: 0, users: 0 };
 
   if (restoreMode === 'replace') {
-    // 전체 교체 (기존 데이터 덮어쓰기)
-    if (data.events)      { store.events      = data.events;      stats.events = data.events.length; }
-    if (data.categories)    store.categories  = data.categories;
+    if (data.events)    { store.events     = data.events;     stats.events = data.events.length; }
+    if (data.categories)  store.categories = data.categories;
     if (data.darkMode !== undefined) store.darkMode = data.darkMode;
     if (data.inviteRequired !== undefined) store.inviteRequired = data.inviteRequired;
-    // 사용자는 pinHash가 없으므로 머지만 가능 (아래 머지 로직 재사용)
   }
 
   // 이벤트 머지 (중복 ID 제외)
@@ -901,8 +899,23 @@ app.post('/api/admin/restore', requireAdmin, (req, res) => {
     stats.events = newEvs.length;
   }
 
+  // 사용자 복원 (pinHash 포함 — 비밀번호 그대로 유지됨)
+  if (Array.isArray(data.users) && data.users.length > 0) {
+    const existingIds = new Set(store.users.map(u => u.id));
+    const newUsers = data.users.filter(u => !existingIds.has(u.id));
+    store.users = [...store.users, ...newUsers];
+    stats.users = newUsers.length;
+    if (restoreMode === 'replace') {
+      // replace 모드에서도 기존 관리자 계정은 유지하고 나머지 교체
+      const adminUsers = store.users.filter(u => u.role === 'admin');
+      const nonAdminBackup = data.users.filter(u => u.role !== 'admin');
+      store.users = [...adminUsers, ...nonAdminBackup];
+      stats.users = nonAdminBackup.length;
+    }
+  }
+
   saveToFile();
-  console.log(`✅ 데이터 복원 완료 (${restoreMode}): 일정 +${stats.events}건`);
+  console.log(`✅ 데이터 복원 완료 (${restoreMode}): 일정 +${stats.events}건, 사용자 +${stats.users}명`);
   res.json({ ok: true, mode: restoreMode, restored: stats });
 });
 

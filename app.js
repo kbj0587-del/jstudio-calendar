@@ -4526,18 +4526,33 @@ function bindStaticEvents() {
     reader.onload = async ev => {
       try {
         const backup = JSON.parse(ev.target.result);
-        // 로컬 백업: { events, settings } / 서버 백업: { data: { events, ... } }
+        // 로컬 백업: { events, settings } / 서버 백업: { data: { events, users, ... } }
         const src = backup.data || backup;
         if (!Array.isArray(src.events)) throw new Error();
-        if (!confirm(`백업 파일에서 일정 ${src.events.length}건을 불러올까요?\n현재 데이터는 덮어씌워집니다.`)) return;
+        const userCount = Array.isArray(src.users) ? src.users.length : 0;
+        const msg = `백업 파일에서 일정 ${src.events.length}건${userCount > 0 ? `, 사용자 ${userCount}명` : ''}을 불러올까요?\n현재 데이터는 덮어씌워집니다.`;
+        if (!confirm(msg)) return;
+
+        // 서버에 전체 데이터 복원 (사용자 포함)
+        if (syncEnabled) {
+          const resp = await apiPost('/api/admin/restore', { data: src, mode: 'replace' });
+          if (!resp.ok) throw new Error('서버 복원 실패');
+          const result = await resp.json();
+          console.log('서버 복원 결과:', result.restored);
+        }
+
+        // 클라이언트 이벤트 업데이트
         events = src.events;
         if (src.categories) settings.categories = src.categories;
         else if (backup.settings?.categories) settings.categories = backup.settings.categories;
         saveEvents();
         saveSettings();
         renderCurrentView();
-        showToast(`백업 데이터를 불러왔습니다. (일정 ${events.length}건)`);
-      } catch { showToast('올바른 백업 파일이 아닙니다.'); }
+        showToast(`복원 완료! 일정 ${events.length}건${userCount > 0 ? `, 사용자 ${userCount}명` : ''}`);
+      } catch (e) {
+        console.error('백업 복원 오류:', e);
+        showToast('복원 중 오류가 발생했습니다: ' + e.message);
+      }
     };
     reader.readAsText(file);
     e.target.value = '';
