@@ -4520,14 +4520,17 @@ function bindStaticEvents() {
     reader.onload = async ev => {
       try {
         const backup = JSON.parse(ev.target.result);
-        if (!Array.isArray(backup.events)) throw new Error();
-        if (!confirm(`백업 파일에서 일정 ${backup.events.length}건을 불러올까요?\n현재 데이터는 덮어씌워집니다.`)) return;
-        events = backup.events;
-        if (backup.settings?.categories) settings.categories = backup.settings.categories;
+        // 로컬 백업: { events, settings } / 서버 백업: { data: { events, ... } }
+        const src = backup.data || backup;
+        if (!Array.isArray(src.events)) throw new Error();
+        if (!confirm(`백업 파일에서 일정 ${src.events.length}건을 불러올까요?\n현재 데이터는 덮어씌워집니다.`)) return;
+        events = src.events;
+        if (src.categories) settings.categories = src.categories;
+        else if (backup.settings?.categories) settings.categories = backup.settings.categories;
         saveEvents();
         saveSettings();
         renderCurrentView();
-        showToast('백업 데이터를 불러왔습니다.');
+        showToast(`백업 데이터를 불러왔습니다. (일정 ${events.length}건)`);
       } catch { showToast('올바른 백업 파일이 아닙니다.'); }
     };
     reader.readAsText(file);
