@@ -1610,6 +1610,37 @@ body {
   margin-left: 4px;
 }
 
+/* 강사 역할 배지 */
+.role-badge-instructor {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(99,102,241,.15);
+  color: #6366f1;
+  border: 1px solid rgba(99,102,241,.3);
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+/* 강사 지정 버튼 */
+.btn-grant-instructor {
+  background: rgba(99,102,241,.13);
+  color: #6366f1;
+  border: 1px solid rgba(99,102,241,.3);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-grant-instructor:hover { background: rgba(99,102,241,.25); }
+
 /* ── 활동 기록 ── */
 .activity-item {
   display: flex;

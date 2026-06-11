@@ -122,19 +122,24 @@ const DATA_FILE = '/tmp/jstudio_data.json';
 const ADMIN_PW  = process.env.ADMIN_PASSWORD || 'jstudio2024';
 
 const DEFAULT_CATS = [
-  { id: 'daeggang',    name: '대강',      color: '#e07b20', system: true },
-  { id: 'incentive',  name: '인센티브',   color: '#7c3aed', system: true },
-  { id: 'trial',      name: '체험수업',   color: '#0891b2', system: true },
-  { id: 'review',     name: '리뷰체험',   color: '#e91e8c', system: true },
-  { id: 'classnoshow',name: '수업노쇼',   color: '#e03050', system: true },
-  { id: 'sales',      name: '매출/등록',  color: '#059669', system: true },
-  { id: 'consult',    name: '상담',       color: '#0d9488', system: true },
-  { id: 'noshow',     name: '노쇼',       color: '#e03050' },
-  { id: 'makeup',     name: '보강',       color: '#1a8fc7' },
-  { id: 'info',       name: '중요정보',   color: '#c88a00' },
-  { id: 'other',      name: '기타',       color: '#2e9e4f' },
+  { id: 'daeggang',      name: '대강',      color: '#e07b20', system: true },
+  { id: 'incentive',    name: '인센티브',   color: '#7c3aed', system: true },
+  { id: 'trial',        name: '체험수업',   color: '#0891b2', system: true },
+  { id: 'review',       name: '리뷰체험',   color: '#e91e8c', system: true },
+  { id: 'classnoshow',  name: '수업노쇼',   color: '#e03050', system: true },
+  { id: 'sales',        name: '매출/등록',  color: '#059669', system: true },
+  { id: 'consult',      name: '상담',       color: '#0d9488', system: true },
+  { id: 'personallesson', name: '개인레슨', color: '#6366f1', system: true },
+  { id: 'meeting',      name: '미팅',       color: '#64748b', system: true },
+  { id: 'noshow',       name: '노쇼',       color: '#e03050' },
+  { id: 'makeup',       name: '보강',       color: '#1a8fc7' },
+  { id: 'info',         name: '중요정보',   color: '#c88a00' },
+  { id: 'other',        name: '기타',       color: '#2e9e4f' },
 ];
-const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','sales','consult'];
+const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','sales','consult','personallesson','meeting'];
+
+// 강사에게 허용되는 카테고리
+const INSTRUCTOR_ALLOWED_CATS = ['trial','review','personallesson','meeting','daeggang'];
 
 // ── 데이터 저장소 ───────────────────────────────────
 let store = {
@@ -198,6 +203,8 @@ async function initStore() {
             existing.system = true;
           }
         });
+        // sales 내 개인레슨 데이터 → personallesson 카테고리로 마이그레이션
+        migrateSalesPersonalLesson();
         console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명 | 카테고리 ${store.categories.length}개`);
       } else {
         await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
@@ -230,6 +237,30 @@ async function initStore() {
     } catch (e) {
       console.error('파일 로드 실패:', e.message);
     }
+  }
+}
+
+// ── sales 내 개인레슨 → personallesson 마이그레이션 ─
+function migrateSalesPersonalLesson() {
+  let changed = false;
+  store.events = store.events.map(ev => {
+    if (ev.type === 'sales' && ev.extraFields?.lessonType === '개인레슨') {
+      changed = true;
+      return {
+        ...ev,
+        type: 'personallesson',
+        extraFields: {
+          clientName:   ev.extraFields.clientName || '',
+          sessionCount: ev.extraFields.sessionCount || 0,
+          migratedFrom: 'sales',
+        },
+      };
+    }
+    return ev;
+  });
+  if (changed) {
+    console.log('📦 sales→personallesson 마이그레이션 완료');
+    saveToFile();
   }
 }
 
@@ -306,6 +337,24 @@ function isSubAdmin(req) {
   if (!uid) return false;
   const user = store.users.find(u => u.id === uid);
   return !!(user && user.status === 'approved' && user.role === 'admin');
+}
+
+// 강사 확인
+function isInstructor(req) {
+  const uid = req.headers['x-user-id'];
+  if (!uid) return false;
+  const user = store.users.find(u => u.id === uid);
+  return !!(user && user.status === 'approved' && user.role === 'instructor');
+}
+
+// 강사용 이벤트 필터링: 비허용 카테고리 제거, 허용 카테고리 내 금융 필드 제거
+function filterEventForInstructor(ev) {
+  if (!INSTRUCTOR_ALLOWED_CATS.includes(ev.type)) return null;
+  if (ev.type === 'trial') {
+    const { trialFee, personCount, trialTotal, linkedRegistration, linkedIncentive, ...safe } = ev.extraFields || {};
+    return { ...ev, extraFields: safe };
+  }
+  return ev;
 }
 
 // 데이터 접근 미들웨어: 관리자 OR 승인된 사용자
@@ -453,6 +502,28 @@ app.post('/api/admin/users/:id/revoke-admin', requireAdmin, (req, res) => {
   user.role = 'user';
   saveToFile();
   console.log(`✅ 관리자 권한 해제: ${user.name} (@${user.username})`);
+  res.json({ ok: true, user });
+});
+
+// 강사 지정
+app.post('/api/admin/users/:id/grant-instructor', requireAdmin, (req, res) => {
+  const user = store.users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+  if (user.status !== 'approved')
+    return res.status(400).json({ error: 'not_approved', message: '승인된 사용자에게만 강사 권한을 부여할 수 있습니다.' });
+  user.role = 'instructor';
+  saveToFile();
+  console.log(`✅ 강사 권한 부여: ${user.name} (@${user.username})`);
+  res.json({ ok: true, user });
+});
+
+// 강사 해제
+app.post('/api/admin/users/:id/revoke-instructor', requireAdmin, (req, res) => {
+  const user = store.users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'not_found' });
+  user.role = 'user';
+  saveToFile();
+  console.log(`✅ 강사 권한 해제: ${user.name} (@${user.username})`);
   res.json({ ok: true, user });
 });
 
@@ -621,17 +692,39 @@ app.post('/api/user/change-pin', (req, res) => {
 
 app.get('/api/sync', requireAccess, (req, res) => {
   const pendingCount = store.users.filter(u => u.status === 'pending').length;
+  const uid  = req.headers['x-user-id'];
+  const user = uid ? store.users.find(u => u.id === uid) : null;
+  const role = isAdmin(req) ? 'admin' : (user?.role || 'user');
+
+  let filteredEvents = store.events;
+  if (role === 'instructor') {
+    filteredEvents = store.events.map(filterEventForInstructor).filter(Boolean);
+  }
+
   res.json({
-    events:       store.events,
+    events:       filteredEvents,
     categories:   store.categories,
     darkMode:     store.darkMode,
     pendingCount: (isAdmin(req) || isSubAdmin(req)) ? pendingCount : 0,
+    role,
   });
 });
 
 app.post('/api/sync/events', requireAccess, (req, res) => {
   const { events, action, changedEvent, detail } = req.body;
-  store.events = events || [];
+
+  if (isInstructor(req)) {
+    const uid = req.headers['x-user-id'];
+    const incoming = events || [];
+    // 강사는 비허용 카테고리를 받지 못했으므로 서버에서 보호
+    const adminOnly = store.events.filter(ev => !INSTRUCTOR_ALLOWED_CATS.includes(ev.type));
+    // 허용 카테고리 중 다른 강사 개인레슨은 수정 불가
+    const othersPL = store.events.filter(ev => ev.type === 'personallesson' && ev.createdById !== uid);
+    const incomingAllowed = incoming.filter(ev => INSTRUCTOR_ALLOWED_CATS.includes(ev.type) && !(ev.type === 'personallesson' && ev.createdById && ev.createdById !== uid));
+    store.events = [...adminOnly, ...othersPL, ...incomingAllowed.filter(ev => !othersPL.find(o => o.id === ev.id))];
+  } else {
+    store.events = events || [];
+  }
 
   if (action && changedEvent) {
     const user     = req.currentUser;

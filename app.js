@@ -3,22 +3,26 @@
    ═══════════════════════════════════════════════ */
 
 // ── 상수 ──────────────────────────────────────────
-const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','sales','consult'];
+const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','sales','consult','personallesson','meeting'];
 // 일정 상태(취소/변경)를 지원하는 카테고리
 const STATUS_CAT_IDS = ['trial','review','consult'];
+// 강사에게 허용되는 카테고리
+const INSTRUCTOR_ALLOWED_CATS = ['trial','review','personallesson','meeting','daeggang'];
 
 const DEFAULT_CATS = [
-  { id: 'daeggang',    name: '대강',      color: '#e07b20', system: true },
-  { id: 'incentive',  name: '인센티브',   color: '#7c3aed', system: true },
-  { id: 'trial',      name: '체험수업',   color: '#0891b2', system: true },
-  { id: 'review',     name: '리뷰체험',   color: '#e91e8c', system: true },
-  { id: 'classnoshow',name: '수업노쇼',   color: '#e03050', system: true },
-  { id: 'sales',      name: '매출/등록',  color: '#059669', system: true },
-  { id: 'consult',    name: '상담',       color: '#0d9488', system: true },
-  { id: 'noshow',     name: '노쇼',      color: '#e03050' },
-  { id: 'makeup',     name: '보강',      color: '#1a8fc7' },
-  { id: 'info',       name: '중요정보',   color: '#c88a00' },
-  { id: 'other',      name: '기타',      color: '#2e9e4f' },
+  { id: 'daeggang',      name: '대강',      color: '#e07b20', system: true },
+  { id: 'incentive',    name: '인센티브',   color: '#7c3aed', system: true },
+  { id: 'trial',        name: '체험수업',   color: '#0891b2', system: true },
+  { id: 'review',       name: '리뷰체험',   color: '#e91e8c', system: true },
+  { id: 'classnoshow',  name: '수업노쇼',   color: '#e03050', system: true },
+  { id: 'sales',        name: '매출/등록',  color: '#059669', system: true },
+  { id: 'consult',      name: '상담',       color: '#0d9488', system: true },
+  { id: 'personallesson', name: '개인레슨', color: '#6366f1', system: true },
+  { id: 'meeting',      name: '미팅',       color: '#64748b', system: true },
+  { id: 'noshow',       name: '노쇼',       color: '#e03050' },
+  { id: 'makeup',       name: '보강',       color: '#1a8fc7' },
+  { id: 'info',         name: '중요정보',   color: '#c88a00' },
+  { id: 'other',        name: '기타',       color: '#2e9e4f' },
 ];
 
 const PALETTE_COLORS = [
@@ -38,6 +42,7 @@ let currentView  = 'calendar'; // 'calendar' | 'list'
 let currentUser  = null;   // { id, name }
 let isAdminMode  = false;  // 마스터 관리자 모드 여부
 let isSubAdmin   = false;  // 서브 관리자 (사용자이지만 관리자 권한 부여됨)
+let isInstructor = false;  // 강사 역할
 let adminPw      = '';     // 관리자 비밀번호
 let pendingBadge = 0;      // 대기 중 사용자 수
 
@@ -314,6 +319,15 @@ function collectExtraFields(type) {
       f.studentContact = document.getElementById('fStudentContact')?.value.trim() || '';
       f.className      = document.getElementById('fClassName')?.value.trim() || '';
       break;
+    case 'personallesson':
+      f.clientName     = document.getElementById('fPLClientName')?.value.trim() || '';
+      f.instructorName = document.getElementById('fPLInstructorName')?.value.trim() || '';
+      f.sessionCount   = Number(document.getElementById('fPLSessionCount')?.value) || 0;
+      break;
+    case 'meeting':
+      f.topic     = document.getElementById('fMeetingTopic')?.value.trim() || '';
+      f.attendees = document.getElementById('fMeetingAttendees')?.value.trim() || '';
+      break;
     case 'sales': {
       f.clientName  = document.getElementById('fSalesClientName')?.value.trim() || '';
       f.regType     = document.querySelector('input[name="salesRegType"]:checked')?.value || '신규';
@@ -370,6 +384,14 @@ function autoTitle(type, f) {
       const pay     = f.payment ? ` · ${Number(f.payment).toLocaleString()}원` : '';
       return `${name}${rtype}${ltype}${mem}${pay}`;
     }
+    case 'personallesson': {
+      const name  = f.clientName || '개인레슨';
+      const inst  = f.instructorName ? ` · ${f.instructorName}` : '';
+      const cnt   = f.sessionCount ? ` ${f.sessionCount}회` : '';
+      return `${name}${inst}${cnt}`;
+    }
+    case 'meeting':
+      return f.topic || '미팅';
     default: return '';
   }
 }
@@ -420,6 +442,13 @@ function getChipText(ev) {
       const pay  = f.payment ? ` ${Number(f.payment).toLocaleString()}원` : '';
       return `${name}${pay}`;
     }
+    case 'personallesson': {
+      const name = f.clientName || ev.title;
+      const inst = f.instructorName ? ` · ${f.instructorName}` : '';
+      return `${name}${inst}`;
+    }
+    case 'meeting':
+      return f.topic || ev.title;
     default: return ev.title;
   }
 }
@@ -502,6 +531,17 @@ function getExtraSummaryHtml(ev) {
         : (f.duration||f.freq) ? ` | ${esc((f.duration||'')+(f.freq?' '+f.freq:''))}` : '';
       const pay    = f.payment ? ` | ${Number(f.payment).toLocaleString()}원` : '';
       return `<div class="lv-extra-info lv-extra-sales">💵 ${esc(f.clientName||'-')}${rtype}${ltype}${mem}${pay}</div>`;
+    }
+    case 'personallesson': {
+      if (!f.clientName && !f.instructorName) return '';
+      const inst = f.instructorName ? ` | ${esc(f.instructorName)}` : '';
+      const cnt  = f.sessionCount ? ` | ${f.sessionCount}회` : '';
+      return `<div class="lv-extra-info">🧑‍🏫 ${esc(f.clientName||'-')}${inst}${cnt}</div>`;
+    }
+    case 'meeting': {
+      if (!f.topic && !f.attendees) return '';
+      const att = f.attendees ? ` | ${esc(f.attendees)}` : '';
+      return `<div class="lv-extra-info">📋 ${esc(f.topic||'-')}${att}</div>`;
     }
     default: return '';
   }
@@ -855,6 +895,36 @@ function getExtraDetailHtml(ev) {
           </div>
         </div>`;
     }
+    case 'personallesson':
+      return `
+        <div class="detail-extra-section">
+          <div class="detail-label">🧑‍🏫 개인레슨 정보</div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">수강생</span>
+            <span class="detail-extra-val">${esc(f.clientName || '-')}</span>
+          </div>
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">담당 강사</span>
+            <span class="detail-extra-val">${esc(f.instructorName || '-')}</span>
+          </div>
+          ${f.sessionCount ? `<div class="detail-extra-row">
+            <span class="detail-extra-label">수업 횟수</span>
+            <span class="detail-extra-val">${f.sessionCount}회</span>
+          </div>` : ''}
+        </div>`;
+    case 'meeting':
+      return `
+        <div class="detail-extra-section">
+          <div class="detail-label">📋 미팅 정보</div>
+          ${f.topic ? `<div class="detail-extra-row">
+            <span class="detail-extra-label">안건</span>
+            <span class="detail-extra-val">${esc(f.topic)}</span>
+          </div>` : ''}
+          ${f.attendees ? `<div class="detail-extra-row">
+            <span class="detail-extra-label">참석자</span>
+            <span class="detail-extra-val">${esc(f.attendees)}</span>
+          </div>` : ''}
+        </div>`;
     default: return '';
   }
 }
@@ -969,6 +1039,7 @@ async function init() {
   const savedUserName = localStorage.getItem('cc_user_name') || '';
   if (savedUserId) currentUser = { id: savedUserId, name: savedUserName };
   if (savedUserId && localStorage.getItem('cc_is_subadmin') === '1') isSubAdmin = true;
+  if (savedUserId && localStorage.getItem('cc_role') === 'instructor') isInstructor = true;
   adminPw = localStorage.getItem('cc_admin_pw') || '';
   if (adminPw) isAdminMode = true;
 
@@ -995,9 +1066,11 @@ async function init() {
           localStorage.setItem('cc_user_id',   data.user.id);
           localStorage.setItem('cc_user_name', data.user.name);
           currentUser = { id: data.user.id, name: data.user.name };
-          isSubAdmin = data.user.role === 'admin';
+          isSubAdmin   = data.user.role === 'admin';
+          isInstructor = data.user.role === 'instructor';
           if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
           else localStorage.removeItem('cc_is_subadmin');
+          localStorage.setItem('cc_role', data.user.role || 'user');
           // 자동 로그인 성공 → 바로 진행
         } else if (resp.status === 403) {
           const d = await resp.json().catch(() => ({}));
@@ -1093,9 +1166,11 @@ async function launchApp() {
             localStorage.setItem('cc_user_id',   rdata.user.id);
             localStorage.setItem('cc_user_name', rdata.user.name);
             currentUser = { id: rdata.user.id, name: rdata.user.name };
-            isSubAdmin = rdata.user.role === 'admin';
+            isSubAdmin   = rdata.user.role === 'admin';
+            isInstructor = rdata.user.role === 'instructor';
             if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
             else localStorage.removeItem('cc_is_subadmin');
+            localStorage.setItem('cc_role', rdata.user.role || 'user');
             // 재시도
             const resp2 = await apiGet('/api/sync');
             if (resp2.ok) {
@@ -1303,9 +1378,11 @@ async function submitLogin() {
     localStorage.setItem('cc_user_name', user.name);
     localStorage.setItem('cc_username',  username);
     localStorage.setItem('cc_pin',       pin);
-    isSubAdmin = user.role === 'admin';
+    isSubAdmin   = user.role === 'admin';
+    isInstructor = user.role === 'instructor';
     if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
     else localStorage.removeItem('cc_is_subadmin');
+    localStorage.setItem('cc_role', user.role || 'user');
     currentUser = { id: user.id, name: user.name };
     document.getElementById('authScreen').classList.add('hidden');
     await launchApp();
@@ -1380,9 +1457,11 @@ async function refreshPendingStatus() {
       localStorage.setItem('cc_user_id',   user.id);
       localStorage.setItem('cc_user_name', user.name);
       currentUser = { id: user.id, name: user.name };
-      isSubAdmin = user.role === 'admin';
+      isSubAdmin   = user.role === 'admin';
+      isInstructor = user.role === 'instructor';
       if (isSubAdmin) localStorage.setItem('cc_is_subadmin', '1');
       else localStorage.removeItem('cc_is_subadmin');
+      localStorage.setItem('cc_role', user.role || 'user');
       document.getElementById('pendingScreen')?.classList.add('hidden');
       await launchApp();
     } else if (resp.status === 403 && data.error === 'rejected') {
@@ -2459,6 +2538,13 @@ function renderDetailView() {
   const cat   = getCat(ev.type);
   const alpha = isDark() ? 0.22 : 0.15;
 
+  // 강사: 수정/삭제 권한 체크 (개인레슨은 본인 등록분만 / 나머지 허용 카테고리는 읽기만)
+  const canEdit = !isInstructor || (
+    ev.type === 'personallesson' && ev.createdById === currentUser?.id
+  );
+  document.getElementById('btnDetailEdit')?.classList.toggle('hidden', !canEdit);
+  document.getElementById('btnDetailDelete')?.classList.toggle('hidden', !canEdit);
+
   // 등록자 정보
   let creatorHtml = '';
   if (ev.createdBy) {
@@ -3311,6 +3397,39 @@ function renderExtraFields(catId, ev) {
       break;
     }
 
+    case 'personallesson': {
+      container.innerHTML = `
+        <div class="form-group">
+          <label>수강생 이름 <span class="required">*</span></label>
+          <input type="text" id="fPLClientName" placeholder="수강생 이름" value="${esc(f.clientName||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>담당 강사</label>
+          <input type="text" id="fPLInstructorName" placeholder="강사 이름" value="${esc(f.instructorName||'')}"/>
+        </div>
+        <div class="form-group" style="max-width:160px">
+          <label>수업 횟수</label>
+          <div class="input-with-unit">
+            <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}"/>
+            <span class="input-unit">회차</span>
+          </div>
+        </div>`;
+      setTimeout(() => document.getElementById('fPLClientName')?.focus(), 80);
+      break;
+    }
+    case 'meeting': {
+      container.innerHTML = `
+        <div class="form-group">
+          <label>안건 <span class="required">*</span></label>
+          <input type="text" id="fMeetingTopic" placeholder="미팅 안건" value="${esc(f.topic||'')}"/>
+        </div>
+        <div class="form-group">
+          <label>참석자</label>
+          <input type="text" id="fMeetingAttendees" placeholder="참석자 이름 (쉼표 구분)" value="${esc(f.attendees||'')}"/>
+        </div>`;
+      setTimeout(() => document.getElementById('fMeetingTopic')?.focus(), 80);
+      break;
+    }
     default:
       container.innerHTML = '';
   }
@@ -3319,7 +3438,11 @@ function renderExtraFields(catId, ev) {
 function renderTypeBtns(activeId) {
   const wrap = document.getElementById('typeBtns');
   wrap.innerHTML = '';
-  settings.categories.forEach(cat => {
+  // 강사는 허용된 카테고리만 선택 가능
+  const visibleCats = isInstructor
+    ? settings.categories.filter(c => INSTRUCTOR_ALLOWED_CATS.includes(c.id))
+    : settings.categories;
+  visibleCats.forEach(cat => {
     const btn = document.createElement('button');
     btn.type        = 'button';
     btn.className   = 'type-btn' + (cat.id === activeId ? ' active' : '');
@@ -3400,6 +3523,7 @@ function saveEvent() {
       date, title, time, desc, type,
       extraFields: extraFields,
       createdBy:   byUser,
+      createdById: byUser.id,  // 서버 권한 체크용
       createdAt:   now,
       updatedBy:   null,
       updatedAt:   null,
@@ -3509,6 +3633,12 @@ function openSettings() {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', !isAdminMode && !isSubAdmin);
   });
+  // 강사는 카테고리 설정·백업·다크모드 섹션 숨김
+  if (isInstructor) {
+    ['sectionCategories','sectionBackup','sectionPassword','sectionAppShare','sectionSync','adminSection'].forEach(id => {
+      document.getElementById(id)?.classList.add('hidden');
+    });
+  }
   const pwSection = document.getElementById('sectionPassword');
   if (pwSection) pwSection.classList.toggle('hidden', !isAdminMode);
 
@@ -3575,9 +3705,11 @@ function logout() {
   localStorage.removeItem('cc_autologin');
   localStorage.removeItem('cc_admin_pw');
   localStorage.removeItem('cc_is_subadmin');
-  currentUser = null;
-  isAdminMode = false;
-  isSubAdmin  = false;
+  localStorage.removeItem('cc_role');
+  currentUser  = null;
+  isAdminMode  = false;
+  isSubAdmin   = false;
+  isInstructor = false;
   adminPw = '';
   syncEnabled = false;
   document.getElementById('settingsOverlay').classList.add('hidden');
@@ -3977,15 +4109,27 @@ function renderAdminUsers(users) {
   if (approved.length) {
     html += `<div class="admin-group-title" style="margin-top:16px">✅ 승인된 사용자 (${approved.length}명)</div>`;
     approved.forEach(u => {
-      const dt        = u.approvedAt ? formatShortDateTime(u.approvedAt) : '';
-      const hasAdmin  = u.role === 'admin';
-      const roleBadge = hasAdmin ? `<span class="role-badge-admin">👑 관리자</span>` : '';
-      // 관리자 지정/해제 버튼: 슈퍼 관리자 또는 서브 관리자 모두 표시
-      const adminBtn  = (isAdminMode || isSubAdmin)
-        ? (hasAdmin
-            ? `<button class="btn-revoke-admin" onclick="revokeUserAdmin('${u.id}')">권한 해제</button>`
-            : `<button class="btn-grant-admin"  onclick="grantUserAdmin('${u.id}')">관리자 지정</button>`)
+      const dt           = u.approvedAt ? formatShortDateTime(u.approvedAt) : '';
+      const hasAdmin     = u.role === 'admin';
+      const hasInstructor = u.role === 'instructor';
+      const roleBadge    = hasAdmin
+        ? `<span class="role-badge-admin">👑 관리자</span>`
+        : hasInstructor
+        ? `<span class="role-badge-instructor">🧑‍🏫 강사</span>`
         : '';
+      // 역할 지정/해제 버튼: 슈퍼 관리자 또는 서브 관리자 표시
+      let adminBtn = '';
+      if (isAdminMode || isSubAdmin) {
+        if (hasAdmin) {
+          adminBtn = `<button class="btn-revoke-admin" onclick="revokeUserAdmin('${u.id}')">관리자 해제</button>`;
+        } else if (hasInstructor) {
+          adminBtn = `<button class="btn-grant-admin" onclick="grantUserAdmin('${u.id}')">관리자 지정</button>
+                      <button class="btn-revoke-admin" onclick="revokeUserInstructor('${u.id}')">강사 해제</button>`;
+        } else {
+          adminBtn = `<button class="btn-grant-admin" onclick="grantUserAdmin('${u.id}')">관리자 지정</button>
+                      <button class="btn-grant-instructor" onclick="grantUserInstructor('${u.id}')">강사 지정</button>`;
+        }
+      }
       // PIN 재설정 버튼 (PIN이 있는 사용자만 — username 있으면 표시)
       const pinResetBtn = u.username
         ? `<button class="btn-reset-pin" onclick="openPinResetModal('${u.id}', '${esc(u.name)}')">🔑 PIN 재설정</button>`
@@ -4067,6 +4211,30 @@ async function revokeUserAdmin(id) {
       headers: adminHeaders(),
     });
     if (resp.ok) { showToast('관리자 권한이 해제되었습니다.'); loadAdminUsers(); }
+    else { const d = await resp.json().catch(() => ({})); showToast(d.message || '권한 해제 실패'); }
+  } catch { showToast('서버 오류'); }
+}
+
+async function grantUserInstructor(id) {
+  if (!confirm('이 사용자를 강사로 지정할까요?\n강사는 체험수업·리뷰체험·개인레슨·미팅·대강 카테고리에만 접근할 수 있습니다.')) return;
+  try {
+    const resp = await fetch('/api/admin/users/' + id + '/grant-instructor', {
+      method:  'POST',
+      headers: adminHeaders(),
+    });
+    if (resp.ok) { showToast('✅ 강사로 지정되었습니다.'); loadAdminUsers(); }
+    else { const d = await resp.json().catch(() => ({})); showToast(d.message || '강사 지정 실패'); }
+  } catch { showToast('서버 오류'); }
+}
+
+async function revokeUserInstructor(id) {
+  if (!confirm('이 사용자의 강사 권한을 해제할까요?')) return;
+  try {
+    const resp = await fetch('/api/admin/users/' + id + '/revoke-instructor', {
+      method:  'POST',
+      headers: adminHeaders(),
+    });
+    if (resp.ok) { showToast('강사 권한이 해제되었습니다.'); loadAdminUsers(); }
     else { const d = await resp.json().catch(() => ({})); showToast(d.message || '권한 해제 실패'); }
   } catch { showToast('서버 오류'); }
 }
