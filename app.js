@@ -3433,17 +3433,11 @@ function renderExtraFields(catId, ev) {
           <label>담당 강사</label>
           <input type="text" id="fPLInstructorName" placeholder="강사 이름" value="${esc(f.instructorName||'')}"/>
         </div>
-        <div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:14px">
-          <div class="form-group" style="margin-bottom:0;width:140px;flex-shrink:0">
-            <label>수업 횟수</label>
-            <div style="display:flex;align-items:center;gap:8px">
-              <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}" style="width:90px;flex-shrink:0"/>
-              <span style="font-size:13px;color:var(--text-sub);white-space:nowrap">회차</span>
-            </div>
-          </div>
-          <div style="display:flex;align-items:flex-end;padding-bottom:10px;flex:1">
-            <div class="radio-group">${roomRadios}</div>
-          </div>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">
+          <label style="white-space:nowrap;font-size:14px;font-weight:500;flex-shrink:0">수업 횟수</label>
+          <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}" style="width:90px;flex-shrink:0"/>
+          <span style="font-size:13px;color:var(--text-sub);white-space:nowrap;flex-shrink:0">회차</span>
+          <div class="radio-group" style="margin:0">${roomRadios}</div>
         </div>`;
       // 메모 영역을 수업 내용으로 전환
       const fDesc2 = document.getElementById('fDesc');
