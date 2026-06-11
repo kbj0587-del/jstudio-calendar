@@ -3433,9 +3433,10 @@ function renderExtraFields(catId, ev) {
           <label>담당 강사</label>
           <input type="text" id="fPLInstructorName" placeholder="강사 이름" value="${esc(f.instructorName||'')}"/>
         </div>
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">
-          <label style="white-space:nowrap;font-size:14px;font-weight:500;flex-shrink:0">수업 횟수</label>
-          <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}" style="width:90px;flex-shrink:0"/>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <label style="white-space:nowrap;font-size:13px;font-weight:500;flex-shrink:0;color:var(--text)">수업 횟수</label>
+          <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}"
+            style="width:80px;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;outline:none"/>
           <span style="font-size:13px;color:var(--text-sub);white-space:nowrap;flex-shrink:0">회차</span>
           <div class="radio-group" style="margin:0">${roomRadios}</div>
         </div>`;
