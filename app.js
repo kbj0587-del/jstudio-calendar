@@ -3434,16 +3434,15 @@ function renderExtraFields(catId, ev) {
           <input type="text" id="fPLInstructorName" placeholder="강사 이름" value="${esc(f.instructorName||'')}"/>
         </div>
         <div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:14px">
-          <div class="form-group" style="margin-bottom:0;width:110px;flex-shrink:0">
+          <div class="form-group" style="margin-bottom:0;width:140px;flex-shrink:0">
             <label>수업 횟수</label>
-            <div style="display:flex;align-items:center;gap:6px">
-              <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}" style="width:68px;flex-shrink:0"/>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}" style="width:90px;flex-shrink:0"/>
               <span style="font-size:13px;color:var(--text-sub);white-space:nowrap">회차</span>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom:0;flex:1">
-            <label>룸 선택</label>
-            <div class="radio-group" style="margin-top:10px">${roomRadios}</div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:10px;flex:1">
+            <div class="radio-group">${roomRadios}</div>
           </div>
         </div>`;
       // 메모 영역을 수업 내용으로 전환
