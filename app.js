@@ -3414,7 +3414,7 @@ function renderExtraFields(catId, ev) {
     }
 
     case 'personallesson': {
-      const rooms = ['1룸','2룸','3룸','4룸'];
+      const rooms = ['메인룸','개인레슨룸'];
       const roomRadios = rooms.map(r =>
         `<label class="radio-label">
           <input type="radio" name="fPLRoom" value="${r}" ${f.room === r ? 'checked' : ''}/>
