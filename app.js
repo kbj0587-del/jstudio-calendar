@@ -324,7 +324,6 @@ function collectExtraFields(type) {
       f.clientName     = document.getElementById('fPLClientName')?.value.trim() || '';
       f.instructorName = document.getElementById('fPLInstructorName')?.value.trim() || '';
       f.sessionCount   = Number(document.getElementById('fPLSessionCount')?.value) || 0;
-      f.lessonContent  = document.getElementById('fPLLessonContent')?.value.trim() || '';
       f.room           = document.querySelector('input[name="fPLRoom"]:checked')?.value || '';
       break;
     case 'meeting':
@@ -920,10 +919,6 @@ function getExtraDetailHtml(ev) {
           ${f.room ? `<div class="detail-extra-row">
             <span class="detail-extra-label">룸</span>
             <span class="detail-extra-val">${esc(f.room)}</span>
-          </div>` : ''}
-          ${f.lessonContent ? `<div class="detail-extra-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-            <span class="detail-extra-label">수업 내용</span>
-            <span class="detail-extra-val" style="white-space:pre-wrap;word-break:break-all">${esc(f.lessonContent)}</span>
           </div>` : ''}
         </div>`;
     case 'meeting':
@@ -2697,6 +2692,14 @@ function renderExtraFields(catId, ev) {
   if (titleGroup) titleGroup.style.display = isSystem ? 'none' : '';
   if (!container) return;
 
+  // personallesson 외 카테고리에서는 메모 라벨/placeholder 기본값 복원
+  if (catId !== 'personallesson') {
+    const fDescEl = document.getElementById('fDesc');
+    if (fDescEl) fDescEl.dataset.placeholder = '메모를 입력하세요…';
+    const fDescLbl = document.getElementById('fDescLabel');
+    if (fDescLbl) fDescLbl.textContent = '메모';
+  }
+
   if (!isSystem) { container.innerHTML = ''; return; }
 
   switch (catId) {
@@ -3422,29 +3425,30 @@ function renderExtraFields(catId, ev) {
         </label>`
       ).join('');
       container.innerHTML = `
-        <div class="form-group">
+        <div class="form-group" style="margin-bottom:14px">
           <label>수강생 이름 <span class="required">*</span></label>
           <input type="text" id="fPLClientName" placeholder="수강생 이름" value="${esc(f.clientName||'')}"/>
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin-bottom:14px">
           <label>담당 강사</label>
           <input type="text" id="fPLInstructorName" placeholder="강사 이름" value="${esc(f.instructorName||'')}"/>
         </div>
-        <div class="form-group" style="max-width:160px">
+        <div class="form-group" style="margin-bottom:14px">
+          <label>룸 선택</label>
+          <div class="radio-group">${roomRadios}</div>
+        </div>
+        <div class="form-group" style="max-width:160px;margin-bottom:4px">
           <label>수업 횟수</label>
           <div class="input-with-unit">
             <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}"/>
             <span class="input-unit">회차</span>
           </div>
-        </div>
-        <div class="form-group">
-          <label>룸 선택</label>
-          <div class="radio-group">${roomRadios}</div>
-        </div>
-        <div class="form-group">
-          <label>수업 내용</label>
-          <textarea id="fPLLessonContent" placeholder="수업 내용을 입력하세요" rows="3" style="width:100%;resize:vertical">${esc(f.lessonContent||'')}</textarea>
         </div>`;
+      // 메모 영역을 수업 내용으로 전환
+      const fDesc2 = document.getElementById('fDesc');
+      if (fDesc2) fDesc2.dataset.placeholder = '수업 내용을 입력하세요…';
+      const fDescLabel2 = document.getElementById('fDescLabel');
+      if (fDescLabel2) fDescLabel2.textContent = '수업 내용';
       setTimeout(() => document.getElementById('fPLClientName')?.focus(), 80);
       break;
     }
