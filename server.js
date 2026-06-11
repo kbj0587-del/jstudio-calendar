@@ -150,7 +150,8 @@ let store = {
   activityLog:       [],      // 활동 기록
   categories:        DEFAULT_CATS,
   darkMode:          false,
-  incentiveDefaults: { trialAmount: 10000, consultRate: 5 }, // 인센티브 기본값
+  incentiveDefaults:    { trialAmount: 10000, consultRate: 5 }, // 인센티브 기본값
+  instructorAllowedCats: null, // null = DEFAULT (INSTRUCTOR_ALLOWED_CATS)
 };
 
 // ── DB 초기화 및 데이터 로드 (서버 시작 시 1회) ─────
@@ -349,7 +350,8 @@ function isInstructor(req) {
 
 // 강사용 이벤트 필터링: 비허용 카테고리 제거, 허용 카테고리 내 금융 필드 제거
 function filterEventForInstructor(ev) {
-  if (!INSTRUCTOR_ALLOWED_CATS.includes(ev.type)) return null;
+  const allowedCats = store.instructorAllowedCats || INSTRUCTOR_ALLOWED_CATS;
+  if (!allowedCats.includes(ev.type)) return null;
   if (ev.type === 'trial') {
     const { trialFee, personCount, trialTotal, linkedRegistration, linkedIncentive, ...safe } = ev.extraFields || {};
     return { ...ev, extraFields: safe };
@@ -454,14 +456,37 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
   res.json({ users: store.users });
 });
 
-// 사용자 승인
+// 사용자 승인 (role 선택 포함)
 app.post('/api/admin/users/:id/approve', requireAdmin, (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   user.status     = 'approved';
   user.approvedAt = new Date().toISOString();
+  const { role } = req.body;
+  if (role && ['user','instructor','admin'].includes(role)) {
+    user.role = role;
+  }
   saveToFile();
   res.json({ ok: true, user });
+});
+
+// 강사 카테고리 노출 설정 조회
+app.get('/api/admin/category-visibility', requireAdmin, (req, res) => {
+  res.json({
+    instructorAllowedCats: store.instructorAllowedCats || INSTRUCTOR_ALLOWED_CATS,
+    defaultCats: INSTRUCTOR_ALLOWED_CATS,
+    allSystemCats: SYSTEM_CAT_IDS,
+  });
+});
+
+// 강사 카테고리 노출 설정 저장
+app.post('/api/admin/category-visibility', requireAdmin, (req, res) => {
+  const { instructorAllowedCats } = req.body;
+  if (!Array.isArray(instructorAllowedCats))
+    return res.status(400).json({ error: 'invalid', message: 'instructorAllowedCats must be array' });
+  store.instructorAllowedCats = instructorAllowedCats;
+  saveToFile();
+  res.json({ ok: true, instructorAllowedCats: store.instructorAllowedCats });
 });
 
 // 사용자 거절
@@ -702,11 +727,12 @@ app.get('/api/sync', requireAccess, (req, res) => {
   }
 
   res.json({
-    events:       filteredEvents,
-    categories:   store.categories,
-    darkMode:     store.darkMode,
-    pendingCount: (isAdmin(req) || isSubAdmin(req)) ? pendingCount : 0,
+    events:               filteredEvents,
+    categories:           store.categories,
+    darkMode:             store.darkMode,
+    pendingCount:         (isAdmin(req) || isSubAdmin(req)) ? pendingCount : 0,
     role,
+    instructorAllowedCats: store.instructorAllowedCats || INSTRUCTOR_ALLOWED_CATS,
   });
 });
 
@@ -717,10 +743,11 @@ app.post('/api/sync/events', requireAccess, (req, res) => {
     const uid = req.headers['x-user-id'];
     const incoming = events || [];
     // 강사는 비허용 카테고리를 받지 못했으므로 서버에서 보호
-    const adminOnly = store.events.filter(ev => !INSTRUCTOR_ALLOWED_CATS.includes(ev.type));
+    const allowedCats = store.instructorAllowedCats || INSTRUCTOR_ALLOWED_CATS;
+    const adminOnly = store.events.filter(ev => !allowedCats.includes(ev.type));
     // 허용 카테고리 중 다른 강사 개인레슨은 수정 불가
     const othersPL = store.events.filter(ev => ev.type === 'personallesson' && ev.createdById !== uid);
-    const incomingAllowed = incoming.filter(ev => INSTRUCTOR_ALLOWED_CATS.includes(ev.type) && !(ev.type === 'personallesson' && ev.createdById && ev.createdById !== uid));
+    const incomingAllowed = incoming.filter(ev => allowedCats.includes(ev.type) && !(ev.type === 'personallesson' && ev.createdById && ev.createdById !== uid));
     store.events = [...adminOnly, ...othersPL, ...incomingAllowed.filter(ev => !othersPL.find(o => o.id === ev.id))];
   } else {
     store.events = events || [];

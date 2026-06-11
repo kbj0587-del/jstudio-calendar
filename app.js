@@ -8,6 +8,7 @@ const SYSTEM_CAT_IDS = ['daeggang','incentive','trial','review','classnoshow','s
 const STATUS_CAT_IDS = ['trial','review','consult'];
 // 강사에게 허용되는 카테고리
 const INSTRUCTOR_ALLOWED_CATS = ['trial','review','personallesson','meeting','daeggang'];
+let dynamicInstructorCats = [...INSTRUCTOR_ALLOWED_CATS]; // 서버 설정으로 덮어씀
 
 const DEFAULT_CATS = [
   { id: 'daeggang',      name: '대강',      color: '#e07b20', system: true },
@@ -323,6 +324,8 @@ function collectExtraFields(type) {
       f.clientName     = document.getElementById('fPLClientName')?.value.trim() || '';
       f.instructorName = document.getElementById('fPLInstructorName')?.value.trim() || '';
       f.sessionCount   = Number(document.getElementById('fPLSessionCount')?.value) || 0;
+      f.lessonContent  = document.getElementById('fPLLessonContent')?.value.trim() || '';
+      f.room           = document.querySelector('input[name="fPLRoom"]:checked')?.value || '';
       break;
     case 'meeting':
       f.topic     = document.getElementById('fMeetingTopic')?.value.trim() || '';
@@ -388,7 +391,8 @@ function autoTitle(type, f) {
       const name  = f.clientName || '개인레슨';
       const inst  = f.instructorName ? ` · ${f.instructorName}` : '';
       const cnt   = f.sessionCount ? ` ${f.sessionCount}회` : '';
-      return `${name}${inst}${cnt}`;
+      const rm    = f.room ? ` [${f.room}]` : '';
+      return `${name}${inst}${cnt}${rm}`;
     }
     case 'meeting':
       return f.topic || '미팅';
@@ -445,7 +449,8 @@ function getChipText(ev) {
     case 'personallesson': {
       const name = f.clientName || ev.title;
       const inst = f.instructorName ? ` · ${f.instructorName}` : '';
-      return `${name}${inst}`;
+      const rm   = f.room ? ` [${f.room}]` : '';
+      return `${name}${inst}${rm}`;
     }
     case 'meeting':
       return f.topic || ev.title;
@@ -536,7 +541,8 @@ function getExtraSummaryHtml(ev) {
       if (!f.clientName && !f.instructorName) return '';
       const inst = f.instructorName ? ` | ${esc(f.instructorName)}` : '';
       const cnt  = f.sessionCount ? ` | ${f.sessionCount}회` : '';
-      return `<div class="lv-extra-info">🧑‍🏫 ${esc(f.clientName||'-')}${inst}${cnt}</div>`;
+      const rm   = f.room ? ` | ${esc(f.room)}` : '';
+      return `<div class="lv-extra-info">🧑‍🏫 ${esc(f.clientName||'-')}${inst}${cnt}${rm}</div>`;
     }
     case 'meeting': {
       if (!f.topic && !f.attendees) return '';
@@ -911,6 +917,14 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-label">수업 횟수</span>
             <span class="detail-extra-val">${f.sessionCount}회</span>
           </div>` : ''}
+          ${f.room ? `<div class="detail-extra-row">
+            <span class="detail-extra-label">룸</span>
+            <span class="detail-extra-val">${esc(f.room)}</span>
+          </div>` : ''}
+          ${f.lessonContent ? `<div class="detail-extra-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+            <span class="detail-extra-label">수업 내용</span>
+            <span class="detail-extra-val" style="white-space:pre-wrap;word-break:break-all">${esc(f.lessonContent)}</span>
+          </div>` : ''}
         </div>`;
     case 'meeting':
       return `
@@ -1179,6 +1193,7 @@ async function launchApp() {
               events = data2.events || [];
               settings.categories = data2.categories || settings.categories;
               settings.darkMode   = data2.darkMode   ?? settings.darkMode;
+              if (data2.instructorAllowedCats) dynamicInstructorCats = data2.instructorAllowedCats;
               ensureSystemCats(); // 재로그인 후에도 시스템 카테고리 보장
               localStorage.setItem('cc_events', JSON.stringify(events));
               saveSettings(); applyTheme(settings.darkMode);
@@ -1219,6 +1234,7 @@ async function launchApp() {
       events = data.events || [];
       settings.categories = data.categories || settings.categories;
       settings.darkMode   = data.darkMode   ?? settings.darkMode;
+      if (data.instructorAllowedCats) dynamicInstructorCats = data.instructorAllowedCats;
       ensureSystemCats(); // 서버 데이터로 덮어쓴 뒤에도 시스템 카테고리 보장
 
       if ((isAdminMode || isSubAdmin) && data.pendingCount > 0) {
@@ -3398,6 +3414,13 @@ function renderExtraFields(catId, ev) {
     }
 
     case 'personallesson': {
+      const rooms = ['1룸','2룸','3룸','4룸'];
+      const roomRadios = rooms.map(r =>
+        `<label class="radio-label">
+          <input type="radio" name="fPLRoom" value="${r}" ${f.room === r ? 'checked' : ''}/>
+          ${r}
+        </label>`
+      ).join('');
       container.innerHTML = `
         <div class="form-group">
           <label>수강생 이름 <span class="required">*</span></label>
@@ -3413,6 +3436,14 @@ function renderExtraFields(catId, ev) {
             <input type="number" id="fPLSessionCount" placeholder="0" min="1" step="1" value="${f.sessionCount||''}"/>
             <span class="input-unit">회차</span>
           </div>
+        </div>
+        <div class="form-group">
+          <label>룸 선택</label>
+          <div class="radio-group">${roomRadios}</div>
+        </div>
+        <div class="form-group">
+          <label>수업 내용</label>
+          <textarea id="fPLLessonContent" placeholder="수업 내용을 입력하세요" rows="3" style="width:100%;resize:vertical">${esc(f.lessonContent||'')}</textarea>
         </div>`;
       setTimeout(() => document.getElementById('fPLClientName')?.focus(), 80);
       break;
@@ -3440,7 +3471,7 @@ function renderTypeBtns(activeId) {
   wrap.innerHTML = '';
   // 강사는 허용된 카테고리만 선택 가능
   const visibleCats = isInstructor
-    ? settings.categories.filter(c => INSTRUCTOR_ALLOWED_CATS.includes(c.id))
+    ? settings.categories.filter(c => dynamicInstructorCats.includes(c.id))
     : settings.categories;
   visibleCats.forEach(cat => {
     const btn = document.createElement('button');
@@ -3975,14 +4006,15 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tab)
   );
-  ['Users','Invites','Activity','Server'].forEach(name => {
+  ['Users','Invites','Activity','Roleconfig','Server'].forEach(name => {
     const el = document.getElementById('adminTab' + name);
     if (el) el.classList.toggle('hidden', name.toLowerCase() !== tab);
   });
 
-  if (tab === 'users')    loadAdminUsers();
-  if (tab === 'activity') loadAdminActivity();
-  if (tab === 'server')   loadServerStatus();
+  if (tab === 'users')      loadAdminUsers();
+  if (tab === 'activity')   loadAdminActivity();
+  if (tab === 'server')     loadServerStatus();
+  if (tab === 'roleconfig') loadCategoryVisibility();
 }
 
 async function loadServerStatus() {
@@ -4156,15 +4188,33 @@ function renderAdminUsers(users) {
   container.innerHTML = html;
 }
 
-async function approveUser(id) {
-  try {
-    const resp = await fetch('/api/admin/users/' + id + '/approve', {
-      method:  'POST',
-      headers: adminHeaders(),
-    });
-    if (resp.ok) { showToast('승인되었습니다.'); loadAdminUsers(); }
-    else showToast('승인 실패');
-  } catch { showToast('서버 오류'); }
+function approveUser(id) {
+  const modal = document.getElementById('approveRoleModal');
+  if (!modal) return;
+  // 기본값 초기화
+  const radios = modal.querySelectorAll('input[name="approveRole"]');
+  radios.forEach(r => { r.checked = r.value === 'user'; });
+  modal.classList.remove('hidden');
+
+  const confirmBtn = document.getElementById('btnApproveRoleConfirm');
+  const cancelBtn  = document.getElementById('btnApproveRoleCancel');
+
+  const cleanup = () => modal.classList.add('hidden');
+
+  confirmBtn.onclick = async () => {
+    const role = modal.querySelector('input[name="approveRole"]:checked')?.value || 'user';
+    cleanup();
+    try {
+      const resp = await fetch('/api/admin/users/' + id + '/approve', {
+        method:  'POST',
+        headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      if (resp.ok) { showToast('승인되었습니다.'); loadAdminUsers(); }
+      else showToast('승인 실패');
+    } catch { showToast('서버 오류'); }
+  };
+  cancelBtn.onclick = cleanup;
 }
 
 async function rejectUser(id) {
@@ -4418,6 +4468,40 @@ async function submitPinChange() {
     errEl.classList.remove('hidden');
   }
   btn.disabled = false; btn.textContent = 'PIN 변경';
+}
+
+async function loadCategoryVisibility() {
+  const container = document.getElementById('roleconfigCatList');
+  if (!container) return;
+  container.innerHTML = '<p class="setting-hint">불러오는 중…</p>';
+  try {
+    const resp = await fetch('/api/admin/category-visibility', { headers: adminHeaders() });
+    if (!resp.ok) { container.innerHTML = '<p class="setting-hint">불러오기 실패</p>'; return; }
+    const data = await resp.json();
+    const allowed = data.instructorAllowedCats || [];
+    const allCats = settings.categories;
+    container.innerHTML = allCats.map(cat => `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;cursor:pointer">
+        <input type="checkbox" data-cat-id="${cat.id}" ${allowed.includes(cat.id) ? 'checked' : ''}
+               style="width:16px;height:16px;accent-color:${cat.color}"/>
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cat.color};flex-shrink:0"></span>
+        <span>${esc(cat.name)}</span>
+      </label>
+    `).join('');
+    document.getElementById('btnSaveCategoryVisibility')?.addEventListener('click', async () => {
+      const checked = [...container.querySelectorAll('input[type=checkbox]:checked')]
+        .map(cb => cb.dataset.catId);
+      const r = await fetch('/api/admin/category-visibility', {
+        method: 'POST',
+        headers: { ...adminHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instructorAllowedCats: checked }),
+      });
+      if (r.ok) {
+        dynamicInstructorCats = checked;
+        showToast('✅ 강사 카테고리 설정이 저장되었습니다.');
+      } else showToast('저장 실패');
+    }, { once: true });
+  } catch { container.innerHTML = '<p class="setting-hint">오류 발생</p>'; }
 }
 
 async function loadAdminActivity() {

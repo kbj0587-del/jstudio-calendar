@@ -1077,6 +1077,7 @@ body {
   cursor: pointer; font-size: 14px; font-weight: 500;
 }
 .radio-label input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
+.radio-group { display: flex; flex-wrap: wrap; gap: 10px; padding: 4px 0; }
 .input-with-unit {
   display: flex; align-items: center; gap: 8px;
 }
