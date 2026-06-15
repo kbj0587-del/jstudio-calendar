@@ -425,7 +425,8 @@ function getChipText(ev) {
       const ns   = f.noshow ? ' ⚠노쇼' : '';
       const res  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅') : '';
       const st   = f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '';
-      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res + st;
+      const reg  = f.linkedRegistration ? ' ✅체험>등록' : '';
+      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res + st + reg;
     }
     case 'review':
       return (f.clientName || ev.title)
@@ -434,7 +435,8 @@ function getChipText(ev) {
         + (f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '');
     case 'consult':
       return (f.clientName || ev.title)
-        + (f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '');
+        + (f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '')
+        + (f.linkedRegistration ? ' ✅상담>등록' : '');
     case 'classnoshow': {
       const sName = f.studentName || ev.title;
       const cls   = f.className ? ` (${f.className})` : '';
@@ -501,7 +503,7 @@ function getExtraSummaryHtml(ev) {
       const cnt     = f.personCount || 1;
       const cntStr  = cnt > 1 ? ` | ${cnt}명` : '';
       const feeStr  = f.trialTotal > 0 ? ` | ${f.trialTotal.toLocaleString()}원` : '';
-      const regTag  = f.linkedRegistration ? ` <span class="lv-reg-tag">✅등록</span>` : '';
+      const regTag  = f.linkedRegistration ? ` <span class="lv-reg-tag">✅체험&gt;등록</span>` : '';
       const incTag  = f.linkedIncentive ? ` <span class="lv-inc-tag">💜인센티브</span>` : '';
       return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${cntStr}${feeStr}${noshow}${regTag}${incTag}</div>`;
     }
@@ -514,7 +516,7 @@ function getExtraSummaryHtml(ev) {
     case 'consult': {
       if (!f.clientName && !f.clientContact && !f.linkedRegistration) return '';
       const contact  = f.clientContact ? ` | ${esc(f.clientContact)}` : '';
-      const regTag   = f.linkedRegistration ? ` <span class="lv-reg-tag">✅등록</span>` : '';
+      const regTag   = f.linkedRegistration ? ` <span class="lv-reg-tag">✅상담&gt;등록</span>` : '';
       const incTag   = f.linkedIncentive ? ` <span class="lv-inc-tag">💜인센티브</span>` : '';
       return `<div class="lv-extra-info">🗣 ${esc(f.clientName||'-')}${contact}${regTag}${incTag}</div>`;
     }
