@@ -268,14 +268,11 @@ function migrateSalesPersonalLesson() {
 // ── 저장 (fire-and-forget) ──────────────────────────
 function saveToFile() {
   if (USE_DB && pool) {
-    pool.query(
+    return pool.query(
       'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
       [JSON.stringify(store)]
-    ).then(() => {
-      // 저장 성공 (필요 시 로깅: console.log('💾 DB 저장 완료');)
-    }).catch(e => {
+    ).catch(e => {
       console.error('❌ DB 저장 실패:', e.message);
-      // 비상 파일 백업 시도
       try {
         fs.writeFileSync(DATA_FILE + '.emergency', JSON.stringify(store), 'utf8');
         console.log('📁 비상 파일 백업 저장됨');
@@ -284,6 +281,7 @@ function saveToFile() {
   } else {
     try { fs.writeFileSync(DATA_FILE, JSON.stringify(store), 'utf8'); }
     catch (e) { console.error('파일 저장 실패:', e.message); }
+    return Promise.resolve();
   }
 }
 
@@ -394,7 +392,7 @@ app.use((req, res, next) => {
 // ════════════════════════════════════════════════════
 
 // 회원가입 요청
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { name, username, pin } = req.body;
   if (!name?.trim())     return res.status(400).json({ error: 'name_required',     message: '이름을 입력해주세요.' });
   if (!username?.trim()) return res.status(400).json({ error: 'username_required', message: '아이디를 입력해주세요.' });
@@ -418,7 +416,7 @@ app.post('/api/auth/register', (req, res) => {
     approvedAt:   null,
   };
   store.users.push(newUser);
-  saveToFile();
+  await saveToFile();
   console.log(`✅ 신규 가입 요청: ${newUser.name} (@${uname})`);
   res.json({ ok: true, user: { id: newUser.id, name: newUser.name, status: newUser.status } });
 });
@@ -457,7 +455,7 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
 });
 
 // 사용자 승인 (role 선택 포함)
-app.post('/api/admin/users/:id/approve', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:id/approve', requireAdmin, async (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   user.status     = 'approved';
@@ -466,7 +464,7 @@ app.post('/api/admin/users/:id/approve', requireAdmin, (req, res) => {
   if (role && ['user','instructor','admin'].includes(role)) {
     user.role = role;
   }
-  saveToFile();
+  await saveToFile();
   res.json({ ok: true, user });
 });
 
@@ -480,74 +478,74 @@ app.get('/api/admin/category-visibility', requireAdmin, (req, res) => {
 });
 
 // 강사 카테고리 노출 설정 저장
-app.post('/api/admin/category-visibility', requireAdmin, (req, res) => {
+app.post('/api/admin/category-visibility', requireAdmin, async (req, res) => {
   const { instructorAllowedCats } = req.body;
   if (!Array.isArray(instructorAllowedCats))
     return res.status(400).json({ error: 'invalid', message: 'instructorAllowedCats must be array' });
   store.instructorAllowedCats = instructorAllowedCats;
-  saveToFile();
+  await saveToFile();
   res.json({ ok: true, instructorAllowedCats: store.instructorAllowedCats });
 });
 
 // 사용자 거절
-app.post('/api/admin/users/:id/reject', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:id/reject', requireAdmin, async (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   user.status     = 'rejected';
   user.rejectedAt = new Date().toISOString();
-  saveToFile();
+  await saveToFile();
   res.json({ ok: true, user });
 });
 
 // 사용자 삭제
-app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
   const idx = store.users.findIndex(u => u.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'not_found' });
   store.users.splice(idx, 1);
-  saveToFile();
+  await saveToFile();
   res.json({ ok: true });
 });
 
 // 관리자 권한 부여 (관리자 이상)
-app.post('/api/admin/users/:id/grant-admin', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:id/grant-admin', requireAdmin, async (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   if (user.status !== 'approved')
     return res.status(400).json({ error: 'not_approved', message: '승인된 사용자에게만 관리자 권한을 부여할 수 있습니다.' });
   user.role = 'admin';
-  saveToFile();
+  await saveToFile();
   console.log(`✅ 관리자 권한 부여: ${user.name} (@${user.username})`);
   res.json({ ok: true, user });
 });
 
 // 관리자 권한 해제 (관리자 이상)
-app.post('/api/admin/users/:id/revoke-admin', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:id/revoke-admin', requireAdmin, async (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   user.role = 'user';
-  saveToFile();
+  await saveToFile();
   console.log(`✅ 관리자 권한 해제: ${user.name} (@${user.username})`);
   res.json({ ok: true, user });
 });
 
 // 강사 지정
-app.post('/api/admin/users/:id/grant-instructor', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:id/grant-instructor', requireAdmin, async (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   if (user.status !== 'approved')
     return res.status(400).json({ error: 'not_approved', message: '승인된 사용자에게만 강사 권한을 부여할 수 있습니다.' });
   user.role = 'instructor';
-  saveToFile();
+  await saveToFile();
   console.log(`✅ 강사 권한 부여: ${user.name} (@${user.username})`);
   res.json({ ok: true, user });
 });
 
 // 강사 해제
-app.post('/api/admin/users/:id/revoke-instructor', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:id/revoke-instructor', requireAdmin, async (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
   user.role = 'user';
-  saveToFile();
+  await saveToFile();
   console.log(`✅ 강사 권한 해제: ${user.name} (@${user.username})`);
   res.json({ ok: true, user });
 });
@@ -565,7 +563,7 @@ app.get('/api/admin/activity', requireAdmin, (req, res) => {
 // ════════════════════════════════════════════════════
 
 // 초대장 생성 (관리자)
-app.post('/api/admin/invites/generate', requireAdmin, (req, res) => {
+app.post('/api/admin/invites/generate', requireAdmin, async (req, res) => {
   const token = generateToken();
   const invite = {
     token,
@@ -582,7 +580,7 @@ app.post('/api/admin/invites/generate', requireAdmin, (req, res) => {
     const recentDone = store.invites.filter(i => i.status !== 'active').slice(-30);
     store.invites = [...active, ...recentDone];
   }
-  saveToFile();
+  await saveToFile();
   res.json({ ok: true, invite });
 });
 
@@ -595,12 +593,12 @@ app.get('/api/admin/invites', requireAdmin, (req, res) => {
 });
 
 // 초대장 취소 (관리자)
-app.delete('/api/admin/invites/:token', requireAdmin, (req, res) => {
+app.delete('/api/admin/invites/:token', requireAdmin, async (req, res) => {
   const invite = store.invites.find(i => i.token === req.params.token);
   if (!invite) return res.status(404).json({ error: 'not_found' });
   if (invite.status !== 'active') return res.status(400).json({ error: 'already_done' });
   invite.status = 'cancelled';
-  saveToFile();
+  await saveToFile();
   res.json({ ok: true });
 });
 
@@ -618,7 +616,7 @@ app.get('/api/invite/validate/:token', (req, res) => {
 // ════════════════════════════════════════════════════
 
 // 이름 + 초대 토큰으로 등록 요청
-app.post('/api/invite/register', (req, res) => {
+app.post('/api/invite/register', async (req, res) => {
   const { name, token: inviteToken, userId } = req.body;
 
   if (!name || !name.trim())
@@ -657,7 +655,7 @@ app.post('/api/invite/register', (req, res) => {
   invite.usedByName = newUser.name;
   invite.usedAt    = new Date().toISOString();
 
-  saveToFile();
+  await saveToFile();
   console.log(`✅ 신규 사용자 등록: ${newUser.name} (토큰 ${inviteToken} 만료)`);
   res.json({ ok: true, user: newUser });
 });
@@ -672,7 +670,7 @@ app.get('/api/user/:id/status', (req, res) => {
 // ════════════════════════════════════════════════════
 // 관리자 PIN 강제 재설정
 // ════════════════════════════════════════════════════
-app.post('/api/admin/users/:id/reset-pin', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:id/reset-pin', requireAdmin, async (req, res) => {
   const user = store.users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: 'not_found' });
 
@@ -682,7 +680,7 @@ app.post('/api/admin/users/:id/reset-pin', requireAdmin, (req, res) => {
 
   user.pinHash      = hashPin(String(newPin));
   user.pinChangedAt = new Date().toISOString();
-  saveToFile();
+  await saveToFile();
   console.log(`✅ 관리자가 PIN 재설정: ${user.name} (@${user.username})`);
   res.json({ ok: true });
 });
@@ -690,7 +688,7 @@ app.post('/api/admin/users/:id/reset-pin', requireAdmin, (req, res) => {
 // ════════════════════════════════════════════════════
 // 사용자 PIN 변경
 // ════════════════════════════════════════════════════
-app.post('/api/user/change-pin', (req, res) => {
+app.post('/api/user/change-pin', async (req, res) => {
   const uid = req.headers['x-user-id'];
   if (!uid) return res.status(401).json({ error: 'unauthorized' });
   const user = store.users.find(u => u.id === uid);
@@ -706,7 +704,7 @@ app.post('/api/user/change-pin', (req, res) => {
 
   user.pinHash      = hashPin(String(newPin));
   user.pinChangedAt = new Date().toISOString();
-  saveToFile();
+  await saveToFile();
   console.log(`✅ PIN 변경: ${user.name} (@${user.username})`);
   res.json({ ok: true });
 });
@@ -736,7 +734,7 @@ app.get('/api/sync', requireAccess, (req, res) => {
   });
 });
 
-app.post('/api/sync/events', requireAccess, (req, res) => {
+app.post('/api/sync/events', requireAccess, async (req, res) => {
   const { events, action, changedEvent, detail } = req.body;
 
   if (isInstructor(req)) {
@@ -774,11 +772,11 @@ app.post('/api/sync/events', requireAccess, (req, res) => {
       store.activityLog = store.activityLog.slice(0, 500);
   }
 
-  saveToFile();
+  await saveToFile();
   res.json({ ok: true });
 });
 
-app.post('/api/sync/settings', requireAccess, (req, res) => {
+app.post('/api/sync/settings', requireAccess, async (req, res) => {
   const { categories, darkMode } = req.body;
   if (categories !== undefined) {
     store.categories = categories;
@@ -796,7 +794,7 @@ app.post('/api/sync/settings', requireAccess, (req, res) => {
     });
   }
   if (darkMode !== undefined) store.darkMode = darkMode;
-  saveToFile();
+  await saveToFile();
   res.json({ ok: true });
 });
 
@@ -1049,7 +1047,7 @@ app.get('/api/admin/incentive-defaults', requireAccess, (req, res) => {
 });
 
 // 인센티브 기본값 변경 (관리자 전용)
-app.post('/api/admin/incentive-defaults', requireAdmin, (req, res) => {
+app.post('/api/admin/incentive-defaults', requireAdmin, async (req, res) => {
   const { trialAmount, consultRate } = req.body;
   if (!store.incentiveDefaults) store.incentiveDefaults = { trialAmount: 10000, consultRate: 5 };
   if (trialAmount !== undefined) {
@@ -1060,7 +1058,7 @@ app.post('/api/admin/incentive-defaults', requireAdmin, (req, res) => {
     const rate = Number(consultRate);
     if (!isNaN(rate) && rate >= 0 && rate <= 100) store.incentiveDefaults.consultRate = rate;
   }
-  saveToFile();
+  await saveToFile();
   console.log(`✅ 인센티브 기본값 업데이트: 체험 ${store.incentiveDefaults.trialAmount}원, 상담 ${store.incentiveDefaults.consultRate}%`);
   res.json({ ok: true, defaults: store.incentiveDefaults });
 });
