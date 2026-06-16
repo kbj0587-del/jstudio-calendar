@@ -242,7 +242,7 @@ async function initStore() {
 }
 
 // ── sales 내 개인레슨 → personallesson 마이그레이션 ─
-function migrateSalesPersonalLesson() {
+async function migrateSalesPersonalLesson() {
   let changed = false;
   store.events = store.events.map(ev => {
     if (ev.type === 'sales' && ev.extraFields?.lessonType === '개인레슨') {
@@ -261,7 +261,7 @@ function migrateSalesPersonalLesson() {
   });
   if (changed) {
     console.log('📦 sales→personallesson 마이그레이션 완료');
-    saveToFile();
+    await saveToFile(); // DB 저장 완료까지 대기
   }
 }
 
@@ -744,8 +744,10 @@ app.post('/api/sync/events', requireAccess, async (req, res) => {
     const allowedCats = store.instructorAllowedCats || INSTRUCTOR_ALLOWED_CATS;
     const adminOnly = store.events.filter(ev => !allowedCats.includes(ev.type));
     // 허용 카테고리 중 다른 강사 개인레슨은 수정 불가
-    const othersPL = store.events.filter(ev => ev.type === 'personallesson' && ev.createdById !== uid);
-    const incomingAllowed = incoming.filter(ev => allowedCats.includes(ev.type) && !(ev.type === 'personallesson' && ev.createdById && ev.createdById !== uid));
+    // createdById 없는 이벤트(마이그레이션된 구 데이터)는 본인 이벤트로 허용
+    const isOthersPL = ev => ev.type === 'personallesson' && ev.createdById && ev.createdById !== uid;
+    const othersPL = store.events.filter(isOthersPL);
+    const incomingAllowed = incoming.filter(ev => allowedCats.includes(ev.type) && !isOthersPL(ev));
     store.events = [...adminOnly, ...othersPL, ...incomingAllowed.filter(ev => !othersPL.find(o => o.id === ev.id))];
   } else {
     store.events = events || [];
