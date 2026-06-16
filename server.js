@@ -204,8 +204,8 @@ async function initStore() {
             existing.system = true;
           }
         });
-        // sales 내 개인레슨 데이터 → personallesson 카테고리로 마이그레이션
-        migrateSalesPersonalLesson();
+        // 마이그레이션 완료 — 비활성화 (2026-06-16)
+        // migrateSalesPersonalLesson();
         console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명 | 카테고리 ${store.categories.length}개`);
       } else {
         await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
