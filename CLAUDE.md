@@ -69,6 +69,21 @@ STATUS_CAT_IDS = ['trial','review','consult']  // 취소/변경 상태 지원
 - 기본 관리자: `@kbj0587` / ADMIN_PASSWORD 환경변수
 - Vercel 환경변수: DATABASE_URL, ADMIN_PASSWORD
 
+## ⚠️ 마이그레이션 관련 주의사항 (2026-06-16)
+
+### 비활성화된 함수: `migrateSalesPersonalLesson()`
+- **위치**: server.js line ~208 (호출부 주석처리됨), line ~245 (함수 정의)
+- **이전 동작**: `initStore()` 실행 시마다 `type=sales + extraFields.lessonType=개인레슨` 이벤트를 `personallesson`으로 자동 변환
+- **Vercel TTL 5초** → 매 요청마다 실행 → 사용자가 `sales`로 수정해도 5초 내 다시 롤백
+- **데이터 손상**: 변환 시 extraFields를 `{clientName, sessionCount, migratedFrom:'sales'}`만 남기고 나머지(regType, lessonType, payment, freq, duration) 전부 삭제됨
+- **해결**: 호출 라인 주석처리로 완전 비활성화. 구형 sales→personallesson 마이그레이션은 이미 완료.
+- **재활성화 금지**: 이 함수를 다시 활성화하면 정상 등록된 `sales+lessonType=개인레슨` 이벤트가 모두 손상됨
+
+### `personallesson` vs `sales` 카테고리 구분
+- `personallesson`: 수업 일정 기록용 (수강생·강사·횟수·룸)
+- `sales`: 매출/등록 기록용 (고객명·등록구분·수업유형·횟수·금액)
+- 두 카테고리는 별개이며 자동 변환 로직 없음
+
 ## Google Play 등록 진행 중
 - 개발자 계정 등록 완료 (본인 확인 검토 중)
 - 승인 후 PWABuilder로 APK 생성 예정
