@@ -2637,14 +2637,12 @@ async function saveQuickMemo() {
       changedEvent: changedEv,
       detail:       `${changedEv.title} (${changedEv.date})`,
     };
-    syncTimer = setTimeout(async () => {
-      try {
-        await apiPost('/api/sync/events', payload);
-        setSyncStatus('online', '✅ 동기화됨');
-      } catch {
-        setSyncStatus('offline', '⚠️ 동기화 실패');
-      }
-    }, 300);
+    try {
+      await apiPost('/api/sync/events', payload);
+      setSyncStatus('online', '✅ 동기화됨');
+    } catch {
+      setSyncStatus('offline', '⚠️ 동기화 실패');
+    }
   }
 
   renderCurrentView();   // 달력/리스트 뷰 갱신
@@ -3507,7 +3505,7 @@ function getActiveTypeId() {
 }
 
 /** 일정 저장 */
-function saveEvent() {
+async function saveEvent() {
   const date     = document.getElementById('fDate').value;
   const time     = document.getElementById('fTime').value;
   const type     = getActiveTypeId();
@@ -3581,20 +3579,18 @@ function saveEvent() {
       changedEvent: changedEv,
       detail: `${title} (${date})`,
     };
-    syncTimer = setTimeout(async () => {
-      try {
-        await apiPost('/api/sync/events', payload);
-        setSyncStatus('online', '✅ 동기화됨');
-      } catch {
-        setSyncStatus('offline', '⚠️ 동기화 실패');
-      }
-    }, 300);
+    try {
+      await apiPost('/api/sync/events', payload);
+      setSyncStatus('online', '✅ 동기화됨');
+    } catch {
+      setSyncStatus('offline', '⚠️ 동기화 실패');
+    }
   }
   renderCurrentView();
 }
 
 /** 현재 상세 중인 일정 삭제 */
-function deleteCurrentEvent() {
+async function deleteCurrentEvent() {
   if (!viewingEventId) return;
   if (!confirm('이 일정을 삭제할까요?')) return;
 
@@ -3616,14 +3612,12 @@ function deleteCurrentEvent() {
       changedEvent: deletedEv,
       detail:       `${deletedEv.title} (${deletedEv.date})`,
     };
-    syncTimer = setTimeout(async () => {
-      try {
-        await apiPost('/api/sync/events', payload);
-        setSyncStatus('online', '✅ 동기화됨');
-      } catch {
-        setSyncStatus('offline', '⚠️ 동기화 실패');
-      }
-    }, 300);
+    try {
+      await apiPost('/api/sync/events', payload);
+      setSyncStatus('online', '✅ 동기화됨');
+    } catch {
+      setSyncStatus('offline', '⚠️ 동기화 실패');
+    }
   }
 }
 
