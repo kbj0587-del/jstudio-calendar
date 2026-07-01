@@ -272,7 +272,7 @@ function collectExtraFields(type) {
         if (trialIncLink?.checked) {
           f.linkedIncentive = {
             staffName:  document.getElementById('fTrialLinkedStaff')?.value.trim() || '',
-            memberName: document.getElementById('fTrialLinkedMember')?.value.trim() || '',
+            memberName: f.clientName || '',
             amt:        parseAmt('fTrialLinkedIncAmt'),
           };
         } else { delete f.linkedIncentive; }
@@ -306,13 +306,27 @@ function collectExtraFields(type) {
         };
         const consultIncLink = document.getElementById('fConsultIncLink');
         if (consultIncLink?.checked) {
+          const rRaw  = document.getElementById('fConsultLinkedRate')?.value;
+          const cRate = (rRaw === '' || rRaw == null) ? incentiveDefaults.consultRate : Number(rRaw);
           f.linkedIncentive = {
             staffName:  document.getElementById('fConsultLinkedStaff')?.value.trim() || '',
-            memberName: document.getElementById('fConsultLinkedMember')?.value.trim() || '',
-            amt:        parseAmt('fConsultLinkedIncAmt'),
+            memberName: f.clientName || '',
+            rate:       cRate,
+            amt:        Math.round((f.linkedRegistration?.payment || 0) * cRate / 100),
           };
         } else { delete f.linkedIncentive; }
       } else { delete f.linkedRegistration; delete f.linkedIncentive; }
+      // 상담 후 체험 (등록과 독립)
+      const consultTrialLink = document.getElementById('fConsultTrialLink');
+      if (consultTrialLink?.checked) {
+        const ctFee = parseAmt('fConsultTrialFee');
+        const ctCnt = Math.max(1, Number(document.getElementById('fConsultTrialPersonCount')?.value) || 1);
+        f.linkedTrial = {
+          trialFee:    ctFee,
+          personCount: ctCnt,
+          trialTotal:  ctFee * ctCnt,
+        };
+      } else { delete f.linkedTrial; }
       break;
     }
     case 'classnoshow':
@@ -436,7 +450,8 @@ function getChipText(ev) {
     case 'consult':
       return (f.clientName || ev.title)
         + (f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '')
-        + (f.linkedRegistration ? ' ✅상담>등록' : '');
+        + (f.linkedRegistration ? ' ✅상담>등록' : '')
+        + (f.linkedTrial ? ' 🧘상담>체험' : '');
     case 'classnoshow': {
       const sName = f.studentName || ev.title;
       const cls   = f.className ? ` (${f.className})` : '';
@@ -514,11 +529,12 @@ function getExtraSummaryHtml(ev) {
       return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${noshow}</div>`;
     }
     case 'consult': {
-      if (!f.clientName && !f.clientContact && !f.linkedRegistration) return '';
+      if (!f.clientName && !f.clientContact && !f.linkedRegistration && !f.linkedTrial) return '';
       const contact  = f.clientContact ? ` | ${esc(f.clientContact)}` : '';
       const regTag   = f.linkedRegistration ? ` <span class="lv-reg-tag">✅상담&gt;등록</span>` : '';
+      const trialTag = f.linkedTrial ? ` <span class="lv-reg-tag">🧘상담&gt;체험</span>` : '';
       const incTag   = f.linkedIncentive ? ` <span class="lv-inc-tag">💜인센티브</span>` : '';
-      return `<div class="lv-extra-info">🗣 ${esc(f.clientName||'-')}${contact}${regTag}${incTag}</div>`;
+      return `<div class="lv-extra-info">🗣 ${esc(f.clientName||'-')}${contact}${regTag}${trialTag}${incTag}</div>`;
     }
     case 'classnoshow': {
       if (!f.studentName && !f.className) return '';
@@ -803,8 +819,8 @@ function getExtraDetailHtml(ev) {
               <span class="detail-extra-val">${esc(f.linkedIncentive.memberName||'-')}</span>
             </div>
             <div class="detail-extra-row">
-              <span class="detail-extra-label">인센티브 금액</span>
-              <span class="detail-extra-val detail-amt"><strong>${f.linkedIncentive.amt ? Number(f.linkedIncentive.amt).toLocaleString()+'원' : '-'}</strong></span>
+              <span class="detail-extra-label">인센티브</span>
+              <span class="detail-extra-val detail-amt">${f.linkedIncentive.rate !== undefined ? esc(String(f.linkedIncentive.rate))+'% · ' : ''}<strong>${f.linkedIncentive.amt ? Number(f.linkedIncentive.amt).toLocaleString()+'원' : '-'}</strong></span>
             </div>
           </div>` : '';
         return `
@@ -828,6 +844,14 @@ function getExtraDetailHtml(ev) {
             </div>
           </div>${incHtml}`;
       })() : '';
+      const consultTrialHtml = f.linkedTrial ? `
+          <div class="detail-extra-section">
+            <div class="detail-label">🧘 상담 후 체험 (상담&gt;체험)</div>
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">체험비</span>
+              <span class="detail-extra-val detail-amt">${Number(f.linkedTrial.trialFee||0).toLocaleString()}원 × ${f.linkedTrial.personCount||1}명 = <strong>${Number(f.linkedTrial.trialTotal || (f.linkedTrial.trialFee||0)*(f.linkedTrial.personCount||1)).toLocaleString()}원</strong></span>
+            </div>
+          </div>` : '';
       return `
         <div class="detail-extra-section">
           <div class="detail-label">상담 정보</div>
@@ -844,7 +868,7 @@ function getExtraDetailHtml(ev) {
             <span class="detail-extra-label">일정 상태</span>
             <span class="detail-extra-val">${getStatusBadge(f.status)}</span>
           </div>` : ''}
-        </div>${consultLinkedHtml}`;
+        </div>${consultLinkedHtml}${consultTrialHtml}`;
     }
     case 'classnoshow':
       return `
@@ -1822,8 +1846,12 @@ function renderSalesSummary(monthStr) {
     (ev.type === 'trial' || ev.type === 'consult') &&
     ev.date.startsWith(monthStr) && ev.extraFields?.linkedRegistration
   );
+  // 상담에서 체험이 연결된 이벤트 (상담>체험)
+  const trialLinkedEvents = events.filter(ev =>
+    ev.type === 'consult' && ev.date.startsWith(monthStr) && ev.extraFields?.linkedTrial
+  );
 
-  if (!salesEvents.length && !trialEvents.length && !linkedEvents.length && !regLinkedEvents.length) return '';
+  if (!salesEvents.length && !trialEvents.length && !linkedEvents.length && !regLinkedEvents.length && !trialLinkedEvents.length) return '';
 
   // 날짜순 통합 정렬
   const allItems = [
@@ -1831,6 +1859,7 @@ function renderSalesSummary(monthStr) {
     ...trialEvents.map(ev => ({ ...ev, _kind: 'trial' })),
     ...linkedEvents.map(ev => ({ ...ev, _kind: 'linked' })),
     ...regLinkedEvents.map(ev => ({ ...ev, _kind: 'reglinked' })),
+    ...trialLinkedEvents.map(ev => ({ ...ev, _kind: 'trlinked' })),
   ].sort((a, b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
 
   const bodyId = `acc-sales-${monthStr}`;
@@ -1844,6 +1873,10 @@ function renderSalesSummary(monthStr) {
   });
   linkedEvents.forEach(ev => { grandTotal += Number(ev.extraFields?.linkedSales?.payment) || 0; });
   regLinkedEvents.forEach(ev => { grandTotal += Number(ev.extraFields?.linkedRegistration?.payment) || 0; });
+  trialLinkedEvents.forEach(ev => {
+    const lt = ev.extraFields.linkedTrial;
+    grandTotal += Number(lt.trialTotal) || (Number(lt.trialFee) * (Number(lt.personCount) || 1));
+  });
 
   // 구분별 소계 문자열
   const byRegType = {};
@@ -1855,6 +1888,7 @@ function renderSalesSummary(monthStr) {
   if (trialEvents.length)     salesParts.push(`체험 ${trialEvents.length}건`);
   if (linkedEvents.length)    salesParts.push(`연동등록 ${linkedEvents.length}건`);
   if (regLinkedEvents.length) salesParts.push(`상담/체험등록 ${regLinkedEvents.length}건`);
+  if (trialLinkedEvents.length) salesParts.push(`상담>체험 ${trialLinkedEvents.length}건`);
   const typeSummary = salesParts.join(' · ');
 
   // 행 생성
@@ -1913,7 +1947,7 @@ function renderSalesSummary(monthStr) {
           </span>
           <span class="ms-sales-pay">${pay}</span>
         </div>`;
-    } else {
+    } else if (item._kind === 'reglinked') {
       // 체험수업/상담 등록 연동 매출
       const lr    = f.linkedRegistration || {};
       const badge = item.type === 'consult' ? '상담>등록' : '체험>등록';
@@ -1932,6 +1966,23 @@ function renderSalesSummary(monthStr) {
             <span class="sales-badge sales-badge--linked">${esc(badge)}</span>
             <span class="sales-badge sales-badge--${regBadge}">${esc(regBadge)}</span>
             ${mem ? `<span class="ms-sales-mem">${esc(mem)}</span>` : ''}
+          </span>
+          <span class="ms-sales-pay">${pay}</span>
+        </div>`;
+    } else {
+      // 상담 후 체험 연동 매출 (상담>체험)
+      const lt     = f.linkedTrial || {};
+      const cnt    = Number(lt.personCount) || 1;
+      const total  = Number(lt.trialTotal) || (Number(lt.trialFee) * cnt);
+      const pay    = total > 0 ? total.toLocaleString()+'원' : '-';
+      const cntStr = cnt > 1 ? ` · ${cnt}명` : '';
+      rows += `
+        <div class="ms-row ms-row--sales ms-row-clickable" onclick="openDayModalFromList('${item.date}','${item.id}')">
+          <span class="ms-date">${Number(ed)}일(${dow})</span>
+          <span class="ms-content">
+            <span class="ms-sales-name">${esc(f.clientName||'-')}</span>
+            <span class="sales-badge sales-badge--linked">상담&gt;체험</span>
+            ${cntStr ? `<span class="ms-sales-mem">${esc(cntStr)}</span>` : ''}
           </span>
           <span class="ms-sales-pay">${pay}</span>
         </div>`;
@@ -3068,14 +3119,11 @@ function renderExtraFields(catId, ev) {
               <label>담당 강사</label>
               <input type="text" id="fTrialLinkedStaff" placeholder="강사 이름" value="${esc(f.linkedIncentive?.staffName||'')}"/>
             </div>
+            <div class="inc-sales-note">💡 회원 이름은 체험자 이름(<span id="trialIncMemberName">${esc(f.clientName||'-')}</span>)이 자동 적용됩니다</div>
             <div class="form-group">
-              <label>회원 이름</label>
-              <input type="text" id="fTrialLinkedMember" placeholder="회원 이름" value="${esc(f.linkedIncentive?.memberName||'')}"/>
-            </div>
-            <div class="form-group">
-              <label>인센티브 금액</label>
+              <label>인센티브 금액 (정액)</label>
               <div class="input-with-unit">
-                <input type="text" inputmode="numeric" id="fTrialLinkedIncAmt" placeholder="0" value="${fmtAmt(f.linkedIncentive?.amt||'')}"/>
+                <input type="text" inputmode="numeric" id="fTrialLinkedIncAmt" placeholder="${fmtAmt(incentiveDefaults.trialAmount)}" value="${fmtAmt(f.linkedIncentive ? (f.linkedIncentive.amt || 0) : incentiveDefaults.trialAmount)}"/>
                 <span class="input-unit">원</span>
               </div>
             </div>
@@ -3108,7 +3156,16 @@ function renderExtraFields(catId, ev) {
       // 인센티브 토글
       document.getElementById('fTrialIncLink')?.addEventListener('change', e => {
         document.getElementById('trialIncFields').style.display = e.target.checked ? '' : 'none';
-        if (e.target.checked) setTimeout(() => document.getElementById('fTrialLinkedStaff')?.focus(), 50);
+        if (e.target.checked) {
+          const amtEl = document.getElementById('fTrialLinkedIncAmt');
+          if (amtEl && !parseAmt('fTrialLinkedIncAmt')) amtEl.value = fmtAmt(incentiveDefaults.trialAmount);
+          setTimeout(() => document.getElementById('fTrialLinkedStaff')?.focus(), 50);
+        }
+      });
+      // 회원 이름 자동 반영(체험자 이름 → 인센티브 회원명 표시)
+      document.getElementById('fClientName')?.addEventListener('input', e => {
+        const el = document.getElementById('trialIncMemberName');
+        if (el) el.textContent = e.target.value.trim() || '-';
       });
       // 수업유형 전환
       container.querySelectorAll('input[name="trialLinkedLessonType"]').forEach(r => {
@@ -3255,18 +3312,43 @@ function renderExtraFields(catId, ev) {
               <label>담당 강사</label>
               <input type="text" id="fConsultLinkedStaff" placeholder="강사 이름" value="${esc(f.linkedIncentive?.staffName||'')}"/>
             </div>
+            <div class="inc-sales-note">💡 회원 이름은 상담자 이름(<span id="consultIncMemberName">${esc(f.clientName||'-')}</span>)이 자동 적용됩니다</div>
             <div class="form-group">
-              <label>회원 이름</label>
-              <input type="text" id="fConsultLinkedMember" placeholder="회원 이름" value="${esc(f.linkedIncentive?.memberName||'')}"/>
+              <label>인센티브 비율 (결제금액 기준)</label>
+              <div class="input-with-unit" style="max-width:130px">
+                <input type="number" id="fConsultLinkedRate" min="0" max="100" step="0.5" placeholder="${incentiveDefaults.consultRate}" value="${f.linkedIncentive?.rate !== undefined ? f.linkedIncentive.rate : incentiveDefaults.consultRate}"/>
+                <span class="input-unit">%</span>
+              </div>
             </div>
+            <div class="incentive-calc-info" id="consultIncCalcInfo"></div>
+          </div>
+        </div>
+        <div class="inc-sales-divider"></div>
+        <div class="form-group" style="margin-bottom:4px">
+          <label class="inc-sales-toggle-label">
+            <input type="checkbox" id="fConsultTrialLink" ${f.linkedTrial ? 'checked' : ''}/>
+            <span>🧘 상담 후 체험 등록</span>
+          </label>
+        </div>
+        <div id="consultTrialFields" style="display:${f.linkedTrial ? '' : 'none'}">
+          <div class="inc-sales-note">체험비는 매출 현황에 함께 합산됩니다 (상담&gt;체험)</div>
+          <div class="form-row">
             <div class="form-group">
-              <label>인센티브 금액</label>
+              <label>체험비 (결제금액)</label>
               <div class="input-with-unit">
-                <input type="text" inputmode="numeric" id="fConsultLinkedIncAmt" placeholder="0" value="${fmtAmt(f.linkedIncentive?.amt||'')}"/>
+                <input type="text" inputmode="numeric" id="fConsultTrialFee" placeholder="35,000" value="${fmtAmt(f.linkedTrial ? (f.linkedTrial.trialFee ?? 35000) : 35000)}"/>
                 <span class="input-unit">원</span>
               </div>
             </div>
+            <div class="form-group" style="max-width:110px">
+              <label>인원</label>
+              <div class="input-with-unit">
+                <input type="number" id="fConsultTrialPersonCount" placeholder="1" min="1" step="1" value="${f.linkedTrial?.personCount || 1}"/>
+                <span class="input-unit">명</span>
+              </div>
+            </div>
           </div>
+          <div class="incentive-calc-info" id="consultTrialCalcInfo"></div>
         </div>`;
       initTelInput('fClientContact');
       bindStatusRadios(container);
@@ -3275,11 +3357,64 @@ function renderExtraFields(catId, ev) {
       document.getElementById('fConsultRegLink')?.addEventListener('change', e => {
         document.getElementById('consultRegFields').style.display = e.target.checked ? '' : 'none';
       });
+      // 상담 인센티브 자동계산 (결제금액 × 비율)
+      const updateConsultIncCalc = () => {
+        const el = document.getElementById('consultIncCalcInfo');
+        if (!el) return;
+        const pay  = parseAmt('fConsultLinkedPayment');
+        const rRaw = document.getElementById('fConsultLinkedRate')?.value;
+        const rate = (rRaw === '' || rRaw == null) ? incentiveDefaults.consultRate : Number(rRaw);
+        if (pay > 0) {
+          const calc = Math.round(pay * rate / 100);
+          el.innerHTML = `<span class="calc-rate">${pay.toLocaleString()}원 × ${rate}% = </span><span class="calc-amt">${calc.toLocaleString()}원</span>`;
+        } else {
+          el.innerHTML = `<span class="calc-placeholder">결제 금액 입력 시 인센티브가 자동 계산됩니다</span>`;
+        }
+      };
       // 인센티브 토글
       document.getElementById('fConsultIncLink')?.addEventListener('change', e => {
         document.getElementById('consultIncFields').style.display = e.target.checked ? '' : 'none';
-        if (e.target.checked) setTimeout(() => document.getElementById('fConsultLinkedStaff')?.focus(), 50);
+        if (e.target.checked) {
+          const rEl = document.getElementById('fConsultLinkedRate');
+          if (rEl && rEl.value === '') rEl.value = incentiveDefaults.consultRate;
+          updateConsultIncCalc();
+          setTimeout(() => document.getElementById('fConsultLinkedStaff')?.focus(), 50);
+        }
       });
+      document.getElementById('fConsultLinkedRate')?.addEventListener('input', updateConsultIncCalc);
+      document.getElementById('fConsultLinkedPayment')?.addEventListener('input', updateConsultIncCalc);
+      // 회원 이름 자동 반영(상담자 이름 → 인센티브 회원명 표시)
+      document.getElementById('fClientName')?.addEventListener('input', e => {
+        const el = document.getElementById('consultIncMemberName');
+        if (el) el.textContent = e.target.value.trim() || '-';
+      });
+      if (f.linkedIncentive) updateConsultIncCalc();
+
+      // 상담 후 체험 자동계산 (체험비 × 인원)
+      const updateConsultTrialCalc = () => {
+        const el = document.getElementById('consultTrialCalcInfo');
+        if (!el) return;
+        const fee = parseAmt('fConsultTrialFee');
+        const cnt = Math.max(1, Number(document.getElementById('fConsultTrialPersonCount')?.value) || 1);
+        const tot = fee * cnt;
+        el.innerHTML = fee > 0
+          ? `<span class="calc-rate">${fee.toLocaleString()}원 × ${cnt}명 = </span><span class="calc-amt">${tot.toLocaleString()}원</span>`
+          : `<span class="calc-placeholder">체험비 입력 시 합계 표시</span>`;
+      };
+      // 상담 후 체험 토글
+      document.getElementById('fConsultTrialLink')?.addEventListener('change', e => {
+        document.getElementById('consultTrialFields').style.display = e.target.checked ? '' : 'none';
+        if (e.target.checked) {
+          const feeEl = document.getElementById('fConsultTrialFee');
+          if (feeEl && !parseAmt('fConsultTrialFee')) feeEl.value = fmtAmt(35000);
+          updateConsultTrialCalc();
+          setTimeout(() => document.getElementById('fConsultTrialFee')?.focus(), 50);
+        }
+      });
+      document.getElementById('fConsultTrialFee')?.addEventListener('input', updateConsultTrialCalc);
+      document.getElementById('fConsultTrialPersonCount')?.addEventListener('input', updateConsultTrialCalc);
+      initAmtInput('fConsultTrialFee');
+      if (f.linkedTrial) updateConsultTrialCalc();
       // 수업유형 전환
       container.querySelectorAll('input[name="consultLinkedLessonType"]').forEach(r => {
         r.addEventListener('change', () => {
@@ -3302,7 +3437,6 @@ function renderExtraFields(catId, ev) {
       });
       // 금액 포맷
       initAmtInput('fConsultLinkedPayment');
-      initAmtInput('fConsultLinkedIncAmt');
 
       setTimeout(() => document.getElementById('fClientName')?.focus(), 80);
       break;
