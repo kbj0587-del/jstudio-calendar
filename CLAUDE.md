@@ -59,9 +59,14 @@ STATUS_CAT_IDS = ['trial','review','consult']  // 취소/변경 상태 지원
 ## extraFields 구조 (카테고리별)
 - **daeggang**: instructorA, instructorB
 - **incentive**: incentiveType, staffName, memberName, incentiveAmt, linkedSales{}
-- **trial**: clientName, clientContact, noshow, reserved, reserveName, trialFee, personCount, trialTotal, status, linkedRegistration{}, linkedIncentive{}
+- **trial**: clientName, clientContact, noshow, reserved, reserveName, trialFee, personCount, trialTotal, status, linkedRegistration{}, linkedIncentive{staffName, memberName(=clientName 자동), amt(정액, 기본=incentiveDefaults.trialAmount)}
 - **review**: clientName, clientContact, noshow, reserved, reserveName, status
-- **consult**: clientName, clientContact, status, linkedRegistration{}, linkedIncentive{}
+- **consult**: clientName, clientContact, status, linkedRegistration{}, linkedIncentive{staffName, memberName(=clientName 자동), rate(%), amt(=payment×rate/100)}, linkedTrial{trialFee(기본35000), personCount, trialTotal} ← 상담>체험, 매출 합산·인센티브 없음
+
+## 인센티브 기본값 (관리자 설정)
+- `incentiveDefaults = { trialAmount:10000, consultRate:5 }` — 서버 로드, sectionIncentiveDefaults에서 관리자 설정
+- 체험>등록=정액(trialAmount) · 상담>등록=비율(consultRate) · 상담>체험=인센티브 없음
+- 체험/상담 후 등록 인센티브 폼에서 이 값이 기본값으로 자동 입력, 등록 시 조정 가능
 - **classnoshow**: studentName, studentContact, className
 - **sales**: clientName, regType, lessonType, duration, freq, sessionCount, payment
 
