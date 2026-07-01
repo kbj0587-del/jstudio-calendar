@@ -277,6 +277,11 @@ function collectExtraFields(type) {
           };
         } else { delete f.linkedIncentive; }
       } else { delete f.linkedRegistration; delete f.linkedIncentive; }
+      // 상담>체험 연결 유지 (편집 시 fromConsultId 보존)
+      {
+        const editingTrial = editingEventId ? events.find(e => e.id === editingEventId) : null;
+        if (editingTrial?.extraFields?.fromConsultId) f.fromConsultId = editingTrial.extraFields.fromConsultId;
+      }
       break;
     }
     case 'review':
@@ -325,6 +330,8 @@ function collectExtraFields(type) {
           trialFee:    ctFee,
           personCount: ctCnt,
           trialTotal:  ctFee * ctCnt,
+          date:        document.getElementById('fConsultTrialDate')?.value || '',
+          time:        document.getElementById('fConsultTrialTime')?.value || '',
         };
       } else { delete f.linkedTrial; }
       break;
@@ -439,8 +446,9 @@ function getChipText(ev) {
       const ns   = f.noshow ? ' ⚠노쇼' : '';
       const res  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅') : '';
       const st   = f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '';
+      const from = f.fromConsultId ? ' 🧘상담>체험' : '';
       const reg  = f.linkedRegistration ? ' ✅체험>등록' : '';
-      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res + st + reg;
+      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res + st + from + reg;
     }
     case 'review':
       return (f.clientName || ev.title)
@@ -518,9 +526,10 @@ function getExtraSummaryHtml(ev) {
       const cnt     = f.personCount || 1;
       const cntStr  = cnt > 1 ? ` | ${cnt}명` : '';
       const feeStr  = f.trialTotal > 0 ? ` | ${f.trialTotal.toLocaleString()}원` : '';
+      const fromTag = f.fromConsultId ? ` <span class="lv-reg-tag">🧘상담&gt;체험</span>` : '';
       const regTag  = f.linkedRegistration ? ` <span class="lv-reg-tag">✅체험&gt;등록</span>` : '';
       const incTag  = f.linkedIncentive ? ` <span class="lv-inc-tag">💜인센티브</span>` : '';
-      return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${cntStr}${feeStr}${noshow}${regTag}${incTag}</div>`;
+      return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${cntStr}${feeStr}${noshow}${fromTag}${regTag}${incTag}</div>`;
     }
     case 'review': {
       if (!f.clientName && !f.clientContact) return '';
@@ -738,6 +747,11 @@ function getExtraDetailHtml(ev) {
       return `
         <div class="detail-extra-section">
           <div class="detail-label">체험수업 정보</div>
+          ${f.fromConsultId ? `
+          <div class="detail-extra-row">
+            <span class="detail-extra-label">출처</span>
+            <span class="detail-extra-val"><span class="lv-reg-tag">🧘 상담&gt;체험 연결</span></span>
+          </div>` : ''}
           <div class="detail-extra-row">
             <span class="detail-extra-label">체험자 이름</span>
             <span class="detail-extra-val">${esc(f.clientName || '-')} ${noshowHtml}</span>
@@ -847,6 +861,11 @@ function getExtraDetailHtml(ev) {
       const consultTrialHtml = f.linkedTrial ? `
           <div class="detail-extra-section">
             <div class="detail-label">🧘 상담 후 체험 (상담&gt;체험)</div>
+            ${f.linkedTrial.date ? `
+            <div class="detail-extra-row">
+              <span class="detail-extra-label">체험 진행</span>
+              <span class="detail-extra-val"><strong>${esc(f.linkedTrial.date)}${f.linkedTrial.time ? ' ' + esc(f.linkedTrial.time) : ''}</strong></span>
+            </div>` : ''}
             <div class="detail-extra-row">
               <span class="detail-extra-label">체험비</span>
               <span class="detail-extra-val detail-amt">${Number(f.linkedTrial.trialFee||0).toLocaleString()}원 × ${f.linkedTrial.personCount||1}명 = <strong>${Number(f.linkedTrial.trialTotal || (f.linkedTrial.trialFee||0)*(f.linkedTrial.personCount||1)).toLocaleString()}원</strong></span>
@@ -3331,7 +3350,17 @@ function renderExtraFields(catId, ev) {
           </label>
         </div>
         <div id="consultTrialFields" style="display:${f.linkedTrial ? '' : 'none'}">
-          <div class="inc-sales-note">체험비는 매출 현황에 함께 합산됩니다 (상담&gt;체험)</div>
+          <div class="inc-sales-note">체험 진행 일정이 캘린더에 자동 등록됩니다 · 체험비는 매출 현황에 합산 (상담&gt;체험)</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>체험 진행일 <span class="required">*</span></label>
+              <input type="date" id="fConsultTrialDate" value="${f.linkedTrial?.date || ''}"/>
+            </div>
+            <div class="form-group" style="max-width:140px">
+              <label>시간 <span class="required">*</span></label>
+              <input type="time" id="fConsultTrialTime" value="${f.linkedTrial?.time || ''}"/>
+            </div>
+          </div>
           <div class="form-row">
             <div class="form-group">
               <label>체험비 (결제금액)</label>
@@ -3638,6 +3667,93 @@ function getActiveTypeId() {
       || settings.categories[0]?.id || 'other';
 }
 
+/**
+ * 상담>체험 동기화 (상담 → 체험)
+ * 상담 저장 시 linkedTrial에 맞춰 연결된 체험 일정을 생성/갱신하거나,
+ * 체험 연결이 해제된 경우 기존 체험 일정을 제거한다.
+ * @param {object} consultEv 방금 저장된 상담 이벤트 (events 배열 내 참조)
+ * @param {string|null} prevTrialEventId 편집 전 연결돼 있던 체험 이벤트 id
+ */
+function syncTrialFromConsult(consultEv, prevTrialEventId) {
+  const lt     = consultEv.extraFields?.linkedTrial;
+  const byUser = currentUser || { id: 'admin', name: '관리자' };
+  const now    = new Date().toISOString();
+
+  if (lt) {
+    let trialEv = null;
+    if (prevTrialEventId)      trialEv = events.find(e => e.id === prevTrialEventId);
+    if (!trialEv && lt.trialEventId) trialEv = events.find(e => e.id === lt.trialEventId);
+
+    if (trialEv) {
+      // 기존 체험 일정 갱신 (날짜·시간·이름·인원) — 체험비는 항상 0(매출은 상담에서만 집계)
+      trialEv.date = lt.date;
+      trialEv.time = lt.time;
+      trialEv.extraFields = {
+        ...trialEv.extraFields,
+        clientName:    consultEv.extraFields.clientName || trialEv.extraFields?.clientName || '',
+        personCount:   lt.personCount || 1,
+        trialFee:      0,
+        trialTotal:    0,
+        fromConsultId: consultEv.id,
+      };
+      trialEv.title     = autoTitle('trial', trialEv.extraFields);
+      trialEv.updatedBy = byUser;
+      trialEv.updatedAt = now;
+      lt.trialEventId   = trialEv.id;
+    } else {
+      // 신규 체험 일정 자동 생성
+      const newTrial = {
+        id:    crypto.randomUUID(),
+        date:  lt.date,
+        time:  lt.time,
+        type:  'trial',
+        desc:  '',
+        extraFields: {
+          clientName:    consultEv.extraFields.clientName || '',
+          clientContact: consultEv.extraFields.clientContact || '',
+          personCount:   lt.personCount || 1,
+          trialFee:      0,
+          trialTotal:    0,
+          noshow:        false,
+          reserved:      false,
+          reserveName:   '',
+          status:        '',
+          fromConsultId: consultEv.id,
+        },
+        createdBy:   byUser,
+        createdById: byUser.id,
+        createdAt:   now,
+        updatedBy:   null,
+        updatedAt:   null,
+      };
+      newTrial.title  = autoTitle('trial', newTrial.extraFields);
+      events.push(newTrial);
+      lt.trialEventId = newTrial.id;
+    }
+  } else if (prevTrialEventId) {
+    // '상담 후 체험' 해제 → 자동 생성됐던 체험 일정 제거
+    events = events.filter(e => e.id !== prevTrialEventId);
+  }
+}
+
+/**
+ * 상담>체험 동기화 (체험 → 상담)
+ * 체험 일정(fromConsultId 보유) 저장 시 연결된 상담의 linkedTrial 일정 정보를 갱신한다.
+ * 날짜·시간·인원을 반영하고 연결(trialEventId)을 유지한다.
+ */
+function syncConsultFromTrial(trialEv) {
+  const fromId = trialEv.extraFields?.fromConsultId;
+  if (!fromId) return;
+  const consultEv = events.find(e => e.id === fromId);
+  const lt = consultEv?.extraFields?.linkedTrial;
+  if (!lt) return;
+  lt.date        = trialEv.date;
+  lt.time        = trialEv.time;
+  lt.personCount = trialEv.extraFields?.personCount || 1;
+  lt.trialEventId = trialEv.id;
+  consultEv.updatedAt = new Date().toISOString();
+}
+
 /** 일정 저장 */
 async function saveEvent() {
   const date     = document.getElementById('fDate').value;
@@ -3658,15 +3774,24 @@ async function saveEvent() {
   if (!date) { showToast('날짜를 입력해주세요.'); return; }
   if (!title) { showToast('필수 항목을 입력해주세요.'); return; }
 
+  // 상담 후 체험: 진행 날짜·시간 필수
+  if (type === 'consult' && extraFields?.linkedTrial) {
+    if (!extraFields.linkedTrial.date || !extraFields.linkedTrial.time) {
+      showToast('체험 진행 날짜와 시간을 입력해주세요.'); return;
+    }
+  }
+
   const now      = new Date().toISOString();
   const byUser   = currentUser || { id: 'admin', name: '관리자' };
   let   action   = '';
   let   changedEv = null;
+  let   prevTrialEventId = null;  // 상담 편집 전 연결돼 있던 체험 일정 id
 
   if (editingEventId) {
     const idx = events.findIndex(e => e.id === editingEventId);
     if (idx !== -1) {
       const old = events[idx];
+      prevTrialEventId = old.extraFields?.linkedTrial?.trialEventId || null;
       events[idx] = {
         ...old,
         date, title, time, desc, type,
@@ -3702,6 +3827,13 @@ async function saveEvent() {
     switchDayView('list');
   }
 
+  // 상담↔체험 양방향 동기화 (자동 생성/갱신)
+  if (changedEv?.type === 'consult') {
+    syncTrialFromConsult(changedEv, prevTrialEventId);
+  } else if (changedEv?.type === 'trial' && changedEv.extraFields?.fromConsultId) {
+    syncConsultFromTrial(changedEv);
+  }
+
   // 이벤트 저장 + 활동 로그 전송
   localStorage.setItem('cc_events', JSON.stringify(events));
   if (syncEnabled) {
@@ -3726,16 +3858,44 @@ async function saveEvent() {
 /** 현재 상세 중인 일정 삭제 */
 async function deleteCurrentEvent() {
   if (!viewingEventId) return;
-  if (!confirm('이 일정을 삭제할까요?')) return;
 
   const ev = events.find(e => e.id === viewingEventId);
-  events = events.filter(e => e.id !== viewingEventId);
+  if (!ev) return;
+
+  // 상담>체험으로 연결된 체험 일정
+  const linkedTrialId = ev.type === 'consult' ? ev.extraFields?.linkedTrial?.trialEventId : null;
+  const linkedTrialEv = linkedTrialId ? events.find(e => e.id === linkedTrialId) : null;
+
+  if (!confirm('이 일정을 삭제할까요?')) return;
+
+  let alsoDeleteTrialId = null;
+  if (linkedTrialEv) {
+    if (confirm('연결된 체험 일정도 함께 삭제할까요?\n\n[확인] 체험 일정도 삭제\n[취소] 상담만 삭제 (체험 일정 유지)')) {
+      alsoDeleteTrialId = linkedTrialEv.id;
+    } else {
+      // 상담만 삭제 → 체험 일정은 유지하되 연결만 해제
+      linkedTrialEv.extraFields = { ...linkedTrialEv.extraFields };
+      delete linkedTrialEv.extraFields.fromConsultId;
+    }
+  }
+
+  // 체험 일정을 직접 삭제 → 연결된 상담의 연결 해제 (매출/상담 데이터는 유지)
+  if (ev.type === 'trial' && ev.extraFields?.fromConsultId) {
+    const consultEv = events.find(e => e.id === ev.extraFields.fromConsultId);
+    if (consultEv?.extraFields?.linkedTrial?.trialEventId === ev.id) {
+      delete consultEv.extraFields.linkedTrial.trialEventId;
+    }
+  }
+
+  const removeIds = new Set([viewingEventId]);
+  if (alsoDeleteTrialId) removeIds.add(alsoDeleteTrialId);
+  events = events.filter(e => !removeIds.has(e.id));
   const deletedEv = ev;
 
   viewingEventId = null;
   renderCurrentView();
   switchDayView('list');
-  showToast('일정이 삭제되었습니다.');
+  showToast(alsoDeleteTrialId ? '상담과 체험 일정이 삭제되었습니다.' : '일정이 삭제되었습니다.');
 
   localStorage.setItem('cc_events', JSON.stringify(events));
   if (syncEnabled && deletedEv) {
