@@ -5201,3 +5201,22 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {})
   );
 }
+
+// ── 버전 자동 감지 → 새 배포 시 자동 새로고침 ──────
+// 배포가 바뀌면 서버 버전(커밋 SHA)이 달라지고, 이전에 저장한 버전과 다르면
+// 자동으로 1회 새로고침하여 최신 코드를 받는다. (수동 새로고침 불필요)
+(async function checkAppVersion() {
+  try {
+    const res = await fetch('/api/version', { cache: 'no-store' });
+    if (!res.ok) return;
+    const { version } = await res.json();
+    if (!version) return;
+    const KEY  = 'cc_app_version';
+    const prev = localStorage.getItem(KEY);
+    localStorage.setItem(KEY, version);       // 항상 최신 버전 기록
+    if (prev && prev !== version) {
+      // 새 배포 감지 → 최신 코드로 강제 새로고침 (localStorage가 이미 갱신돼 루프 없음)
+      location.reload();
+    }
+  } catch {}
+})();

@@ -914,6 +914,15 @@ app.get('/api/holidays/:year', async (req, res) => {
 // ════════════════════════════════════════════════════
 
 // 서버 상태 확인 (누구나 접근 가능)
+// 앱 버전 — 배포마다 자동으로 바뀜(Vercel 커밋 SHA). 클라이언트가 새 배포 감지 후 자동 새로고침
+const APP_VERSION = process.env.VERCEL_GIT_COMMIT_SHA
+  || process.env.VERCEL_DEPLOYMENT_ID
+  || String(Date.now());
+app.get('/api/version', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ version: APP_VERSION });
+});
+
 app.get('/api/health', async (req, res) => {
   const info = {
     status:     'ok',

@@ -1,5 +1,5 @@
 // 서비스 워커 v3 — 캐시 없음, 모든 요청 브라우저 직접 처리
-const SW_VERSION = 3;
+const SW_VERSION = 4;
 
 self.addEventListener('install', () => {
   console.log('[SW] install v' + SW_VERSION);
