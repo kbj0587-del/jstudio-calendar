@@ -99,9 +99,19 @@ app.use(express.json({ limit: '10mb' }));
 
 // 정적 파일은 DB 초기화 없이 바로 서빙 (CSS/JS/이미지 등)
 app.use(express.static(__dirname, {
+  etag: true,
+  lastModified: true,
   setHeaders(res, filePath) {
     if (filePath.endsWith('.js'))
       res.setHeader('Content-Type', 'application/javascript');
+    // 앱 코드(html/js/css/sw/manifest)는 항상 서버 재검증 → 브라우저 재시작 시 최신 보장
+    // ETag 기반이라 변경 없으면 304(가벼움), 변경되면 200(새 파일)
+    if (/\.(html|js|css)$/.test(filePath) || filePath.endsWith('manifest.json')) {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    } else {
+      // 이미지·폰트 등 정적 자산은 캐시 허용
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
   }
 }));
 
@@ -1072,6 +1082,8 @@ app.get('/manifest.json', (req, res) => {
 });
 
 app.get('*', (req, res) => {
+  // index.html은 절대 stale 캐시를 쓰지 않도록 항상 재검증 (구버전 캐시 문제 근본 차단)
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 

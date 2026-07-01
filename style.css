@@ -877,11 +877,13 @@ body {
   padding: 9px 12px;
   font-size: 13px; font-family: inherit;
   outline: none; transition: border-color var(--tr);
+  width: 100%; min-width: 0;
 }
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus { border-color: var(--accent); }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.form-row .form-group { min-width: 0; }
 .required { color: #e03050; }
 
 /* 타입 버튼 */
@@ -1080,8 +1082,9 @@ body {
 .radio-group { display: flex; flex-wrap: wrap; gap: 10px; padding: 4px 0; }
 .input-with-unit {
   display: flex; align-items: center; gap: 8px;
+  min-width: 0;
 }
-.input-with-unit input { flex: 1; }
+.input-with-unit input { flex: 1; min-width: 0; }
 .input-unit { font-size: 13px; color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
 .noshow-check-label {
   display: inline-flex; align-items: center; gap: 8px;
