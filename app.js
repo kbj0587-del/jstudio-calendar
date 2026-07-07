@@ -446,9 +446,12 @@ function getChipText(ev) {
       const ns   = f.noshow ? ' ⚠노쇼' : '';
       const res  = f.reserved ? (f.reserveName ? ` 📅${f.reserveName}` : ' 📅') : '';
       const st   = f.status === 'cancelled' ? ' 취소' : f.status === 'changed' ? ' 변경' : '';
-      const from = f.fromConsultId ? ' 🧘상담>체험' : '';
-      const reg  = f.linkedRegistration ? ' ✅체험>등록' : '';
-      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res + st + from + reg;
+      // 프로세스 체인 배지: 상담>체험>등록 / 상담>체험 / 체험>등록
+      const chain = (f.fromConsultId && f.linkedRegistration) ? ' 🔗상담>체험>등록'
+                  : f.fromConsultId                          ? ' 🧘상담>체험'
+                  : f.linkedRegistration                     ? ' ✅체험>등록'
+                  : '';
+      return (cnt > 1 ? `${base} 外${cnt - 1}명` : base) + ns + res + st + chain;
     }
     case 'review':
       return (f.clientName || ev.title)
@@ -526,10 +529,12 @@ function getExtraSummaryHtml(ev) {
       const cnt     = f.personCount || 1;
       const cntStr  = cnt > 1 ? ` | ${cnt}명` : '';
       const feeStr  = f.trialTotal > 0 ? ` | ${f.trialTotal.toLocaleString()}원` : '';
-      const fromTag = f.fromConsultId ? ` <span class="lv-reg-tag">🧘상담&gt;체험</span>` : '';
-      const regTag  = f.linkedRegistration ? ` <span class="lv-reg-tag">✅체험&gt;등록</span>` : '';
+      const chainTag = (f.fromConsultId && f.linkedRegistration) ? ` <span class="lv-reg-tag">🔗상담&gt;체험&gt;등록</span>`
+                     : f.fromConsultId                          ? ` <span class="lv-reg-tag">🧘상담&gt;체험</span>`
+                     : f.linkedRegistration                     ? ` <span class="lv-reg-tag">✅체험&gt;등록</span>`
+                     : '';
       const incTag  = f.linkedIncentive ? ` <span class="lv-inc-tag">💜인센티브</span>` : '';
-      return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${cntStr}${feeStr}${noshow}${fromTag}${regTag}${incTag}</div>`;
+      return `<div class="lv-extra-info${f.noshow ? ' lv-extra-noshow' : ''}">👤 ${esc(f.clientName||'-')}${contact}${cntStr}${feeStr}${noshow}${chainTag}${incTag}</div>`;
     }
     case 'review': {
       if (!f.clientName && !f.clientContact) return '';
