@@ -8,6 +8,12 @@
 function registerSmsRoutes(app, deps) {
   const { getPool, isAdmin, isSubAdmin } = deps;
 
+  // Supabase Storage (mms 버킷) — anon 키는 공개용(publishable)이라 코드 상수 허용.
+  // 게이트웨이가 수신 MMS를 저장하는 것과 동일한 public 버킷을 재사용한다.
+  const SUPA_URL  = process.env.SUPABASE_URL || 'https://owoviftkszmicysxgdpa.supabase.co';
+  const SUPA_ANON = process.env.SUPABASE_ANON_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93b3ZpZnRrc3ptaWN5c3hnZHBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNDgyMTgsImV4cCI6MjA5NTkyNDIxOH0.9e4P3we-mlwXtffte1Zkx45nL5ujcN8dtgsLunAOQ9Y';
+
   // ── 공통 헬퍼 ────────────────────────────────────────────────
   const q = (sql, params) => {
     const pool = getPool();
@@ -455,6 +461,33 @@ function registerSmsRoutes(app, deps) {
     if (!r.rows.length) return res.status(404).send('링크를 찾을 수 없습니다.');
     q('UPDATE js_short_urls SET clicks = clicks + 1 WHERE code = $1', [req.params.code]).catch(() => {});
     res.redirect(302, r.rows[0].url);
+  }));
+
+  // ══════════════════════════════════════════════════════════
+  //  이미지 업로드 (MMS) — base64 수신 → Supabase mms 버킷 업로드 → 공개 URL 반환
+  // ══════════════════════════════════════════════════════════
+  app.post('/api/sms/upload-image', requireSmsAccess, wrap(async (req, res) => {
+    const { data, contentType, ext } = req.body;
+    if (!data) return res.status(400).json({ error: '이미지 데이터 없음' });
+    const buf = Buffer.from(data, 'base64');
+    if (buf.length > 5 * 1024 * 1024) return res.status(400).json({ error: '5MB 이하만 가능합니다' });
+    const safeExt = String(ext || 'jpg').replace(/[^a-z0-9]/gi, '').slice(0, 5).toLowerCase() || 'jpg';
+    const name = 'out/' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '.' + safeExt;
+    const up = await fetch(SUPA_URL + '/storage/v1/object/mms/' + name, {
+      method: 'POST',
+      headers: {
+        apikey: SUPA_ANON,
+        authorization: 'Bearer ' + SUPA_ANON,
+        'content-type': contentType || 'image/jpeg',
+        'x-upsert': 'true',
+      },
+      body: buf,
+    });
+    if (!up.ok) {
+      const t = await up.text().catch(() => '');
+      throw new Error('스토리지 업로드 실패 (' + up.status + ') ' + t.slice(0, 120));
+    }
+    res.json({ ok: true, url: SUPA_URL + '/storage/v1/object/public/mms/' + name });
   }));
 
   // 수동 tick (대시보드 폴링용)
