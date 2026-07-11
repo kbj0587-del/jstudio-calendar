@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>그룹 관리 · J.SMS</title>
+<link rel="stylesheet" href="sms.css">
+</head>
+<body>
+<div id="hdr"></div>
+<div class="wrap">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+    <div><h1 class="page-title">그룹 관리</h1><p class="page-desc" style="margin:0">회원을 그룹으로 묶어 한 번에 발송 대상으로 지정합니다.</p></div>
+    <button class="btn" onclick="openEdit()">+ 새 그룹</button>
+  </div>
+  <div id="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+</div>
+
+<script src="sms.js"></script>
+<script>
+let groups=[], members=[];
+const COLORS=['#0071e3','#34c759','#ff9500','#af52de','#ff2d55','#5ac8fa'];
+async function boot(){ renderHeader('groups'); await Promise.all([load(), loadMembers()]); }
+window.onAuthReady = boot;
+async function loadMembers(){ members = await api.get('/api/sms/members'); }
+async function load(){ groups = await api.get('/api/sms/groups'); render(); }
+
+function render(){
+  document.getElementById('grid').innerHTML = groups.map(g=>`
+    <div class="card" style="padding:18px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:14px;height:14px;border-radius:5px;background:${g.color}"></div>
+        <div style="flex:1;font-size:16px;font-weight:600">${esc(g.name)}</div>
+        <span class="badge badge-gray">${g.member_count}명</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" style="flex:1" onclick="manageMembers('${g.id}')">멤버 편집</button>
+        <button class="btn btn-ghost btn-sm" onclick='openEdit(${JSON.stringify(g).replace(/'/g,"&#39;")})'>수정</button>
+        <button class="btn btn-danger btn-sm" onclick="del('${g.id}','${esc(g.name)}')">삭제</button>
+      </div>
+    </div>`).join('') || `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted)">그룹이 없습니다. 새 그룹을 만들어보세요.</div>`;
+}
+
+function openEdit(g){
+  g=g||{};
+  openModal(`
+    <h3>${g.id?'그룹 수정':'새 그룹'}</h3>
+    <div><label class="lbl">그룹명 *</label><input id="g_name" class="inp" value="${esc(g.name||'')}"></div>
+    <div><label class="lbl">색상</label><div id="g_colors" style="display:flex;gap:8px">
+      ${COLORS.map(c=>`<div onclick="pickColor('${c}')" data-c="${c}" style="width:30px;height:30px;border-radius:8px;background:${c};cursor:pointer;border:2px solid ${(g.color||COLORS[0])===c?'var(--text)':'transparent'}"></div>`).join('')}
+    </div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn" onclick="save('${g.id||''}')">저장</button>
+    </div>`);
+  window._color = g.color||COLORS[0];
+}
+function pickColor(c){ window._color=c; document.querySelectorAll('#g_colors [data-c]').forEach(el=>el.style.border='2px solid '+(el.dataset.c===c?'var(--text)':'transparent')); }
+async function save(id){
+  const name=document.getElementById('g_name').value.trim();
+  if(!name)return toast('그룹명을 입력하세요');
+  const body={name,color:window._color};
+  try{ if(id) await api.put('/api/sms/groups/'+id,body); else await api.post('/api/sms/groups',body);
+    closeModal(); await load(); toast('저장 완료'); }catch(e){ toast(e.message); }
+}
+async function del(id,name){ if(!confirm(`'${name}' 그룹을 삭제할까요? (회원은 삭제되지 않습니다)`))return;
+  await api.del('/api/sms/groups/'+id); await load(); toast('삭제 완료'); }
+
+async function manageMembers(gid){
+  const inGroup = await api.get('/api/sms/groups/'+gid+'/members');
+  const set = new Set(inGroup.map(m=>m.id));
+  window._gset = set; window._gid = gid;
+  openModal(`
+    <h3>멤버 편집</h3>
+    <input class="inp" placeholder="이름·번호 검색" oninput="filterMM(this.value)">
+    <div id="mmList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn" onclick="saveMembers()">저장 (<span id="mmCount">${set.size}</span>명)</button>
+    </div>`);
+  renderMM('');
+}
+function renderMM(term){
+  const set=window._gset;
+  const list=members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+  document.getElementById('mmList').innerHTML = list.map(m=>`
+    <div class="contact-row" onclick="toggleMM('${m.id}')">
+      <div class="check ${set.has(m.id)?'on':''}">${set.has(m.id)?'✓':''}</div>
+      <div class="avatar" style="width:26px;height:26px;font-size:11px;background:${avatarColor(m.name)}">${initial(m.name)}</div>
+      <div style="flex:1;font-size:13.5px;font-weight:500">${esc(m.name)}</div>
+      <span style="font-size:12px;color:var(--muted)">${esc(fmtPhone(m.phone))}</span>
+    </div>`).join('');
+}
+function filterMM(v){ renderMM(v.trim()); }
+function toggleMM(id){ const s=window._gset; s.has(id)?s.delete(id):s.add(id); document.getElementById('mmCount').textContent=s.size; renderMM(document.querySelector('#modalHost input').value.trim()); }
+async function saveMembers(){
+  await api.post('/api/sms/groups/'+window._gid+'/members',{ member_ids:[...window._gset] });
+  closeModal(); await load(); toast('멤버 저장 완료');
+}
+boot();
+</script>
+</body>
+</html>

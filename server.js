@@ -1090,6 +1090,14 @@ app.get('/manifest.json', (req, res) => {
   res.sendFile(path.join(__dirname, 'manifest.json'));
 });
 
+// ── J.SMS 메시지 발송센터 라우트 (/api/sms/*, /s/:code) ──
+const { registerSmsRoutes } = require('./sms-api');
+registerSmsRoutes(app, {
+  getPool:    () => pool,
+  isAdmin,
+  isSubAdmin,
+});
+
 app.get('*', (req, res) => {
   // index.html은 절대 stale 캐시를 쓰지 않도록 항상 재검증 (구버전 캐시 문제 근본 차단)
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

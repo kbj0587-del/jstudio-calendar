@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>연락처 관리 · J.SMS</title>
+<link rel="stylesheet" href="sms.css">
+</head>
+<body>
+<div id="hdr"></div>
+<div class="wrap">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+    <div><h1 class="page-title">연락처 관리</h1><p class="page-desc" style="margin:0">회원 정보를 등록·수정하고 그룹으로 분류합니다.</p></div>
+    <div style="display:flex;gap:8px">
+      <input id="searchInp" class="inp" style="width:220px" placeholder="이름·번호 검색" oninput="render()">
+      <button class="btn" onclick="openEdit()">+ 새 연락처</button>
+    </div>
+  </div>
+  <div class="card" style="padding:6px 6px 2px">
+    <div class="tbl-scroll">
+      <table class="tbl">
+        <thead><tr><th>이름</th><th>연락처</th><th>프로그램</th><th>상태</th><th>잔여</th><th>만료일</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="count" style="font-size:12.5px;color:var(--muted);margin-top:12px"></div>
+</div>
+
+<script src="sms.js"></script>
+<script>
+let members = [];
+const GROUP_LABELS = { active:'활동중', warning:'만료임박', expired:'만료', instructor:'강사', new:'신규' };
+const GROUP_BADGE = { active:'badge-green', warning:'badge-orange', expired:'badge-red', instructor:'badge-gray', new:'badge-gray' };
+
+async function boot(){ renderHeader('contacts'); await load(); }
+window.onAuthReady = boot;
+async function load(){ members = await api.get('/api/sms/members'); render(); }
+
+function render(){
+  const term=(document.getElementById('searchInp').value||'').trim();
+  const list=members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+  document.getElementById('rows').innerHTML = list.map(m=>`
+    <tr>
+      <td><div style="display:flex;align-items:center;gap:10px">
+        <div class="avatar" style="width:30px;height:30px;font-size:12px;background:${avatarColor(m.name)}">${initial(m.name)}</div>
+        <span style="font-weight:600">${esc(m.name)}</span>
+        ${m.blocked?'<span class="badge badge-red">수신거부</span>':''}
+      </div></td>
+      <td>${esc(fmtPhone(m.phone))}</td>
+      <td style="color:var(--muted2)">${esc(m.program||'-')}</td>
+      <td><span class="badge ${GROUP_BADGE[m.group_type]||'badge-gray'}">${GROUP_LABELS[m.group_type]||m.group_type||'-'}</span></td>
+      <td>${m.remaining??'-'}</td>
+      <td style="color:var(--muted2)">${m.end_date||'-'}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick='openEdit(${JSON.stringify(m).replace(/'/g,"&#39;")})'>수정</button>
+        <button class="btn btn-danger btn-sm" onclick="del('${m.id}','${esc(m.name)}')">삭제</button>
+      </td>
+    </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">연락처가 없습니다.</td></tr>`;
+  document.getElementById('count').textContent = `총 ${members.length}명`;
+}
+
+function openEdit(m){
+  m = m || {};
+  openModal(`
+    <h3>${m.id?'연락처 수정':'새 연락처'}</h3>
+    <div><label class="lbl">이름 *</label><input id="e_name" class="inp" value="${esc(m.name||'')}"></div>
+    <div><label class="lbl">연락처 *</label><input id="e_phone" class="inp" placeholder="010-0000-0000" value="${esc(m.phone||'')}"></div>
+    <div><label class="lbl">프로그램</label><input id="e_program" class="inp" value="${esc(m.program||'')}"></div>
+    <div style="display:flex;gap:10px">
+      <div style="flex:1"><label class="lbl">상태</label>
+        <select id="e_group" class="inp">
+          ${['active','warning','expired','instructor','new'].map(g=>`<option value="${g}" ${m.group_type===g?'selected':''}>${GROUP_LABELS[g]}</option>`).join('')}
+        </select></div>
+      <div style="width:90px"><label class="lbl">잔여</label><input id="e_remaining" class="inp" type="number" value="${m.remaining??0}"></div>
+    </div>
+    <div><label class="lbl">만료일</label><input id="e_end" class="inp" type="date" value="${m.end_date||''}"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn" onclick="save('${m.id||''}')">저장</button>
+    </div>`);
+}
+async function save(id){
+  const body={ name:document.getElementById('e_name').value.trim(), phone:document.getElementById('e_phone').value.trim(),
+    program:document.getElementById('e_program').value.trim(), group_type:document.getElementById('e_group').value,
+    remaining:parseInt(document.getElementById('e_remaining').value,10)||0, end_date:document.getElementById('e_end').value||null };
+  if (!body.name||!body.phone) return toast('이름과 연락처는 필수입니다');
+  try{ if (id) await api.put('/api/sms/members/'+id,body); else await api.post('/api/sms/members',body);
+    closeModal(); await load(); toast('저장 완료'); }catch(e){ toast(e.message); }
+}
+async function del(id,name){ if(!confirm(`${name} 연락처를 삭제할까요?`))return;
+  await api.del('/api/sms/members/'+id); await load(); toast('삭제 완료'); }
+boot();
+</script>
+</body>
+</html>

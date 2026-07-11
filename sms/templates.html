@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>템플릿 관리 · J.SMS</title>
+<link rel="stylesheet" href="sms.css">
+</head>
+<body>
+<div id="hdr"></div>
+<div class="wrap">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+    <div><h1 class="page-title">템플릿 관리</h1><p class="page-desc" style="margin:0">자주 쓰는 메시지를 저장해 발송센터에서 빠르게 불러옵니다.</p></div>
+    <button class="btn" onclick="openEdit()">+ 새 템플릿</button>
+  </div>
+  <div id="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"></div>
+</div>
+
+<script src="sms.js"></script>
+<script>
+let tpls=[];
+async function boot(){ renderHeader('templates'); await load(); }
+window.onAuthReady = boot;
+async function load(){ tpls = await api.get('/api/sms/templates'); render(); }
+function render(){
+  document.getElementById('grid').innerHTML = tpls.map(t=>`
+    <div class="card" style="padding:18px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;font-size:15px;font-weight:600">${esc(t.title)}</div>
+        <span class="badge badge-gray">${smsBytes(t.content)}byte · ${msgTypeByBytes(smsBytes(t.content))}</span>
+      </div>
+      <div style="font-size:13px;color:var(--muted2);line-height:1.55;white-space:pre-wrap;background:var(--surface2);border-radius:10px;padding:12px;max-height:120px;overflow:auto">${esc(t.content)}</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick='openEdit(${JSON.stringify(t).replace(/'/g,"&#39;")})'>수정</button>
+        <button class="btn btn-danger btn-sm" onclick="del('${t.id}','${esc(t.title)}')">삭제</button>
+      </div>
+    </div>`).join('') || `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted)">템플릿이 없습니다.</div>`;
+}
+function openEdit(t){
+  t=t||{};
+  openModal(`
+    <h3>${t.id?'템플릿 수정':'새 템플릿'}</h3>
+    <div><label class="lbl">제목 *</label><input id="t_title" class="inp" value="${esc(t.title||'')}"></div>
+    <div><label class="lbl">내용 *</label><textarea id="t_content" class="inp" rows="6" oninput="tb()">${esc(t.content||'')}</textarea>
+      <div id="t_bytes" style="font-size:11.5px;color:var(--muted);margin-top:4px"></div></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn" onclick="save('${t.id||''}')">저장</button>
+    </div>`);
+  tb();
+}
+function tb(){ const c=document.getElementById('t_content').value; const b=smsBytes(c);
+  document.getElementById('t_bytes').textContent = `${b} byte · ${msgTypeByBytes(b)}`; }
+async function save(id){
+  const body={ title:document.getElementById('t_title').value.trim(), content:document.getElementById('t_content').value.trim() };
+  if(!body.title||!body.content)return toast('제목과 내용은 필수입니다');
+  try{ if(id) await api.put('/api/sms/templates/'+id,body); else await api.post('/api/sms/templates',body);
+    closeModal(); await load(); toast('저장 완료'); }catch(e){ toast(e.message); }
+}
+async function del(id,title){ if(!confirm(`'${title}' 템플릿을 삭제할까요?`))return;
+  await api.del('/api/sms/templates/'+id); await load(); toast('삭제 완료'); }
+boot();
+</script>
+</body>
+</html>

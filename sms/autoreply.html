@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>자동 응답 · J.SMS</title>
+<link rel="stylesheet" href="sms.css">
+</head>
+<body>
+<div id="hdr"></div>
+<div class="wrap">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+    <div><h1 class="page-title">자동 응답</h1><p class="page-desc" style="margin:0">특정 키워드가 포함된 수신 메시지에 자동으로 답장합니다.</p></div>
+    <button class="btn" onclick="openEdit()">+ 새 규칙</button>
+  </div>
+
+  <div class="card" style="background:color-mix(in srgb,var(--accent) 6%,var(--surface));margin-bottom:16px;padding:16px 18px">
+    <div style="font-size:13.5px;color:var(--muted2);line-height:1.6">
+      💡 수신 문자에 <b>"수신거부"</b>가 오면 자동으로 수신거부 목록에 등록됩니다(항상 활성).
+      아래 규칙은 <b>활성</b> 상태일 때만 동작하며, 게이트웨이가 수신한 메시지를 15초 주기로 확인해 답장을 큐에 넣습니다.
+    </div>
+  </div>
+
+  <div id="list" style="display:flex;flex-direction:column;gap:12px"></div>
+</div>
+
+<script src="sms.js"></script>
+<script>
+let rules=[];
+const MATCH_LABELS={contains:'포함',exact:'정확히 일치',starts:'~로 시작'};
+async function boot(){ renderHeader('autoreply'); await load(); }
+window.onAuthReady = boot;
+async function load(){ rules = await api.get('/api/sms/autoreply'); render(); }
+function render(){
+  document.getElementById('list').innerHTML = rules.map(r=>`
+    <div class="card" style="padding:16px 18px;display:flex;align-items:center;gap:16px">
+      <div class="toggle ${r.enabled?'on':''}" onclick="toggle('${r.id}',${!r.enabled})"><div class="toggle-knob"></div></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span class="tag">${esc(r.keyword)}</span>
+          <span class="badge badge-gray">${MATCH_LABELS[r.match_type]||r.match_type}</span>
+          ${r.enabled?'<span class="badge badge-green">활성</span>':'<span class="badge badge-gray">비활성</span>'}
+        </div>
+        <div style="font-size:13px;color:var(--muted2);white-space:pre-wrap;overflow:hidden;text-overflow:ellipsis">↳ ${esc(r.reply_content)}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick='openEdit(${JSON.stringify(r).replace(/'/g,"&#39;")})'>수정</button>
+        <button class="btn btn-danger btn-sm" onclick="del('${r.id}')">삭제</button>
+      </div>
+    </div>`).join('') || `<div class="card" style="text-align:center;color:var(--muted)">등록된 자동응답 규칙이 없습니다.</div>`;
+}
+async function toggle(id,val){
+  const r=rules.find(x=>x.id===id);
+  await api.put('/api/sms/autoreply/'+id,{keyword:r.keyword,match_type:r.match_type,reply_content:r.reply_content,enabled:val});
+  await load(); toast(val?'규칙 활성화':'규칙 비활성화');
+}
+function openEdit(r){
+  r=r||{};
+  openModal(`
+    <h3>${r.id?'규칙 수정':'새 자동응답 규칙'}</h3>
+    <div><label class="lbl">키워드 *</label><input id="r_kw" class="inp" value="${esc(r.keyword||'')}" placeholder="예: 예약, 위치, 시간표"></div>
+    <div><label class="lbl">매칭 방식</label>
+      <select id="r_match" class="inp">
+        ${['contains','exact','starts'].map(t=>`<option value="${t}" ${r.match_type===t?'selected':''}>${MATCH_LABELS[t]}</option>`).join('')}
+      </select></div>
+    <div><label class="lbl">자동 응답 내용 *</label><textarea id="r_reply" class="inp" rows="4">${esc(r.reply_content||'')}</textarea></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="r_enabled" ${r.enabled?'checked':''}> 저장 후 바로 활성화
+    </label>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn" onclick="save('${r.id||''}')">저장</button>
+    </div>`);
+}
+async function save(id){
+  const body={ keyword:document.getElementById('r_kw').value.trim(), match_type:document.getElementById('r_match').value,
+    reply_content:document.getElementById('r_reply').value.trim(), enabled:document.getElementById('r_enabled').checked };
+  if(!body.keyword||!body.reply_content)return toast('키워드와 응답 내용은 필수입니다');
+  try{ if(id) await api.put('/api/sms/autoreply/'+id,body); else await api.post('/api/sms/autoreply',body);
+    closeModal(); await load(); toast('저장 완료'); }catch(e){ toast(e.message); }
+}
+async function del(id){ if(!confirm('이 규칙을 삭제할까요?'))return;
+  await api.del('/api/sms/autoreply/'+id); await load(); toast('삭제 완료'); }
+boot();
+</script>
+</body>
+</html>
