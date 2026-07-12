@@ -161,6 +161,13 @@ body.resizing{cursor:col-resize;user-select:none}
 .toggle.on .toggle-knob{left:19px}
 .divider{height:1px;background:var(--border2)}
 
+/* ── 수신자 자동완성 드롭다운 ── */
+.suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--surface);
+  border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);
+  z-index:60;max-height:240px;overflow-y:auto;padding:4px}
+.suggest-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer}
+.suggest-item:hover{background:var(--surface2)}
+
 /* ── 로그인 게이트 ── */
 #gate .modal{width:360px;text-align:center}
 

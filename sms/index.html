@@ -21,7 +21,11 @@
           <span style="font-size:13px;font-weight:600;color:var(--accent)" id="queueCount">0명</span>
         </div>
         <div id="tagChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
-        <input id="tagInp" class="inp" placeholder="번호 직접 입력 후 Enter" onkeydown="onTagKey(event)">
+        <div style="position:relative">
+          <input id="tagInp" class="inp" placeholder="번호 또는 이름 입력 (Enter로 추가)" autocomplete="off"
+                 onkeydown="onTagKey(event)" oninput="onTagInput()">
+          <div id="tagSuggest" class="suggest hidden"></div>
+        </div>
       </div>
 
       <div class="divider"></div>
@@ -149,8 +153,9 @@ async function boot(){
   window.addEventListener('resize', applyComposeWidth);
   window.addEventListener('paste', onPaste);
   await refreshBootstrap();
-  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadBlocked(), loadThreads()]);
+  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadBlocked(), loadThreads(), loadGwContacts()]);
   updateBytes();
+  document.getElementById('tagInp').addEventListener('blur', ()=>setTimeout(hideSuggest, 200));
   setInterval(loadThreads, 20000);
   setInterval(refreshBootstrap, 30000);
 }
@@ -242,14 +247,74 @@ function renderContacts(){
 }
 function toggleContact(id){ selected.has(id)?selected.delete(id):selected.add(id); renderContacts(); updateQueue(); }
 
-function onTagKey(e){ if(e.key!=='Enter')return; const v=digits(e.target.value);
-  if(v.length>=8 && !extraTags.includes(v)) extraTags.push(v); e.target.value=''; renderTags(); updateQueue(); }
-function renderTags(){ document.getElementById('tagChips').innerHTML=extraTags.map((t,i)=>
-  `<span class="tag">${esc(fmtPhone(t))}<span class="x" onclick="extraTags.splice(${i},1);renderTags();updateQueue()">×</span></span>`).join(''); }
+/* ── 수신자 직접 입력: 번호 또는 이름(자동완성) ──
+   동명이인·한 사람 복수 번호 모두 행 단위로 표시해 선택 가능 */
+let gwContacts = [];   // 게이트웨이 주소록 (회원 명부에 없는 것만)
+async function loadGwContacts(){
+  try{ const gc = await api.get('/api/sms/gateway-contacts'); gwContacts = gc.filter(c=>!c.in_members); }
+  catch(e){}
+}
+
+function searchDirectory(term){
+  const t = term.trim(); if(!t) return [];
+  const td = digits(t);
+  const pool = [
+    ...members.map(m=>({name:m.name, phone:digits(m.phone), src:'회원'})),
+    ...gwContacts.map(c=>({name:c.name, phone:digits(c.phone), src:'주소록'})),
+  ];
+  const taken = new Set([
+    ...extraTags.map(x=>x.phone),
+    ...members.filter(m=>selected.has(m.id)).map(m=>digits(m.phone)),
+  ]);
+  return pool.filter(p => (p.name.includes(t) || (td.length>=3 && p.phone.includes(td))) && !taken.has(p.phone)).slice(0,8);
+}
+
+function onTagInput(){
+  const v = document.getElementById('tagInp').value;
+  const list = searchDirectory(v);
+  const box = document.getElementById('tagSuggest');
+  window._suggest = list;
+  if(!v.trim() || !list.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.innerHTML = list.map((p,i)=>`
+    <div class="suggest-item" onmousedown="pickSuggest(${i})">
+      <div class="avatar" style="width:24px;height:24px;font-size:10px;background:${avatarColor(p.name)}">${initial(p.name)}</div>
+      <span style="flex:1;font-size:13px;font-weight:500">${esc(p.name)}</span>
+      <span style="font-size:12px;color:var(--muted)">${esc(fmtPhone(p.phone))}</span>
+      <span class="badge badge-gray">${p.src}</span>
+    </div>`).join('');
+  box.classList.remove('hidden');
+}
+function pickSuggest(i){ const p=(window._suggest||[])[i]; if(p) addTagEntry(p.phone, p.name); }
+function hideSuggest(){ const b=document.getElementById('tagSuggest'); b.classList.add('hidden'); }
+
+function addTagEntry(phone, name){
+  if(!extraTags.some(x=>x.phone===phone)) extraTags.push({ phone, name: name||'' });
+  const inp=document.getElementById('tagInp'); inp.value='';
+  hideSuggest(); renderTags(); updateQueue(); inp.focus();
+}
+
+function onTagKey(e){
+  if(e.key==='Escape'){ hideSuggest(); return; }
+  if(e.key!=='Enter') return;
+  const v=e.target.value.trim(); if(!v) return;
+  const d=digits(v);
+  if(d.length>=8){ addTagEntry(d, ''); return; }
+  const list=searchDirectory(v);
+  if(list.length===1) addTagEntry(list[0].phone, list[0].name);
+  else if(list.length>1){ toast('여러 건이 검색됩니다 — 목록에서 선택하세요'); onTagInput(); }
+  else toast('일치하는 이름이 없습니다');
+}
+
+function renderTags(){
+  document.getElementById('tagChips').innerHTML = extraTags.map((t,i)=>{
+    const label = t.name ? `${esc(t.name)} <span style="opacity:.65">${t.phone.slice(-4)}</span>` : esc(fmtPhone(t.phone));
+    return `<span class="tag">${label}<span class="x" onclick="extraTags.splice(${i},1);renderTags();updateQueue()">×</span></span>`;
+  }).join('');
+}
 
 function targetPhones(){
   const phones=[]; members.forEach(m=>{ if(selected.has(m.id)) phones.push(digits(m.phone)); });
-  extraTags.forEach(t=>phones.push(t)); return [...new Set(phones)];
+  extraTags.forEach(t=>phones.push(t.phone)); return [...new Set(phones)];
 }
 function updateQueue(){ document.getElementById('queueCount').textContent=targetPhones().length+'명'; }
 
