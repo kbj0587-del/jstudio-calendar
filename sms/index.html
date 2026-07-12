@@ -32,7 +32,7 @@
           </div>
           <div id="tagSuggest" class="suggest hidden"></div>
         </div>
-        <input type="file" id="bulkFileInp" accept=".csv,.txt,.xlsx,.xls" style="display:none" onchange="onBulkFile(event)">
+        <input type="file" id="bulkFileInp" accept=".csv,.txt,.xlsx,.xls,.vcf" style="display:none" onchange="onBulkFile(event)">
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="groupChips"></div>
       </div>
 
@@ -361,20 +361,64 @@ function afterRecipientChange(){
 }
 function renderChips(){
   document.getElementById('tagChips').innerHTML = recipients.map((r,i)=>{
-    let label;
+    let label, click='';
     if(r.kind==='group') label = `${svgIcon('users',11)} ${esc(r.name)} <span style="opacity:.65">${r.members.length}</span>`;
-    else if(r.kind==='file') label = `📄 ${esc(r.fileName)} <span style="opacity:.65">${r.rows.length}</span>`;
+    else if(r.kind==='file'){
+      const on=r.rows.filter(x=>!x._off).length;
+      label = `📄 ${esc(r.fileName)} <span style="opacity:.65">${on<r.rows.length?on+'/'+r.rows.length:r.rows.length}</span>`;
+      click = ` style="cursor:pointer" title="클릭해서 명단 확인·선택" onclick="event.stopPropagation();openFileReview(${i})"`;
+    }
     else label = r.name ? `${esc(r.name)} <span style="opacity:.65">${r.phone.slice(-4)}</span>` : esc(fmtPhone(r.phone));
-    return `<span class="tag">${label}<span class="x" onclick="event.stopPropagation();removeRecipient(${i})">×</span></span>`;
+    return `<span class="tag"${click}>${label}<span class="x" onclick="event.stopPropagation();removeRecipient(${i})">×</span></span>`;
   }).join('');
 }
+
+/* ── 파일 수신자 검수: 칩 클릭 → 명단 확인 + 개별 체크 ── */
+function openFileReview(i){
+  const f=recipients[i]; if(!f||f.kind!=='file') return;
+  window._frIdx=i;
+  openModal(`<h3>📄 ${esc(f.fileName)} <span class="badge badge-gray" id="frCount"></span></h3>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input class="inp" id="frSearch" style="flex:1" placeholder="이름·번호 검색" oninput="renderFileReview()">
+      <button class="btn btn-ghost btn-sm" onclick="frAll(true)">전체 선택</button>
+      <button class="btn btn-ghost btn-sm" onclick="frAll(false)">전체 해제</button>
+    </div>
+    <div id="frList" style="max-height:330px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+    <button class="btn" onclick="closeFileReview()">확인</button>`);
+  renderFileReview();
+}
+function renderFileReview(){
+  const f=recipients[window._frIdx]; if(!f) return;
+  const term=(document.getElementById('frSearch').value||'').trim();
+  const list=f.rows.map((r,ri)=>({r,ri}))
+    .filter(({r})=>!term||String(r.name||'').includes(term)||r.phone.includes(digits(term)));
+  document.getElementById('frCount').textContent=`${f.rows.filter(r=>!r._off).length} / ${f.rows.length}명 발송`;
+  document.getElementById('frList').innerHTML=list.slice(0,500).map(({r,ri})=>{
+    const sub=r.vars?Object.values(r.vars).filter(Boolean).slice(0,2).join(' · ')
+      :[r.v1,r.v2].filter(Boolean).join(' · ');
+    return `<div class="contact-row" onclick="frToggle(${ri})">
+      <div class="check ${r._off?'':'on'}">${r._off?'':'✓'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13.5px;font-weight:500;${r._off?'opacity:.5;text-decoration:line-through':''}">${esc(r.name||fmtPhone(r.phone))}</div>
+        ${sub?`<div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(sub)}</div>`:''}
+      </div>
+      <span style="font-size:12px;color:var(--muted);${r._off?'opacity:.5':''}">${esc(fmtPhone(r.phone))}</span>
+    </div>`;}).join('')
+    + (list.length>500?`<div style="text-align:center;font-size:11.5px;color:var(--muted);padding:8px">${list.length-500}명 더 — 검색으로 좁혀보세요</div>`:'');
+}
+function frToggle(ri){ const f=recipients[window._frIdx]; f.rows[ri]._off=!f.rows[ri]._off; renderFileReview(); }
+function frAll(on){ const f=recipients[window._frIdx];
+  const term=(document.getElementById('frSearch').value||'').trim();
+  f.rows.forEach(r=>{ if(!term||String(r.name||'').includes(term)||r.phone.includes(digits(term))) r._off=!on; });
+  renderFileReview(); }
+function closeFileReview(){ closeModal(); renderChips(); updateSummary(); renderPreview(); }
 /* 전체 수신자 전개 (개인 + 그룹 멤버 + 파일 행, 번호 기준 중복 제거) */
 function allRecipients(){
   const out=[];
   recipients.forEach(r=>{
     if(r.kind==='person') out.push({phone:r.phone, name:r.name||''});
     else if(r.kind==='group') r.members.forEach(m=>out.push({phone:m.phone, name:m.name||''}));
-    else if(r.kind==='file') r.rows.forEach(row=>out.push(row));
+    else if(r.kind==='file') r.rows.forEach(row=>{ if(!row._off) out.push(row); });
   });
   const seen=new Set();
   return out.filter(r=>{ const p=digits(r.phone); if(seen.has(p)) return false; seen.add(p); return true; });
@@ -395,21 +439,43 @@ function onTagPaste(e){
 async function onBulkFile(e){
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   try{
-    let rows;
-    if(/\.(xlsx|xls)$/i.test(f.name)) rows=await parseXlsx(f);
-    else rows=parseCsv(await readTextSmart(f));
-    const {recs, fmt, optout}=mapRows(rows);
+    let result;
+    if(/\.vcf$/i.test(f.name)){
+      result={recs:parseVcf(await readTextSmart(f)), fmt:'vcard', optout:0};
+    } else {
+      let rows;
+      if(/\.(xlsx|xls)$/i.test(f.name)) rows=await parseXlsx(f);
+      else rows=parseCsv(await readTextSmart(f));
+      result=mapRows(rows);
+    }
+    const {recs, fmt, optout}=result;
     if(!recs.length) return toast('휴대폰 번호를 찾지 못했습니다 — 샘플 파일 형식을 확인하세요');
-    recipients.push({kind:'file', fileName: fmt==='ezspo'?'이지스포 회원목록':f.name, fmt, rows:recs});
+    const label = fmt==='ezspo'?'이지스포 회원목록' : fmt==='google'?'구글 주소록' : fmt==='vcard'?'구글 주소록(vCard)' : f.name;
+    recipients.push({kind:'file', fileName:label, fmt, rows:recs});
     afterRecipientChange();
-    toast(`${fmt==='ezspo'?'이지스포 회원 ':''}${recs.length}명 불러옴${optout?` · 문자수신 거부 ${optout}명 제외`:''} · 연락처에는 저장되지 않습니다`);
+    toast(`${recs.length}명 불러옴${optout?` · 문자수신 거부 ${optout}명 제외`:''} · 연락처에는 저장되지 않습니다`);
   }catch(err){ toast('파일 읽기 실패: '+err.message); }
 }
-/* 한글 CSV는 엑셀 저장 시 EUC-KR이 흔함 → UTF-8 실패 시 EUC-KR 재해석 */
+/* 번호 정규화: 국제형식 +82 10-… → 010-… (구글 주소록에 흔함) */
+function normPhone(s){ let d=digits(s); if(/^82\d{9,10}$/.test(d)) d='0'+d.slice(2); return d; }
+/* 인코딩 자동 감지: UTF-16(BOM) → UTF-8 → EUC-KR(엑셀 한글 CSV) */
 async function readTextSmart(f){
-  const buf=await f.arrayBuffer();
+  const buf=await f.arrayBuffer(); const u8=new Uint8Array(buf);
+  if(u8[0]===0xFF&&u8[1]===0xFE) return new TextDecoder('utf-16le').decode(buf);
+  if(u8[0]===0xFE&&u8[1]===0xFF) return new TextDecoder('utf-16be').decode(buf);
   try{ return new TextDecoder('utf-8',{fatal:true}).decode(buf); }
   catch(_){ return new TextDecoder('euc-kr').decode(buf); }
+}
+/* vCard(.vcf) 파싱: FN(이름) + TEL(번호) */
+function parseVcf(text){
+  const recs=[]; let name='', phones=[];
+  text.split(/\r?\n/).forEach(line=>{
+    if(/^BEGIN:VCARD/i.test(line)){ name=''; phones=[]; }
+    else if(/^FN[;:]/i.test(line)) name=line.replace(/^FN[^:]*:/i,'').trim();
+    else if(/^TEL[;:]/i.test(line)){ const p=normPhone(line.split(':').pop()); if(p.length>=8) phones.push(p); }
+    else if(/^END:VCARD/i.test(line) && phones.length) recs.push({name, phone:phones[0]});
+  });
+  return recs;
 }
 function parseCsv(text){
   const rows=[]; let row=[], cell='', inQ=false;
@@ -451,7 +517,7 @@ function mapRows(rows){
     const recs=[]; let optout=0;
     for(let i=1;i<rows.length;i++){
       const r=rows[i];
-      const phone=digits(r[pi]||''); if(phone.length<8) continue;
+      const phone=normPhone(r[pi]||''); if(phone.length<8) continue;
       if(smsIdx>=0){ const v=String(r[smsIdx]==null?'':r[smsIdx]).trim();
         if(v==='0'||/^[xXnN]$/.test(v)||v==='거부'){ optout++; continue; } }
       const vars={}; varCols.forEach(c=>{ vars[c.l]=String(r[c.i]==null?'':r[c.i]).trim(); });
@@ -460,7 +526,26 @@ function mapRows(rows){
     return {recs, fmt:'ezspo', optout};
   }
 
-  // ②③ 뿌리오·일반
+  // ② 구글 주소록 내보내기 (Google CSV: First/Middle/Last Name + Phone N - Value)
+  if(h.some(x=>/^Phone \d+ - Value$/.test(x))){
+    const fi=h.indexOf('First Name'), mi=h.indexOf('Middle Name'), li=h.indexOf('Last Name'), nmi=h.indexOf('Name');
+    const phoneIdxs=h.map((x,i)=>/^Phone \d+ - Value$/.test(x)?i:-1).filter(i=>i>=0);
+    const recs=[];
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i];
+      let name = nmi>=0 && String(r[nmi]||'').trim() ? String(r[nmi]).trim()
+        : [li,mi,fi].map(ix=>ix>=0?String(r[ix]||'').trim():'').join('');   // 한국식: 성+이름
+      let phone='';
+      for(const pi of phoneIdxs){
+        const raw=String(r[pi]||'').split(':::')[0];                        // 복수 값 구분자
+        const d=normPhone(raw); if(d.length>=8){ phone=d; break; }
+      }
+      if(phone) recs.push({name, phone});
+    }
+    return {recs, fmt:'google', optout:0};
+  }
+
+  // ③④ 뿌리오·일반
   const hasHeader=h.some(x=>/이름|name|휴대폰|전화|phone|번호|\[\*[1-8]\*\]/i.test(x));
   let map, start, isPpurio=false;
   if(hasHeader){
@@ -482,7 +567,7 @@ function mapRows(rows){
       else rec[k]=val;
     });
     if(!Object.keys(rec.vars).length) delete rec.vars;
-    if(digits(rec.phone||'').length>=8){ rec.phone=digits(rec.phone); recs.push(rec); }
+    rec.phone=normPhone(rec.phone||''); if(rec.phone.length>=8) recs.push(rec);
   }
   return {recs, fmt:isPpurio?'ppurio':'generic', optout:0};
 }
@@ -587,6 +672,10 @@ function toggleSchedule(e){
   document.getElementById('schedInputs').classList.toggle('hidden',!scheduleOn);
   document.getElementById('dot_sched').classList.toggle('hidden',!scheduleOn);
   document.getElementById('sendBtn').textContent=scheduleOn?'예약 등록':'보내기';
+  if(scheduleOn && !document.getElementById('schedDate').value){
+    const n=new Date(), p=x=>String(x).padStart(2,'0');
+    document.getElementById('schedDate').value=`${n.getFullYear()}-${p(n.getMonth()+1)}-${p(n.getDate())}`;
+  }
   updateSummary();
 }
 

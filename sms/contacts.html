@@ -16,6 +16,8 @@
       <button class="btn btn-ghost" onclick="openBlockedModal()">🚫 수신거부 <span class="badge badge-red" id="blockBadge">0</span></button>
       <button class="btn btn-ghost" onclick="document.getElementById('csvInp').click()">CSV 업로드</button>
       <input type="file" id="csvInp" accept=".csv,.txt" style="display:none" onchange="importFile(event)">
+      <button class="btn btn-ghost" onclick="openGoogleImport()">🅖 구글 연락처</button>
+      <input type="file" id="googleInp" accept=".csv,.vcf" style="display:none" onchange="importGoogleFile(event)">
       <button class="btn btn-ghost" id="gwBtn" onclick="importGateway()">📱 게이트웨이 주소록</button>
       <button class="btn" onclick="openEdit()">+ 새 연락처</button>
     </div>
@@ -65,6 +67,80 @@ async function onBlockKey(e){ if(e.key!=='Enter')return; const v=e.target.value.
   try{ await api.post('/api/sms/blocked',{phone:v}); toast('수신거부 등록'); openBlockedModal(); refreshBlockBadge(); await load(); }
   catch(err){ toast(err.message); } }
 async function unblock(id){ await api.del('/api/sms/blocked/'+id); toast('해제 완료'); openBlockedModal(); refreshBlockBadge(); await load(); }
+
+/* ── 구글 연락처 가져오기 (내보내기 파일: Google CSV 또는 vCard) ── */
+function openGoogleImport(){
+  openModal(`
+    <h3>🅖 구글 연락처 가져오기</h3>
+    <div style="font-size:13px;color:var(--muted2);line-height:1.7;background:var(--surface2);border-radius:12px;padding:14px">
+      1. <a href="https://contacts.google.com" target="_blank" rel="noopener">contacts.google.com</a> 접속<br>
+      2. 왼쪽 메뉴 아래 <b>내보내기</b> 클릭<br>
+      3. <b>Google CSV</b>(또는 vCard) 선택 후 내보내기<br>
+      4. 받은 파일을 아래 버튼으로 업로드
+    </div>
+    <div style="font-size:11px;color:var(--muted)">이름과 첫 번째 전화번호만 등록되며, 이미 있는 번호는 건너뜁니다.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn" onclick="document.getElementById('googleInp').click()">파일 선택</button>
+    </div>`);
+}
+function normPhone(s){ let d=digits(s); if(/^82\d{9,10}$/.test(d)) d='0'+d.slice(2); return d; }
+async function readTextSmart(f){
+  const buf=await f.arrayBuffer(); const u8=new Uint8Array(buf);
+  if(u8[0]===0xFF&&u8[1]===0xFE) return new TextDecoder('utf-16le').decode(buf);
+  if(u8[0]===0xFE&&u8[1]===0xFF) return new TextDecoder('utf-16be').decode(buf);
+  try{ return new TextDecoder('utf-8',{fatal:true}).decode(buf); }
+  catch(_){ return new TextDecoder('euc-kr').decode(buf); }
+}
+function parseCsvRows(text){
+  const rows=[]; let row=[], cell='', inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){ if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else inQ=false; } else cell+=c; }
+    else if(c==='"') inQ=true;
+    else if(c===','){ row.push(cell); cell=''; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n')i++;
+      row.push(cell); cell=''; if(row.some(x=>x.trim())) rows.push(row); row=[]; }
+    else cell+=c;
+  }
+  row.push(cell); if(row.some(x=>x.trim())) rows.push(row);
+  return rows;
+}
+async function importGoogleFile(e){
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    const text=await readTextSmart(f);
+    let rows=[];
+    if(/^BEGIN:VCARD/im.test(text)){
+      let name='', phones=[];
+      text.split(/\r?\n/).forEach(line=>{
+        if(/^BEGIN:VCARD/i.test(line)){ name=''; phones=[]; }
+        else if(/^FN[;:]/i.test(line)) name=line.replace(/^FN[^:]*:/i,'').trim();
+        else if(/^TEL[;:]/i.test(line)){ const p=normPhone(line.split(':').pop()); if(p.length>=8) phones.push(p); }
+        else if(/^END:VCARD/i.test(line) && phones.length && name) rows.push({name, phone:phones[0]});
+      });
+    } else {
+      const cells=parseCsvRows(text);
+      if(!cells.length) throw new Error('빈 파일');
+      const h=cells[0].map(x=>String(x||'').replace(/^﻿/,'').trim());
+      const fi=h.indexOf('First Name'), mi=h.indexOf('Middle Name'), li=h.indexOf('Last Name'), nmi=h.indexOf('Name');
+      const phoneIdxs=h.map((x,i)=>/^Phone \d+ - Value$/.test(x)?i:-1).filter(i=>i>=0);
+      if(!phoneIdxs.length) throw new Error('구글 연락처 형식이 아닙니다 (Google CSV로 내보내기 하세요)');
+      for(let i=1;i<cells.length;i++){
+        const r=cells[i];
+        const name = nmi>=0 && String(r[nmi]||'').trim() ? String(r[nmi]).trim()
+          : [li,mi,fi].map(ix=>ix>=0?String(r[ix]||'').trim():'').join('');
+        let phone='';
+        for(const pi of phoneIdxs){ const d=normPhone(String(r[pi]||'').split(':::')[0]); if(d.length>=8){ phone=d; break; } }
+        if(name && phone) rows.push({name, phone});
+      }
+    }
+    if(!rows.length) return toast('가져올 연락처가 없습니다');
+    const d=await api.post('/api/sms/members/import',{rows});
+    closeModal(); await load(); refreshGwCount();
+    toast(`구글 연락처 ${d.imported}명 등록/갱신`);
+  }catch(err){ toast('가져오기 실패: '+err.message); }
+}
 
 /* CSV·TXT 업로드 (발신부에서 이동) — 이름,번호 형식 */
 async function importFile(e){
