@@ -63,6 +63,14 @@ function registerSmsRoutes(app, deps) {
     return { queued: targets.length, excluded, blocked: [...blocked] };
   }
 
+  // ── 변수 치환 (뿌리오 호환: [*이름*], [*1*]~[*8*]) ──────────
+  function renderTemplate(tpl, r) {
+    let out = String(tpl || '');
+    out = out.split('[*이름*]').join(r.name || '');
+    for (let i = 1; i <= 8; i++) out = out.split('[*' + i + '*]').join(r['v' + i] || '');
+    return out;
+  }
+
   // ── 자동응답 규칙 매칭 ──────────────────────────────────────
   // 수신 시각(KST) "HH:MM" 반환
   function kstHM(ts) {
@@ -101,12 +109,25 @@ function registerSmsRoutes(app, deps) {
     ticking = true;
     lastTickAt = now;
     try {
-      // 1) 예약 발송 도래분 처리
+      // 1) 예약 발송 도래분 처리 (items = 대량·변수 분할 배치, phones = 일반 예약)
       const due = await q("SELECT * FROM js_scheduled WHERE status = 'pending' AND send_at <= now() ORDER BY send_at ASC LIMIT 50");
-      for (const row of due.rows) {
-        const phones = Array.isArray(row.phones) ? row.phones : [];
-        await enqueue(phones, row.content, row.image_url);
-        await q("UPDATE js_scheduled SET status = 'sent' WHERE id = $1", [row.id]);
+      if (due.rows.length) {
+        const blDue = await q('SELECT phone FROM js_blocked');
+        const blockedDue = new Set(blDue.rows.map((r) => digits(r.phone)));
+        for (const row of due.rows) {
+          if (Array.isArray(row.items) && row.items.length) {
+            for (const it of row.items) {
+              const ph = digits(it.phone);
+              if (ph.length < 8 || blockedDue.has(ph)) continue;
+              await q("INSERT INTO js_message_logs (phone, content, dir, status, image_url) VALUES ($1, $2, 'out', 'queued', $3)",
+                [ph, it.content || '', row.image_url || null]);
+            }
+          } else {
+            const phones = Array.isArray(row.phones) ? row.phones : [];
+            await enqueue(phones, row.content, row.image_url);
+          }
+          await q("UPDATE js_scheduled SET status = 'sent' WHERE id = $1", [row.id]);
+        }
       }
 
       // 2) 신규 수신 메시지 → 수신거부 자동등록 + 자동응답
@@ -337,6 +358,52 @@ function registerSmsRoutes(app, deps) {
     if (!Array.isArray(phones) || !phones.length) return res.status(400).json({ error: '수신자 없음' });
     const r = await enqueue(phones, content || '', image_url);
     res.json({ ok: true, ...r });
+  }));
+
+  // 대량·변수 발송: 수신자별 치환 후 큐 등록. 100건 초과분은 분당 20건으로 자동 분할.
+  // 개인 회선 게이트웨이 보호 목적 — 한 번에 대량 삽입 시 통신사 스팸 판정 위험.
+  const BULK_IMMEDIATE = 100;   // 즉시 큐 상한
+  const BULK_PER_MIN   = 20;    // 분할 배치 크기(분당)
+  app.post('/api/sms/send-bulk', requireSmsAccess, wrap(async (req, res) => {
+    const { template, image_url, recipients } = req.body;
+    if (!Array.isArray(recipients) || !recipients.length) return res.status(400).json({ error: '수신자 없음' });
+    if (!template && !image_url) return res.status(400).json({ error: '내용 또는 이미지 필요' });
+
+    // 정규화 + 중복 제거
+    const seen = new Set();
+    const list = [];
+    for (const r of recipients) {
+      const ph = digits(r.phone);
+      if (ph.length < 8 || seen.has(ph)) continue;
+      seen.add(ph);
+      list.push({ ...r, phone: ph });
+    }
+    // 수신거부 제외
+    const bl = await q('SELECT phone FROM js_blocked');
+    const blocked = new Set(bl.rows.map((x) => digits(x.phone)));
+    const targets = list.filter((r) => !blocked.has(r.phone));
+    const excluded = list.length - targets.length;
+    if (!targets.length) return res.json({ ok: true, queued: 0, scheduled: 0, batches: 0, excluded, total: 0 });
+
+    const items = targets.map((r) => ({ phone: r.phone, content: renderTemplate(template, r) }));
+    let queued = 0, scheduled = 0, batches = 0;
+    const immediate = items.slice(0, BULK_IMMEDIATE);
+    for (const it of immediate) {
+      await q("INSERT INTO js_message_logs (phone, content, dir, status, image_url) VALUES ($1, $2, 'out', 'queued', $3)",
+        [it.phone, it.content, image_url || null]);
+      queued++;
+    }
+    const rest = items.slice(BULK_IMMEDIATE);
+    for (let i = 0; i < rest.length; i += BULK_PER_MIN) {
+      const batch = rest.slice(i, i + BULK_PER_MIN);
+      batches++;
+      await q(
+        "INSERT INTO js_scheduled (phones, content, image_url, send_at, items) VALUES ('[]', '', $1, now() + ($2 || ' minutes')::interval, $3)",
+        [image_url || null, String(batches), JSON.stringify(batch)]
+      );
+      scheduled += batch.length;
+    }
+    res.json({ ok: true, queued, scheduled, batches, excluded, total: items.length });
   }));
 
   app.post('/api/sms/schedule', requireSmsAccess, wrap(async (req, res) => {

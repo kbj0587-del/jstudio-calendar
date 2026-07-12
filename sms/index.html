@@ -24,10 +24,15 @@
           <div class="chipfield" onclick="document.getElementById('tagInp').focus()">
             <span id="tagChips" style="display:contents"></span>
             <input id="tagInp" placeholder="이름·번호·그룹 검색" autocomplete="off"
-                   onkeydown="onTagKey(event)" oninput="onTagInput()">
+                   onkeydown="onTagKey(event)" oninput="onTagInput()" onpaste="onTagPaste(event)">
+            <button class="tool-btn" style="width:32px;height:32px;margin-left:auto;flex-shrink:0" title="엑셀·CSV 파일로 대량 추가"
+                    onclick="event.stopPropagation();document.getElementById('bulkFileInp').click()">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M12 18v-6"></path><path d="M9 15l3 3 3-3"></path></svg>
+            </button>
           </div>
           <div id="tagSuggest" class="suggest hidden"></div>
         </div>
+        <input type="file" id="bulkFileInp" accept=".csv,.txt,.xlsx,.xls" style="display:none" onchange="onBulkFile(event)">
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="groupChips"></div>
       </div>
 
@@ -48,7 +53,27 @@
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
               <span class="dot hidden" id="dot_sched"></span>
             </button>
+            <button class="tool-btn" id="tb_var" title="변수 삽입 — 수신자별 개인화" onclick="togglePanel('var')" style="font-size:13px;font-weight:700">{&#8202;}</button>
             <span style="flex:1;text-align:right;font-size:11.5px;color:var(--muted)" id="byteInfo">0 byte · SMS</span>
+          </div>
+
+          <!-- 변수 패널 -->
+          <div class="tool-panel hidden" id="panel_var">
+            <div style="display:flex;flex-wrap:wrap;gap:6px" id="varChips"></div>
+            <div style="font-size:11px;color:var(--muted)" id="varHint"></div>
+          </div>
+
+          <!-- 미리보기 (변수 사용 시 자동 표시) -->
+          <div class="tool-panel hidden" id="panel_preview">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <span style="font-size:11px;font-weight:600;color:var(--muted)" id="pvLabel"></span>
+              <span style="display:flex;gap:4px">
+                <button class="btn btn-ghost btn-sm" onclick="pvNav(-1)">‹</button>
+                <button class="btn btn-ghost btn-sm" onclick="pvNav(1)">›</button>
+                <button class="btn btn-ghost btn-sm" onclick="testSend()">테스트 발송</button>
+              </span>
+            </div>
+            <div id="pvBody" style="font-size:13px;background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;white-space:pre-wrap;line-height:1.55"></div>
           </div>
 
           <!-- 이미지 패널 -->
@@ -140,7 +165,7 @@ async function boot(){
   window.addEventListener('paste', onGlobalPaste);
   await refreshBootstrap();
   await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadThreads(), loadGwContacts()]);
-  updateBytes(); updateSummary();
+  renderVarChips(); updateBytes(); updateSummary();
   document.getElementById('tagInp').addEventListener('blur', ()=>setTimeout(hideSuggest, 200));
   setInterval(loadThreads, 20000);
   setInterval(refreshBootstrap, 30000);
@@ -211,7 +236,9 @@ async function loadGroups(){
   groups = await api.get('/api/sms/groups');
   document.getElementById('groupChips').innerHTML =
     `<span class="chip" onclick="addAllMembers()">전체 회원</span>` +
-    groups.map(g=>`<span class="chip" onclick="addGroupChip('${g.id}')">${esc(g.name)} ${g.member_count}</span>`).join('');
+    groups.map(g=>`<span class="chip" onclick="addGroupChip('${g.id}')">${esc(g.name)} ${g.member_count}</span>`).join('') +
+    `<span class="chip" onclick="document.getElementById('bulkFileInp').click()">📄 파일 대량 추가</span>` +
+    `<a class="chip" href="sample-recipients.csv" download style="text-decoration:none">샘플 ⤓</a>`;
 }
 async function loadTemplates(){
   const tpls=await api.get('/api/sms/templates');
@@ -275,27 +302,173 @@ async function addGroupChip(gid){
   const g=groups.find(x=>x.id===gid); if(!g) return;
   try{
     const gm=await api.get('/api/sms/groups/'+gid+'/members');
-    recipients.push({kind:'group', id:gid, name:g.name, phones:gm.map(m=>digits(m.phone))});
+    recipients.push({kind:'group', id:gid, name:g.name,
+      members:gm.map(m=>({phone:digits(m.phone), name:m.name||''}))});
     afterRecipientChange();
   }catch(e){ toast(e.message); }
 }
 function addAllMembers(){
   if(recipients.some(r=>r.kind==='group'&&r.id==='__all__')) return;
-  recipients.push({kind:'group', id:'__all__', name:'전체 회원', phones:members.map(m=>digits(m.phone))});
+  recipients.push({kind:'group', id:'__all__', name:'전체 회원',
+    members:members.map(m=>({phone:digits(m.phone), name:m.name||''}))});
   afterRecipientChange();
 }
 function removeRecipient(i){ recipients.splice(i,1); afterRecipientChange(); }
 function afterRecipientChange(){
   const inp=document.getElementById('tagInp'); inp.value='';
-  hideSuggest(); renderChips(); updateSummary(); inp.focus();
+  hideSuggest(); renderChips(); renderVarChips(); updateSummary(); renderPreview(); inp.focus();
 }
 function renderChips(){
   document.getElementById('tagChips').innerHTML = recipients.map((r,i)=>{
-    const label = r.kind==='group'
-      ? `${svgIcon('users',11)} ${esc(r.name)} <span style="opacity:.65">${r.phones.length}</span>`
-      : (r.name ? `${esc(r.name)} <span style="opacity:.65">${r.phone.slice(-4)}</span>` : esc(fmtPhone(r.phone)));
+    let label;
+    if(r.kind==='group') label = `${svgIcon('users',11)} ${esc(r.name)} <span style="opacity:.65">${r.members.length}</span>`;
+    else if(r.kind==='file') label = `📄 ${esc(r.fileName)} <span style="opacity:.65">${r.rows.length}</span>`;
+    else label = r.name ? `${esc(r.name)} <span style="opacity:.65">${r.phone.slice(-4)}</span>` : esc(fmtPhone(r.phone));
     return `<span class="tag">${label}<span class="x" onclick="event.stopPropagation();removeRecipient(${i})">×</span></span>`;
   }).join('');
+}
+/* 전체 수신자 전개 (개인 + 그룹 멤버 + 파일 행, 번호 기준 중복 제거) */
+function allRecipients(){
+  const out=[];
+  recipients.forEach(r=>{
+    if(r.kind==='person') out.push({phone:r.phone, name:r.name||''});
+    else if(r.kind==='group') r.members.forEach(m=>out.push({phone:m.phone, name:m.name||''}));
+    else if(r.kind==='file') r.rows.forEach(row=>out.push(row));
+  });
+  const seen=new Set();
+  return out.filter(r=>{ const p=digits(r.phone); if(seen.has(p)) return false; seen.add(p); return true; });
+}
+
+/* 번호 여러 개 붙여넣기 → 한 번에 칩 추가 */
+function onTagPaste(e){
+  const text=(e.clipboardData||window.clipboardData).getData('text')||'';
+  const nums=[...new Set(text.split(/[\s,;\/]+/).map(digits).filter(d=>d.length>=8))];
+  if(nums.length>1){
+    e.preventDefault();
+    nums.forEach(n=>{ if(!recipients.some(r=>r.kind==='person'&&r.phone===n)) recipients.push({kind:'person',phone:n,name:''}); });
+    afterRecipientChange(); toast(nums.length+'개 번호 추가');
+  }
+}
+
+/* ── 파일 업로드 (CSV·XLSX, 뿌리오 양식 호환, 연락처 미등록) ── */
+async function onBulkFile(e){
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    let rows;
+    if(/\.(xlsx|xls)$/i.test(f.name)) rows=await parseXlsx(f);
+    else rows=parseCsv(await readTextSmart(f));
+    const recs=mapRows(rows);
+    if(!recs.length) return toast('휴대폰 번호를 찾지 못했습니다 — 샘플 파일 형식을 확인하세요');
+    recipients.push({kind:'file', fileName:f.name, rows:recs});
+    afterRecipientChange();
+    toast(`${recs.length}명 불러옴 · 연락처에는 저장되지 않습니다`);
+  }catch(err){ toast('파일 읽기 실패: '+err.message); }
+}
+/* 한글 CSV는 엑셀 저장 시 EUC-KR이 흔함 → UTF-8 실패 시 EUC-KR 재해석 */
+async function readTextSmart(f){
+  const buf=await f.arrayBuffer();
+  try{ return new TextDecoder('utf-8',{fatal:true}).decode(buf); }
+  catch(_){ return new TextDecoder('euc-kr').decode(buf); }
+}
+function parseCsv(text){
+  const rows=[]; let row=[], cell='', inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){ if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else inQ=false; } else cell+=c; }
+    else if(c==='"') inQ=true;
+    else if(c===','){ row.push(cell); cell=''; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n')i++;
+      row.push(cell); cell=''; if(row.some(x=>x.trim())) rows.push(row); row=[]; }
+    else cell+=c;
+  }
+  row.push(cell); if(row.some(x=>x.trim())) rows.push(row);
+  return rows;
+}
+async function parseXlsx(f){
+  if(!window.XLSX){
+    await new Promise((res,rej)=>{ const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      s.onload=res; s.onerror=()=>rej(new Error('엑셀 파서 로드 실패 — 인터넷 연결 확인')); document.head.appendChild(s); });
+  }
+  const wb=XLSX.read(await f.arrayBuffer());
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, raw:false, defval:''});
+}
+/* 헤더 매핑: 이름/휴대폰/[*N*] — 헤더 없으면 뿌리오 순서(이름,휴대폰,1~8)로 간주 */
+function mapRows(rows){
+  if(!rows.length) return [];
+  const h=rows[0].map(x=>String(x||'').replace(/^﻿/,'').trim());
+  const hasHeader=h.some(x=>/이름|name|휴대폰|전화|phone|번호|\[\*[1-8]\*\]/i.test(x));
+  let map, start;
+  if(hasHeader){
+    map=h.map(x=>{
+      const m=x.match(/\[\*([1-8])\*\]/); if(m) return 'v'+m[1];
+      if(/이름|name/i.test(x)) return 'name';
+      if(/휴대폰|전화|폰|phone|mobile|번호/i.test(x)) return 'phone';
+      return null; });
+    start=1;
+  } else { map=['name','phone','v1','v2','v3','v4','v5','v6','v7','v8']; start=0; }
+  const out=[];
+  for(let i=start;i<rows.length;i++){
+    const rec={};
+    rows[i].forEach((cell,ci)=>{ const k=map[ci]; if(k) rec[k]=String(cell==null?'':cell).trim(); });
+    if(digits(rec.phone||'').length>=8){ rec.phone=digits(rec.phone); out.push(rec); }
+  }
+  return out;
+}
+
+/* ── 변수 (뿌리오 호환) ── */
+function tplHasVars(t){ return /\[\*(이름|[1-8])\*\]/.test(t||''); }
+function clientRender(tpl,r){
+  let out=String(tpl||'');
+  out=out.split('[*이름*]').join(r.name||'');
+  for(let i=1;i<=8;i++) out=out.split('[*'+i+'*]').join(r['v'+i]||'');
+  return out;
+}
+function renderVarChips(){
+  const el=document.getElementById('varChips'); if(!el) return;
+  const hasFile=recipients.some(r=>r.kind==='file');
+  const chip=(tok,en)=>`<span class="chip ${en?'chip-accent':''}" style="${en?'':'opacity:.4;cursor:default'}"
+    ${en?`onclick="insertVar('${tok}')"`:''}>${tok}</span>`;
+  el.innerHTML = chip('[*이름*]',true) + [1,2,3,4,5,6,7,8].map(n=>chip('[*'+n+'*]',hasFile)).join('');
+  document.getElementById('varHint').textContent = hasFile
+    ? '변수를 클릭해 본문에 삽입하세요. 수신자마다 파일의 해당 열 값으로 치환됩니다.'
+    : '[*이름*]은 바로 사용 가능 · [*1*]~[*8*]은 파일 업로드 후 활성화됩니다.';
+}
+function insertVar(tok){
+  const ta=document.getElementById('msgInp');
+  const s=ta.selectionStart??ta.value.length, e2=ta.selectionEnd??s;
+  ta.value=ta.value.slice(0,s)+tok+ta.value.slice(e2);
+  ta.focus(); ta.selectionStart=ta.selectionEnd=s+tok.length;
+  updateBytes();
+}
+
+/* ── 치환 미리보기 + 테스트 발송 ── */
+let pvIdx=0;
+function renderPreview(){
+  const panel=document.getElementById('panel_preview'); if(!panel) return;
+  const tpl=document.getElementById('msgInp').value;
+  const recs=allRecipients();
+  const show=tplHasVars(tpl)&&recs.length>0;
+  panel.classList.toggle('hidden',!show);
+  if(!show) return;
+  if(pvIdx>=recs.length) pvIdx=0; if(pvIdx<0) pvIdx=recs.length-1;
+  const r=recs[pvIdx];
+  document.getElementById('pvLabel').textContent=`미리보기 ${pvIdx+1}/${recs.length} · ${r.name||fmtPhone(r.phone)}`;
+  document.getElementById('pvBody').textContent=clientRender(tpl,r)||'(빈 내용)';
+}
+function pvNav(d){ pvIdx+=d; renderPreview(); }
+async function testSend(){
+  const recs=allRecipients(); if(!recs.length) return toast('수신자가 없습니다');
+  let num=prompt('테스트 문자를 받을 번호를 입력하세요', localStorage.getItem('sms_test_num')||'');
+  num=digits(num||''); if(num.length<8) return;
+  localStorage.setItem('sms_test_num',num);
+  const tpl=document.getElementById('msgInp').value.trim();
+  const sample=recs[Math.min(pvIdx,recs.length-1)];
+  try{
+    await api.post('/api/sms/send-bulk',{ template:tpl, image_url:currentImage||null,
+      recipients:[{...sample, phone:num}] });
+    toast('테스트 1건 발송 큐 등록 → '+fmtPhone(num));
+  }catch(e){ toast(e.message); }
 }
 function onTagKey(e){
   if(e.key==='Escape'){ hideSuggest(); return; }
@@ -310,15 +483,11 @@ function onTagKey(e){
   else if(list.length>1){ toast('여러 건이 검색됩니다 — 목록에서 선택하세요'); onTagInput(); }
   else toast('일치하는 이름이 없습니다');
 }
-function targetPhones(){
-  const phones=[];
-  recipients.forEach(r=>{ if(r.kind==='person') phones.push(r.phone); else r.phones.forEach(p=>phones.push(p)); });
-  return [...new Set(phones)];
-}
+function targetPhones(){ return allRecipients().map(r=>digits(r.phone)); }
 
 /* ── 툴바 패널 ── */
 function togglePanel(which){
-  ['img','tpl','sched'].forEach(k=>{
+  ['img','tpl','sched','var'].forEach(k=>{
     const on = k===which && document.getElementById('panel_'+k).classList.contains('hidden');
     document.getElementById('panel_'+k).classList.toggle('hidden', !on);
     document.getElementById('tb_'+k).classList.toggle('active', on);
@@ -341,21 +510,31 @@ function updateBytes(){
   const el=document.getElementById('byteInfo');
   el.textContent=`${b} byte · ${type}`;
   el.style.color=(b>90&&!currentImage)?'var(--orange-d)':'var(--muted)';
-  updateSummary();
+  updateSummary(); renderPreview();
 }
 function updateSummary(){
-  const phones=targetPhones();
-  document.getElementById('queueCount').textContent=phones.length+'명';
+  const recs=allRecipients();
+  document.getElementById('queueCount').textContent=recs.length+'명';
   const el=document.getElementById('sendSummary');
-  if(!phones.length){ el.textContent='받는 사람을 선택하세요'; return; }
-  const first=recipients[0];
-  const firstName=first.kind==='group'?first.name:(first.name||fmtPhone(first.phone));
-  const who=phones.length===1?firstName:`${firstName} 외 ${phones.length-1}명`;
-  const type=msgTypeByBytes(smsBytes(document.getElementById('msgInp').value),!!currentImage);
+  if(!recs.length){ el.textContent='받는 사람을 선택하세요'; return; }
+  const first=recs[0];
+  const who=recs.length===1?(first.name||fmtPhone(first.phone)):`${first.name||fmtPhone(first.phone)} 외 ${recs.length-1}명`;
+  const tpl=document.getElementById('msgInp').value;
+  let typeStr;
+  if(tplHasVars(tpl)){
+    // 변수 치환 후 수신자별 실제 바이트로 SMS/LMS 집계 (2천명까지 정밀 계산)
+    if(currentImage) typeStr=`MMS ${recs.length}건`;
+    else{
+      let sms=0,lms=0; const cap=Math.min(recs.length,2000);
+      for(let i=0;i<cap;i++){ (smsBytes(clientRender(tpl,recs[i]))>90?lms++:sms++); }
+      typeStr = lms ? (sms?`SMS ${sms}·LMS ${lms}`:`LMS ${lms}건`) : `SMS ${sms}건`;
+    }
+  } else typeStr=msgTypeByBytes(smsBytes(tpl),!!currentImage);
   let when='지금 발송';
   if(scheduleOn){ const d=document.getElementById('schedDate').value,t=document.getElementById('schedTime').value;
     when=d&&t?`${d.slice(5).replace('-','/')} ${t} 예약`:'예약 시각 미지정'; }
-  el.textContent=`${who} · ${type} · ${when}`;
+  else if(recs.length>100) when=`즉시 100 + 분당 20건 분할`;
+  el.textContent=`${who} · ${typeStr} · ${when}`;
 }
 
 /* ── URL 자동 단축 (붙여넣기·입력·블러 시 자동 적용) ── */
@@ -429,25 +608,31 @@ function removeImage(){ currentImage=''; document.getElementById('imgUrlInp').va
 /* ── 발송 ── */
 async function doSend(){
   await autoShorten(false);                          // 남은 링크 단축 후 발송
-  const phones=targetPhones();
+  const recs=allRecipients();
   const content=document.getElementById('msgInp').value.trim();
   const image_url=currentImage||null;
-  if(!phones.length) return toast('받는 사람을 선택하세요');
+  if(!recs.length) return toast('받는 사람을 선택하세요');
   if(!content && !image_url) return toast('메시지를 입력하세요');
+  const useBulk = tplHasVars(content) || recipients.some(r=>r.kind==='file') || recs.length>100;
   const btn=document.getElementById('sendBtn'); btn.disabled=true;
   try{
     if(scheduleOn){
+      if(useBulk){ toast('변수·대량 발송은 즉시 발송만 지원됩니다 (100건 초과분은 자동 분할)'); btn.disabled=false; return; }
       const d=document.getElementById('schedDate').value, t=document.getElementById('schedTime').value;
       if(!d||!t){ toast('예약 시각을 지정하세요'); btn.disabled=false; return; }
-      await api.post('/api/sms/schedule',{ phones, content, image_url, send_at:new Date(d+'T'+t).toISOString() });
-      toast(`${phones.length}명 예약 등록 완료`);
+      await api.post('/api/sms/schedule',{ phones:recs.map(r=>r.phone), content, image_url, send_at:new Date(d+'T'+t).toISOString() });
+      toast(`${recs.length}명 예약 등록 완료`);
+    } else if(useBulk){
+      if(!confirm(`${recs.length}명에게 발송합니다. 진행할까요?`)){ btn.disabled=false; return; }
+      const r=await api.post('/api/sms/send-bulk',{ template:content, image_url, recipients:recs });
+      toast(`${r.queued}건 즉시 발송${r.scheduled?` + ${r.scheduled}건 분할 예약(${r.batches}회)`:''}${r.excluded?` · ${r.excluded}건 수신거부 제외`:''}`);
     } else {
-      const r=await api.post('/api/sms/send',{ phones, content, image_url });
+      const r=await api.post('/api/sms/send',{ phones:recs.map(x=>x.phone), content, image_url });
       toast(`${r.queued}명 발송 큐 등록${r.excluded?` · ${r.excluded}명 수신거부 제외`:''}`);
     }
     document.getElementById('msgInp').value=''; removeImage();
     document.getElementById('shortNote').classList.add('hidden');
-    recipients=[]; renderChips(); updateBytes(); updateSummary();
+    recipients=[]; renderChips(); renderVarChips(); updateBytes();
     refreshBootstrap(); loadThreads();
   }catch(e){ toast('실패: '+e.message); }
   btn.disabled=false;
