@@ -63,6 +63,33 @@ function registerSmsRoutes(app, deps) {
     return { queued: targets.length, excluded, blocked: [...blocked] };
   }
 
+  // ── 자동응답 규칙 매칭 ──────────────────────────────────────
+  // 수신 시각(KST) "HH:MM" 반환
+  function kstHM(ts) {
+    return new Date(ts).toLocaleTimeString('en-GB', { timeZone: 'Asia/Seoul', hour12: false, hour: '2-digit', minute: '2-digit' });
+  }
+  // 시간창 판정 — 자정 걸침(예: 22:00~07:00)도 지원
+  function inTimeWindow(hm, start, end) {
+    const st = String(start).slice(0, 5), en = String(end).slice(0, 5);
+    if (st === en) return false;
+    return st < en ? (hm >= st && hm < en) : (hm >= st || hm < en);
+  }
+  // 시간대 규칙 우선(수업 중이면 키워드보다 부재응답이 먼저), 다음 키워드 규칙. 1건만 응답.
+  function pickAutoreplyRule(rules, text, ts) {
+    const hm = kstHM(ts);
+    for (const r of rules) {
+      if (r.rule_type === 'time' && r.start_time && r.end_time && inTimeWindow(hm, r.start_time, r.end_time)) return r;
+    }
+    for (const r of rules) {
+      if (r.rule_type === 'time') continue;
+      const kw = String(r.keyword || '');
+      if (!kw) continue;
+      const hit = r.match_type === 'exact' ? text === kw : r.match_type === 'starts' ? text.startsWith(kw) : text.includes(kw);
+      if (hit) return r;
+    }
+    return null;
+  }
+
   // ── 백그라운드 tick: 예약발송 실행 + 수신 자동응답/수신거부 처리 ──
   // 서버리스라 별도 크론이 없으므로 API 요청 시 기회적으로 실행 (15초 스로틀)
   let lastTickAt = 0;
@@ -93,29 +120,34 @@ function registerSmsRoutes(app, deps) {
         const rules = await q("SELECT * FROM js_autoreply WHERE enabled = true ORDER BY created_at ASC");
         const bl = await q('SELECT phone FROM js_blocked');
         const blocked = new Set(bl.rows.map((r) => digits(r.phone)));
-        let maxSeen = lastSeen;
+        // ⚠️ pg는 created_at을 Date 객체로 반환 → 문자열과 비교하면 항상 false가 되어
+        //    lastSeen이 갱신되지 않고 같은 수신 문자에 무한 재응답하는 버그가 있었음.
+        //    반드시 ms 숫자로 비교한다.
+        let maxSeenMs = new Date(lastSeen).getTime() || 0;
         for (const m of inbound.rows) {
           const text = String(m.content || '').trim();
           const ph = digits(m.phone);
+          const ms = new Date(m.created_at).getTime();
+          if (ms > maxSeenMs) maxSeenMs = ms;
           // 수신거부 자동 등록
           if (/^수신\s*거부$/.test(text) || text === '거부') {
             await q("INSERT INTO js_blocked (phone, reason) VALUES ($1, '자동(수신거부 회신)') ON CONFLICT (phone) DO NOTHING", [ph]);
             blocked.add(ph);
-          } else if (!blocked.has(ph)) {
-            // 자동응답 규칙 매칭 (첫 매칭 1건만)
-            for (const r of rules.rows) {
-              const kw = String(r.keyword || '');
-              const t = r.match_type;
-              const hit = t === 'exact' ? text === kw : t === 'starts' ? text.startsWith(kw) : text.includes(kw);
-              if (hit && kw) {
-                await enqueue([ph], r.reply_content, null);
-                break;
-              }
-            }
+            continue;
           }
-          if (m.created_at > maxSeen) maxSeen = m.created_at;
+          if (blocked.has(ph)) continue;
+          const rule = pickAutoreplyRule(rules.rows, text, m.created_at);
+          if (!rule) continue;
+          // 재발송 방지 쿨다운(서버리스 다중 인스턴스 대비, DB 기준):
+          // 같은 번호로 같은 내용을 60분 내 이미 보냈으면 다시 보내지 않는다.
+          const dup = await q(
+            "SELECT 1 FROM js_message_logs WHERE dir='out' AND phone=$1 AND content=$2 AND created_at > now() - interval '60 minutes' LIMIT 1",
+            [ph, rule.reply_content]
+          );
+          if (dup.rows.length) continue;
+          await enqueue([ph], rule.reply_content, null);
         }
-        cfg.autoreplyLastSeen = (maxSeen instanceof Date) ? maxSeen.toISOString() : maxSeen;
+        cfg.autoreplyLastSeen = new Date(maxSeenMs).toISOString();
         await saveConfig(cfg);
       }
     } catch (e) {
@@ -407,20 +439,37 @@ function registerSmsRoutes(app, deps) {
     const r = await q('SELECT * FROM js_autoreply ORDER BY created_at ASC');
     res.json(r.rows);
   }));
+  // 규칙 본문 검증: keyword형=키워드 필수, time형=시작/종료 시각 필수
+  function validAutoreplyBody(b) {
+    const type = b.rule_type === 'time' ? 'time' : 'keyword';
+    if (!b.reply_content) return { error: '응답 내용은 필수입니다' };
+    if (type === 'keyword' && !b.keyword) return { error: '키워드는 필수입니다' };
+    if (type === 'time' && (!b.start_time || !b.end_time)) return { error: '시작/종료 시각은 필수입니다' };
+    return {
+      type,
+      keyword: type === 'keyword' ? b.keyword : '',
+      match_type: b.match_type || 'contains',
+      reply_content: b.reply_content,
+      enabled: !!b.enabled,
+      start_time: type === 'time' ? b.start_time : null,
+      end_time: type === 'time' ? b.end_time : null,
+    };
+  }
   app.post('/api/sms/autoreply', requireSmsAccess, wrap(async (req, res) => {
-    const { keyword, match_type, reply_content, enabled } = req.body;
-    if (!keyword || !reply_content) return res.status(400).json({ error: 'keyword/reply_content 필수' });
+    const v = validAutoreplyBody(req.body);
+    if (v.error) return res.status(400).json({ error: v.error });
     const r = await q(
-      'INSERT INTO js_autoreply (keyword, match_type, reply_content, enabled) VALUES ($1,$2,$3,$4) RETURNING *',
-      [keyword, match_type || 'contains', reply_content, !!enabled]
+      'INSERT INTO js_autoreply (keyword, match_type, reply_content, enabled, rule_type, start_time, end_time) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [v.keyword, v.match_type, v.reply_content, v.enabled, v.type, v.start_time, v.end_time]
     );
     res.json({ ok: true, rule: r.rows[0] });
   }));
   app.put('/api/sms/autoreply/:id', requireSmsAccess, wrap(async (req, res) => {
-    const { keyword, match_type, reply_content, enabled } = req.body;
+    const v = validAutoreplyBody(req.body);
+    if (v.error) return res.status(400).json({ error: v.error });
     const r = await q(
-      'UPDATE js_autoreply SET keyword=$1, match_type=$2, reply_content=$3, enabled=$4 WHERE id=$5 RETURNING *',
-      [keyword, match_type || 'contains', reply_content, !!enabled, req.params.id]
+      'UPDATE js_autoreply SET keyword=$1, match_type=$2, reply_content=$3, enabled=$4, rule_type=$5, start_time=$6, end_time=$7 WHERE id=$8 RETURNING *',
+      [v.keyword, v.match_type, v.reply_content, v.enabled, v.type, v.start_time, v.end_time, req.params.id]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'not_found' });
     res.json({ ok: true, rule: r.rows[0] });
