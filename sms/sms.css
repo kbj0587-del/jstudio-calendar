@@ -161,6 +161,24 @@ body.resizing{cursor:col-resize;user-select:none}
 .toggle.on .toggle-knob{left:19px}
 .divider{height:1px;background:var(--border2)}
 
+/* ── 메신저 컴포저 (B안) ── */
+.chipfield{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:8px 11px;border-radius:13px;
+  border:1px solid var(--border);background:var(--surface2);cursor:text;min-height:44px}
+.chipfield:focus-within{border-color:var(--accent)}
+.chipfield input{flex:1;min-width:110px;border:none;background:transparent;font-size:13.5px;color:var(--text);padding:4px 2px}
+.msgcard{border:1px solid var(--border);border-radius:15px;background:var(--surface);overflow:hidden}
+.msgcard:focus-within{border-color:var(--accent)}
+.msgcard textarea{width:100%;border:none;background:transparent;padding:13px 14px;font-size:15px;
+  line-height:1.6;color:var(--text);resize:vertical;min-height:110px}
+.toolbar{display:flex;align-items:center;gap:5px;border-top:1px solid var(--border2);padding:7px 10px}
+.tool-btn{position:relative;display:flex;align-items:center;justify-content:center;width:36px;height:36px;
+  border-radius:10px;background:transparent;border:none;color:var(--muted2);cursor:pointer}
+.tool-btn:hover{background:var(--surface2)}
+.tool-btn.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
+.tool-btn .dot{position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.tool-panel{border-top:1px solid var(--border2);padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--surface2)}
+.summary-line{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--muted2);padding:2px 4px}
+
 /* ── 수신자 자동완성 드롭다운 ── */
 .suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--surface);
   border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);

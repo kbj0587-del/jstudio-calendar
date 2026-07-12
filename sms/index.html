@@ -11,99 +11,86 @@
 
 <div class="wrap">
   <div class="dash" id="dash">
-    <!-- 왼쪽: 발송 패널 -->
+    <!-- 왼쪽: 발송 패널 (B안 메신저 컴포저) -->
     <div class="compose" id="compose">
 
-      <!-- ① 수신자 직접 입력 -->
+      <!-- ① 받는 사람: 칩 필드 하나로 통합 -->
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div class="section-label" style="margin:0">수신자</div>
+          <div class="section-label" style="margin:0">받는 사람</div>
           <span style="font-size:13px;font-weight:600;color:var(--accent)" id="queueCount">0명</span>
         </div>
-        <div id="tagChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
         <div style="position:relative">
-          <input id="tagInp" class="inp" placeholder="번호 또는 이름 입력 (Enter로 추가)" autocomplete="off"
-                 onkeydown="onTagKey(event)" oninput="onTagInput()">
+          <div class="chipfield" onclick="document.getElementById('tagInp').focus()">
+            <span id="tagChips" style="display:contents"></span>
+            <input id="tagInp" placeholder="이름·번호·그룹 검색" autocomplete="off"
+                   onkeydown="onTagKey(event)" oninput="onTagInput()">
+          </div>
           <div id="tagSuggest" class="suggest hidden"></div>
         </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- ② 메시지 -->
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <div class="section-label" style="margin:0">발송 메시지</div>
-          <div id="byteInfo" style="font-size:11.5px;font-weight:600;color:var(--muted)">0 byte · SMS</div>
-        </div>
-        <textarea id="msgInp" class="inp" rows="4" placeholder="메시지를 입력하세요" oninput="updateBytes()"></textarea>
-
-        <!-- 이미지 (MMS): 드래그·파일·URL -->
-        <div id="imgZone" class="img-zone" style="margin-top:8px"
-             onclick="document.getElementById('imgFileInp').click()"
-             ondragover="imgDrag(event,true)" ondragleave="imgDrag(event,false)" ondrop="imgDrop(event)">
-          이미지를 드래그하거나 클릭해 첨부 · 붙여넣기(Ctrl+V) 지원
-        </div>
-        <input type="file" id="imgFileInp" accept="image/*" style="display:none" onchange="onImgFile(event)">
-        <input id="imgUrlInp" class="inp" style="margin-top:8px" placeholder="또는 이미지 URL 입력" onchange="setImageFromUrl()">
-        <div id="imgPreview" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"></div>
-
-        <!-- URL 단축 -->
-        <div style="display:flex;gap:6px;margin-top:8px">
-          <input id="urlInp" class="inp" style="flex:1" placeholder="긴 URL → 단축해 본문 삽입">
-          <button class="btn btn-dark btn-sm" onclick="shortenUrl()">단축</button>
-        </div>
-
-        <div id="quickTpl" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
-      </div>
-
-      <div class="divider"></div>
-
-      <!-- ③ 회원 선택 (검색·그룹·파일) -->
-      <div>
-        <div class="section-label">회원 선택</div>
-        <input id="searchInp" class="inp" placeholder="이름·번호로 회원 검색" oninput="renderContacts()">
-        <div id="contactList" style="max-height:150px;overflow-y:auto;margin-top:8px;display:flex;flex-direction:column;gap:2px"></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="groupChips"></div>
-        <div style="margin-top:10px">
-          <span style="font-size:12px;color:var(--muted2);cursor:pointer" onclick="document.getElementById('fileInp').click()">＋ 연락처 파일(CSV·TXT) 업로드</span>
-        </div>
-        <input type="file" id="fileInp" accept=".csv,.txt" style="display:none" onchange="importFile(event)">
       </div>
 
-      <div class="divider"></div>
-
-      <!-- ④ 발신번호 (컴팩트, 접기) -->
+      <!-- ② 메시지: 본문 + 하단 툴바 -->
       <div>
-        <div class="compact-box" onclick="toggleSender()">
-          <span>발신번호 <b id="senderNowLabel" style="color:var(--text)">—</b></span>
-          <span style="color:var(--muted)" id="senderChev">▸</span>
+        <div class="msgcard">
+          <textarea id="msgInp" rows="5" placeholder="메시지를 입력하세요 — 링크는 자동으로 단축됩니다"
+                    oninput="updateBytes(); debounceShorten()" onblur="autoShorten(false)" onpaste="onMsgPaste()"></textarea>
+          <div class="toolbar">
+            <button class="tool-btn" id="tb_img" title="이미지 첨부 (MMS)" onclick="togglePanel('img')">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+              <span class="dot hidden" id="dot_img"></span>
+            </button>
+            <button class="tool-btn" id="tb_tpl" title="템플릿" onclick="togglePanel('tpl')">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>
+            </button>
+            <button class="tool-btn" id="tb_sched" title="예약 발송" onclick="togglePanel('sched')">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+              <span class="dot hidden" id="dot_sched"></span>
+            </button>
+            <span style="flex:1;text-align:right;font-size:11.5px;color:var(--muted)" id="byteInfo">0 byte · SMS</span>
+          </div>
+
+          <!-- 이미지 패널 -->
+          <div class="tool-panel hidden" id="panel_img">
+            <div id="imgZone" class="img-zone"
+                 onclick="document.getElementById('imgFileInp').click()"
+                 ondragover="imgDrag(event,true)" ondragleave="imgDrag(event,false)" ondrop="imgDrop(event)">
+              이미지를 드래그하거나 클릭해 첨부 · 붙여넣기(Ctrl+V) 지원
+            </div>
+            <input type="file" id="imgFileInp" accept="image/*" style="display:none" onchange="onImgFile(event)">
+            <input id="imgUrlInp" class="inp" placeholder="또는 이미지 URL 입력" onchange="setImageFromUrl()">
+            <div id="imgPreview" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+          </div>
+
+          <!-- 템플릿 패널 -->
+          <div class="tool-panel hidden" id="panel_tpl">
+            <div id="quickTpl" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+
+          <!-- 예약 패널 -->
+          <div class="tool-panel hidden" id="panel_sched">
+            <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;font-weight:500">
+              예약 발송 사용
+              <div class="toggle" id="schedToggle" onclick="toggleSchedule(event)"><div class="toggle-knob"></div></div>
+            </label>
+            <div id="schedInputs" class="hidden" style="display:flex;gap:8px">
+              <input type="date" id="schedDate" class="inp" style="flex:1" onchange="updateSummary()">
+              <input type="time" id="schedTime" class="inp" style="width:118px" onchange="updateSummary()">
+            </div>
+          </div>
         </div>
-        <div id="senderList" class="hidden" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+        <div id="shortNote" class="hidden" style="font-size:11px;color:var(--muted);margin-top:6px">🔗 링크가 자동 단축되었습니다 — 클릭수는 발송 이력에서 집계됩니다</div>
       </div>
 
-      <!-- ④ 수신거부 · 예약 (컴팩트, 나란히) -->
-      <div style="display:flex;gap:8px">
-        <div class="compact-box" onclick="toggleBlock()">
-          <span>수신거부 <span class="badge badge-red" id="blockCount" style="margin-left:2px">0</span></span>
-          <span style="color:var(--muted)" id="blockChev">▸</span>
+      <!-- ③ 요약 + 발송 -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="summary-line">
+          <span id="sendSummary">받는 사람을 선택하세요</span>
+          <span id="gwInline" style="color:var(--green-d)"></span>
         </div>
-        <div class="compact-box" onclick="toggleSchedule()">
-          <span>예약 발송</span>
-          <div class="toggle" id="schedToggle"><div class="toggle-knob"></div></div>
-        </div>
+        <button class="btn" id="sendBtn" onclick="doSend()" style="padding:13px;font-size:14.5px">보내기</button>
       </div>
-      <div id="blockPanel" class="hidden" style="display:flex;flex-direction:column;gap:8px;background:var(--surface2);border-radius:12px;padding:10px 12px">
-        <div id="blockItems" style="display:flex;flex-direction:column;gap:4px;max-height:130px;overflow-y:auto"></div>
-        <input id="blockInp" class="inp" placeholder="번호 입력 후 Enter로 수신거부" onkeydown="onBlockKey(event)">
-        <div style="font-size:10.5px;color:var(--muted);line-height:1.5">"수신거부" 답장 수신 시 자동 등록됩니다. 등록 번호는 발송 대상에서 자동 제외됩니다.</div>
-      </div>
-      <div id="schedPanel" class="hidden" style="display:flex;gap:8px;background:var(--surface2);border-radius:12px;padding:10px 12px">
-        <input type="date" id="schedDate" class="inp" style="flex:1">
-        <input type="time" id="schedTime" class="inp" style="width:118px">
-      </div>
-
-      <button class="btn" id="sendBtn" onclick="doSend()">발송하기</button>
     </div>
 
     <!-- 드래그 리사이즈 핸들 -->
@@ -134,27 +121,26 @@
 <script src="sms.js"></script>
 <script>
 /* ── 상태 ── */
-let members = [], groups = [], blocked = [], senders = [], selectedSender = 0;
-const selected = new Set();
-let extraTags = [];
-let activeGroupId = null;
+let members = [], groups = [], senders = [], selectedSender = 0;
+let recipients = [];           // {kind:'person',phone,name} | {kind:'group',id,name,phones:[]}
+let gwContacts = [];
 let threads = [], activeThread = null;
 let scheduleOn = false;
-let currentImage = '';                 // 첨부 이미지 URL (1장)
+let currentImage = '';
 let composeW = parseInt(localStorage.getItem('sms_composeW'),10) || 400;
 
 async function boot(){
   renderHeader('index',
-    `<span class="pill pill-gray" id="senderPill">발신 —</span>
+    `<span class="pill pill-gray" id="senderPill" style="cursor:pointer" onclick="openSenderModal()">발신 —</span>
      <span class="pill pill-gray" id="gwPill"><div class="dot dot-red"></div>게이트웨이</span>
      <span class="pill pill-gray" id="quotaPill">오늘 0/0</span>`);
   applyComposeWidth();
   initResizer();
   window.addEventListener('resize', applyComposeWidth);
-  window.addEventListener('paste', onPaste);
+  window.addEventListener('paste', onGlobalPaste);
   await refreshBootstrap();
-  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadBlocked(), loadThreads(), loadGwContacts()]);
-  updateBytes();
+  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadThreads(), loadGwContacts()]);
+  updateBytes(); updateSummary();
   document.getElementById('tagInp').addEventListener('blur', ()=>setTimeout(hideSuggest, 200));
   setInterval(loadThreads, 20000);
   setInterval(refreshBootstrap, 30000);
@@ -164,8 +150,7 @@ window.onAuthReady = boot;
 /* ── 리사이즈 ── */
 function applyComposeWidth(){
   const c=document.getElementById('compose');
-  if (window.innerWidth<=900){ c.style.width=''; }
-  else { c.style.width=composeW+'px'; }
+  if (window.innerWidth<=900){ c.style.width=''; } else { c.style.width=composeW+'px'; }
 }
 function initResizer(){
   const h=document.getElementById('resizer');
@@ -181,101 +166,90 @@ function initResizer(){
   });
 }
 
+/* ── 부트스트랩 / 발신번호 ── */
 async function refreshBootstrap(){
   try{
     const d = await api.get('/api/sms/bootstrap');
     senders = d.senders || [];
-    renderSenders(); updateSenderPill();
+    updateSenderPill();
     const qp=document.getElementById('quotaPill'); if(qp) qp.textContent=`오늘 ${d.quotaUsed}/${d.quotaTotal}`;
-    document.getElementById('blockCount').textContent = d.blockedCount;
-    // 헤더 게이트웨이 pill
     const gp=document.getElementById('gwPill');
     if(gp){ gp.className='pill '+(d.gatewayOnline?'pill-green':'pill-red');
       gp.innerHTML=`<div class="dot ${d.gatewayOnline?'dot-green':'dot-red'}"></div>게이트웨이 ${d.gatewayOnline?'ON':'OFF'}`; }
-    // 메신저 게이트웨이 pill
     const pill=document.getElementById('fcmPill');
     if(pill){ pill.className='pill '+(d.gatewayOnline?'pill-green':'pill-red');
       pill.innerHTML=`<div class="dot ${d.gatewayOnline?'dot-green':'dot-red'}"></div>${d.gatewayOnline?'게이트웨이 ON':'게이트웨이 OFF'}`; }
+    const gi=document.getElementById('gwInline');
+    if(gi){ gi.textContent=d.gatewayOnline?'게이트웨이 ON':'게이트웨이 OFF'; gi.style.color=d.gatewayOnline?'var(--green-d)':'var(--red)'; }
   }catch(e){ if(e.message!=='auth') console.error(e); }
 }
-
 function updateSenderPill(){
   const s=senders[selectedSender];
-  const label=s?s.number:'—';
-  const sp=document.getElementById('senderPill'); if(sp) sp.textContent='발신 '+label;
-  const nl=document.getElementById('senderNowLabel'); if(nl) nl.textContent=label;
+  const sp=document.getElementById('senderPill'); if(sp) sp.textContent='발신 '+(s?s.number:'—');
 }
-function toggleSender(){ const l=document.getElementById('senderList'); l.classList.toggle('hidden');
-  document.getElementById('senderChev').textContent=l.classList.contains('hidden')?'▸':'▾'; }
-function renderSenders(){
-  const el=document.getElementById('senderList');
-  if(!senders.length){ el.innerHTML=`<div style="font-size:12px;color:var(--muted)">등록된 발신번호가 없습니다.</div>`; return; }
-  el.innerHTML=senders.map((s,i)=>`
-    <div class="contact-row" style="border:1.5px solid ${i===selectedSender?'var(--accent)':'var(--border)'}" onclick="selectedSender=${i};renderSenders();updateSenderPill()">
-      <div class="check ${i===selectedSender?'on':''}" style="border-radius:50%">${i===selectedSender?'●':''}</div>
-      <div style="flex:1"><div style="font-size:13px;font-weight:600">${esc(s.number)}</div>
-        <div style="font-size:11.5px;color:var(--muted)">${esc(s.label||'')}</div></div>
-      ${s.verified?'<span class="badge badge-green">인증됨</span>':''}
-    </div>`).join('');
+function openSenderModal(){
+  if(!senders.length) return toast('등록된 발신번호가 없습니다');
+  openModal(`<h3>발신번호 선택</h3>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${senders.map((s,i)=>`
+        <div class="contact-row" style="border:1.5px solid ${i===selectedSender?'var(--accent)':'var(--border)'}"
+             onclick="selectedSender=${i};updateSenderPill();closeModal()">
+          <div class="check ${i===selectedSender?'on':''}" style="border-radius:50%">${i===selectedSender?'●':''}</div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:600">${esc(s.number)}</div>
+            <div style="font-size:11.5px;color:var(--muted)">${esc(s.label||'')}</div></div>
+          ${s.verified?'<span class="badge badge-green">인증됨</span>':''}
+        </div>`).join('')}
+    </div>`);
 }
 
-async function loadMembers(){ members=await api.get('/api/sms/members'); renderContacts(); }
-async function loadGroups(){
-  groups=await api.get('/api/sms/groups');
-  document.getElementById('groupChips').innerHTML=
-    `<span class="chip ${activeGroupId===null?'chip-accent':''}" onclick="pickGroup(null)">전체</span>`+
-    groups.map(g=>`<span class="chip ${activeGroupId===g.id?'chip-accent':''}" onclick="pickGroup('${g.id}')">${esc(g.name)} ${g.member_count}</span>`).join('');
-}
-async function pickGroup(id){
-  activeGroupId=id;
-  if(id){ const gm=await api.get('/api/sms/groups/'+id+'/members'); selected.clear(); gm.forEach(m=>selected.add(m.id)); }
-  loadGroups(); renderContacts(); updateQueue();
-}
-function renderContacts(){
-  const term=(document.getElementById('searchInp').value||'').trim();
-  const list=members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
-  document.getElementById('contactList').innerHTML=list.map(m=>`
-    <div class="contact-row" onclick="toggleContact('${m.id}')">
-      <div class="check ${selected.has(m.id)?'on':''}">${selected.has(m.id)?'✓':''}</div>
-      <div class="avatar" style="width:26px;height:26px;font-size:11px;background:${avatarColor(m.name)}">${initial(m.name)}</div>
-      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px">
-        <span style="font-size:13.5px;font-weight:500">${esc(m.name)}</span>
-        ${m.blocked?'<span class="badge badge-red">수신거부</span>':''}
-      </div>
-      <span style="font-size:12px;color:var(--muted)">${esc(fmtPhone(m.phone))}</span>
-    </div>`).join('') || `<div style="font-size:12.5px;color:var(--muted);padding:10px;text-align:center">회원이 없습니다.</div>`;
-}
-function toggleContact(id){ selected.has(id)?selected.delete(id):selected.add(id); renderContacts(); updateQueue(); }
-
-/* ── 수신자 직접 입력: 번호 또는 이름(자동완성) ──
-   동명이인·한 사람 복수 번호 모두 행 단위로 표시해 선택 가능 */
-let gwContacts = [];   // 게이트웨이 주소록 (회원 명부에 없는 것만)
+/* ── 데이터 로드 ── */
+async function loadMembers(){ members = await api.get('/api/sms/members'); }
 async function loadGwContacts(){
-  try{ const gc = await api.get('/api/sms/gateway-contacts'); gwContacts = gc.filter(c=>!c.in_members); }
-  catch(e){}
+  try{ const gc = await api.get('/api/sms/gateway-contacts'); gwContacts = gc.filter(c=>!c.in_members); }catch(e){}
 }
+async function loadGroups(){
+  groups = await api.get('/api/sms/groups');
+  document.getElementById('groupChips').innerHTML =
+    `<span class="chip" onclick="addAllMembers()">전체 회원</span>` +
+    groups.map(g=>`<span class="chip" onclick="addGroupChip('${g.id}')">${esc(g.name)} ${g.member_count}</span>`).join('');
+}
+async function loadTemplates(){
+  const tpls=await api.get('/api/sms/templates');
+  document.getElementById('quickTpl').innerHTML = tpls.map(t=>
+    `<span class="chip" onclick="applyTpl('${t.id}')">${esc(t.title)}</span>`).join('') ||
+    `<span style="font-size:12px;color:var(--muted)">저장된 템플릿이 없습니다 — 템플릿 페이지에서 추가하세요</span>`;
+  window._tpls=tpls;
+}
+function applyTpl(id){ const t=(window._tpls||[]).find(x=>x.id===id); if(!t)return;
+  document.getElementById('msgInp').value=t.content; updateBytes(); togglePanel('tpl'); }
 
+/* ── 받는 사람: 칩 + 자동완성 (회원·주소록·그룹 통합) ── */
 function searchDirectory(term){
   const t = term.trim(); if(!t) return [];
   const td = digits(t);
-  const pool = [
-    ...members.map(m=>({name:m.name, phone:digits(m.phone), src:'회원'})),
-    ...gwContacts.map(c=>({name:c.name, phone:digits(c.phone), src:'주소록'})),
-  ];
-  const taken = new Set([
-    ...extraTags.map(x=>x.phone),
-    ...members.filter(m=>selected.has(m.id)).map(m=>digits(m.phone)),
-  ]);
-  return pool.filter(p => (p.name.includes(t) || (td.length>=3 && p.phone.includes(td))) && !taken.has(p.phone)).slice(0,8);
+  const takenPhones = new Set(recipients.filter(r=>r.kind==='person').map(r=>r.phone));
+  const takenGroups = new Set(recipients.filter(r=>r.kind==='group').map(r=>r.id));
+  const people = [
+    ...members.map(m=>({kind:'person', name:m.name, phone:digits(m.phone), src:'회원'})),
+    ...gwContacts.map(c=>({kind:'person', name:c.name, phone:digits(c.phone), src:'주소록'})),
+  ].filter(p => (p.name.includes(t) || (td.length>=3 && p.phone.includes(td))) && !takenPhones.has(p.phone));
+  const grps = groups.filter(g => g.name.includes(t) && !takenGroups.has(g.id) && g.member_count>0)
+    .map(g=>({kind:'group', id:g.id, name:g.name, count:g.member_count}));
+  return [...grps, ...people].slice(0,8);
 }
-
 function onTagInput(){
   const v = document.getElementById('tagInp').value;
   const list = searchDirectory(v);
   const box = document.getElementById('tagSuggest');
   window._suggest = list;
   if(!v.trim() || !list.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
-  box.innerHTML = list.map((p,i)=>`
+  box.innerHTML = list.map((p,i)=> p.kind==='group' ? `
+    <div class="suggest-item" onmousedown="pickSuggest(${i})">
+      <div class="avatar" style="width:24px;height:24px;font-size:10px;background:var(--accent)">${svgIcon('users',13)}</div>
+      <span style="flex:1;font-size:13px;font-weight:500">${esc(p.name)}</span>
+      <span style="font-size:12px;color:var(--muted)">${p.count}명</span>
+      <span class="badge badge-gray">그룹</span>
+    </div>` : `
     <div class="suggest-item" onmousedown="pickSuggest(${i})">
       <div class="avatar" style="width:24px;height:24px;font-size:10px;background:${avatarColor(p.name)}">${initial(p.name)}</div>
       <span style="flex:1;font-size:13px;font-weight:500">${esc(p.name)}</span>
@@ -284,46 +258,140 @@ function onTagInput(){
     </div>`).join('');
   box.classList.remove('hidden');
 }
-function pickSuggest(i){ const p=(window._suggest||[])[i]; if(p) addTagEntry(p.phone, p.name); }
-function hideSuggest(){ const b=document.getElementById('tagSuggest'); b.classList.add('hidden'); }
-
-function addTagEntry(phone, name){
-  if(!extraTags.some(x=>x.phone===phone)) extraTags.push({ phone, name: name||'' });
-  const inp=document.getElementById('tagInp'); inp.value='';
-  hideSuggest(); renderTags(); updateQueue(); inp.focus();
+function pickSuggest(i){
+  const p=(window._suggest||[])[i]; if(!p) return;
+  if(p.kind==='group') addGroupChip(p.id);
+  else addPerson(p.phone, p.name);
 }
+function hideSuggest(){ const b=document.getElementById('tagSuggest'); if(b) b.classList.add('hidden'); }
 
+function addPerson(phone, name){
+  if(!recipients.some(r=>r.kind==='person'&&r.phone===phone))
+    recipients.push({kind:'person', phone, name:name||''});
+  afterRecipientChange();
+}
+async function addGroupChip(gid){
+  if(recipients.some(r=>r.kind==='group'&&r.id===gid)) return;
+  const g=groups.find(x=>x.id===gid); if(!g) return;
+  try{
+    const gm=await api.get('/api/sms/groups/'+gid+'/members');
+    recipients.push({kind:'group', id:gid, name:g.name, phones:gm.map(m=>digits(m.phone))});
+    afterRecipientChange();
+  }catch(e){ toast(e.message); }
+}
+function addAllMembers(){
+  if(recipients.some(r=>r.kind==='group'&&r.id==='__all__')) return;
+  recipients.push({kind:'group', id:'__all__', name:'전체 회원', phones:members.map(m=>digits(m.phone))});
+  afterRecipientChange();
+}
+function removeRecipient(i){ recipients.splice(i,1); afterRecipientChange(); }
+function afterRecipientChange(){
+  const inp=document.getElementById('tagInp'); inp.value='';
+  hideSuggest(); renderChips(); updateSummary(); inp.focus();
+}
+function renderChips(){
+  document.getElementById('tagChips').innerHTML = recipients.map((r,i)=>{
+    const label = r.kind==='group'
+      ? `${svgIcon('users',11)} ${esc(r.name)} <span style="opacity:.65">${r.phones.length}</span>`
+      : (r.name ? `${esc(r.name)} <span style="opacity:.65">${r.phone.slice(-4)}</span>` : esc(fmtPhone(r.phone)));
+    return `<span class="tag">${label}<span class="x" onclick="event.stopPropagation();removeRecipient(${i})">×</span></span>`;
+  }).join('');
+}
 function onTagKey(e){
   if(e.key==='Escape'){ hideSuggest(); return; }
+  if(e.key==='Backspace' && !e.target.value && recipients.length){ removeRecipient(recipients.length-1); return; }
   if(e.key!=='Enter') return;
+  e.preventDefault();
   const v=e.target.value.trim(); if(!v) return;
   const d=digits(v);
-  if(d.length>=8){ addTagEntry(d, ''); return; }
+  if(d.length>=8){ addPerson(d,''); return; }
   const list=searchDirectory(v);
-  if(list.length===1) addTagEntry(list[0].phone, list[0].name);
+  if(list.length===1) pickSuggest(0);
   else if(list.length>1){ toast('여러 건이 검색됩니다 — 목록에서 선택하세요'); onTagInput(); }
   else toast('일치하는 이름이 없습니다');
 }
-
-function renderTags(){
-  document.getElementById('tagChips').innerHTML = extraTags.map((t,i)=>{
-    const label = t.name ? `${esc(t.name)} <span style="opacity:.65">${t.phone.slice(-4)}</span>` : esc(fmtPhone(t.phone));
-    return `<span class="tag">${label}<span class="x" onclick="extraTags.splice(${i},1);renderTags();updateQueue()">×</span></span>`;
-  }).join('');
-}
-
 function targetPhones(){
-  const phones=[]; members.forEach(m=>{ if(selected.has(m.id)) phones.push(digits(m.phone)); });
-  extraTags.forEach(t=>phones.push(t.phone)); return [...new Set(phones)];
+  const phones=[];
+  recipients.forEach(r=>{ if(r.kind==='person') phones.push(r.phone); else r.phones.forEach(p=>phones.push(p)); });
+  return [...new Set(phones)];
 }
-function updateQueue(){ document.getElementById('queueCount').textContent=targetPhones().length+'명'; }
 
+/* ── 툴바 패널 ── */
+function togglePanel(which){
+  ['img','tpl','sched'].forEach(k=>{
+    const on = k===which && document.getElementById('panel_'+k).classList.contains('hidden');
+    document.getElementById('panel_'+k).classList.toggle('hidden', !on);
+    document.getElementById('tb_'+k).classList.toggle('active', on);
+  });
+}
+function toggleSchedule(e){
+  if(e) e.preventDefault();
+  scheduleOn=!scheduleOn;
+  document.getElementById('schedToggle').classList.toggle('on',scheduleOn);
+  document.getElementById('schedInputs').classList.toggle('hidden',!scheduleOn);
+  document.getElementById('dot_sched').classList.toggle('hidden',!scheduleOn);
+  document.getElementById('sendBtn').textContent=scheduleOn?'예약 등록':'보내기';
+  updateSummary();
+}
+
+/* ── 바이트/유형 + 발송 요약 ── */
 function updateBytes(){
-  const msg=document.getElementById('msgInp').value;
-  const b=smsBytes(msg), type=msgTypeByBytes(b,!!currentImage);
+  const b=smsBytes(document.getElementById('msgInp').value);
+  const type=msgTypeByBytes(b,!!currentImage);
   const el=document.getElementById('byteInfo');
   el.textContent=`${b} byte · ${type}`;
   el.style.color=(b>90&&!currentImage)?'var(--orange-d)':'var(--muted)';
+  updateSummary();
+}
+function updateSummary(){
+  const phones=targetPhones();
+  document.getElementById('queueCount').textContent=phones.length+'명';
+  const el=document.getElementById('sendSummary');
+  if(!phones.length){ el.textContent='받는 사람을 선택하세요'; return; }
+  const first=recipients[0];
+  const firstName=first.kind==='group'?first.name:(first.name||fmtPhone(first.phone));
+  const who=phones.length===1?firstName:`${firstName} 외 ${phones.length-1}명`;
+  const type=msgTypeByBytes(smsBytes(document.getElementById('msgInp').value),!!currentImage);
+  let when='지금 발송';
+  if(scheduleOn){ const d=document.getElementById('schedDate').value,t=document.getElementById('schedTime').value;
+    when=d&&t?`${d.slice(5).replace('-','/')} ${t} 예약`:'예약 시각 미지정'; }
+  el.textContent=`${who} · ${type} · ${when}`;
+}
+
+/* ── URL 자동 단축 (붙여넣기·입력·블러 시 자동 적용) ── */
+const shortCache = new Map();
+let shortenTimer=null;
+function debounceShorten(){ clearTimeout(shortenTimer); shortenTimer=setTimeout(()=>autoShorten(true), 900); }
+function onMsgPaste(){ setTimeout(()=>autoShorten(false), 50); }
+async function autoShorten(completeOnly){
+  const ta=document.getElementById('msgInp');
+  const text=ta.value;
+  const re=/https?:\/\/[^\s]+/g;
+  const shortBase=location.origin+'/s/';
+  const minGain=shortBase.length+7;                 // 단축해도 안 짧아지면 그대로 둠
+  let m, jobs=[];
+  while((m=re.exec(text))!==null){
+    let url=m[0].replace(/[),.!?;:'"”\]]+$/,'');
+    if(url.startsWith(shortBase)) continue;          // 이미 단축된 링크
+    if(url.length<=minGain) continue;                // 짧아질 게 없음
+    if(completeOnly){                                // 입력 중: URL 뒤에 공백/줄바꿈이 있어야 완성으로 간주
+      const after=text[m.index+url.length];
+      if(after===undefined || !/\s/.test(after)) continue;
+    }
+    jobs.push(url);
+  }
+  for(const url of [...new Set(jobs)]){
+    try{
+      let short=shortCache.get(url);
+      if(!short){ const d=await api.post('/api/sms/shorten',{url}); short=d.short; shortCache.set(url,short); }
+      const cur=document.getElementById('msgInp');
+      if(cur.value.includes(url)){
+        cur.value=cur.value.split(url).join(short);
+        document.getElementById('shortNote').classList.remove('hidden');
+        updateBytes();
+      }
+    }catch(e){ /* 단축 실패 시 원본 유지 */ }
+  }
 }
 
 /* ── 이미지 첨부 ── */
@@ -343,62 +411,29 @@ function onImgFile(e){ const f=e.target.files[0]; if(f) uploadImageFile(f); e.ta
 function imgDrag(e,on){ e.preventDefault(); document.getElementById('imgZone').classList.toggle('dragover',on); }
 function imgDrop(e){ e.preventDefault(); document.getElementById('imgZone').classList.remove('dragover');
   const f=e.dataTransfer.files[0]; if(f) uploadImageFile(f); }
-function onPaste(e){ const items=(e.clipboardData||{}).items||[];
-  for(const it of items){ if(it.type&&it.type.startsWith('image/')){ const f=it.getAsFile(); if(f){ uploadImageFile(f); e.preventDefault(); return; } } } }
+function onGlobalPaste(e){ const items=(e.clipboardData||{}).items||[];
+  for(const it of items){ if(it.type&&it.type.startsWith('image/')){ const f=it.getAsFile();
+    if(f){ uploadImageFile(f); e.preventDefault(); return; } } } }
 function setImageFromUrl(){ const u=document.getElementById('imgUrlInp').value.trim(); if(u) setImage(u); }
 function setImage(url){
   currentImage=url;
   document.getElementById('imgUrlInp').value=url;
   document.getElementById('imgPreview').innerHTML = url?
     `<div class="img-thumb"><img src="${esc(url)}"><div class="rm" onclick="removeImage()">×</div></div>`:'';
+  document.getElementById('dot_img').classList.remove('hidden');
   updateBytes();
 }
-function removeImage(){ currentImage=''; document.getElementById('imgUrlInp').value=''; document.getElementById('imgPreview').innerHTML=''; updateBytes(); }
+function removeImage(){ currentImage=''; document.getElementById('imgUrlInp').value='';
+  document.getElementById('imgPreview').innerHTML=''; document.getElementById('dot_img').classList.add('hidden'); updateBytes(); }
 
-async function loadTemplates(){
-  const tpls=await api.get('/api/sms/templates');
-  document.getElementById('quickTpl').innerHTML=tpls.slice(0,6).map(t=>
-    `<span class="chip" onclick="applyTpl('${t.id}')">${esc(t.title)}</span>`).join('');
-  window._tpls=tpls;
-}
-function applyTpl(id){ const t=(window._tpls||[]).find(x=>x.id===id); if(!t)return;
-  document.getElementById('msgInp').value=t.content; updateBytes(); }
-
-async function shortenUrl(){
-  const url=document.getElementById('urlInp').value.trim(); if(!url)return;
-  try{ const d=await api.post('/api/sms/shorten',{url}); const ta=document.getElementById('msgInp');
-    ta.value=(ta.value?ta.value+' ':'')+d.short; document.getElementById('urlInp').value=''; updateBytes(); toast('단축 URL 삽입'); }
-  catch(e){ toast('단축 실패: '+e.message); }
-}
-
-async function loadBlocked(){
-  blocked=await api.get('/api/sms/blocked');
-  document.getElementById('blockCount').textContent=blocked.length;
-  document.getElementById('blockItems').innerHTML=blocked.map(b=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--border2)">
-      <div class="dot dot-red"></div>
-      <div style="flex:1"><div style="font-size:12.5px;font-weight:500">${esc(fmtPhone(b.phone))}</div>
-        <div style="font-size:10.5px;color:var(--muted)">${esc(b.reason||'')}</div></div>
-      <button class="btn btn-ghost btn-sm" onclick="unblock('${b.id}')">해제</button>
-    </div>`).join('') || `<div style="font-size:12px;color:var(--muted);text-align:center;padding:8px">수신거부 없음</div>`;
-}
-function toggleBlock(){ const p=document.getElementById('blockPanel'); p.classList.toggle('hidden');
-  document.getElementById('blockChev').textContent=p.classList.contains('hidden')?'▸':'▾'; }
-async function onBlockKey(e){ if(e.key!=='Enter')return; const v=e.target.value.trim(); if(!v)return;
-  try{ await api.post('/api/sms/blocked',{phone:v}); e.target.value=''; await loadBlocked(); await loadMembers(); toast('수신거부 등록'); }catch(err){ toast(err.message); } }
-async function unblock(id){ await api.del('/api/sms/blocked/'+id); await loadBlocked(); await loadMembers(); }
-
-function toggleSchedule(){ scheduleOn=!scheduleOn;
-  document.getElementById('schedToggle').classList.toggle('on',scheduleOn);
-  document.getElementById('schedPanel').classList.toggle('hidden',!scheduleOn);
-  document.getElementById('sendBtn').textContent=scheduleOn?'예약 등록':'발송하기'; }
-
+/* ── 발송 ── */
 async function doSend(){
+  await autoShorten(false);                          // 남은 링크 단축 후 발송
   const phones=targetPhones();
   const content=document.getElementById('msgInp').value.trim();
   const image_url=currentImage||null;
-  if(!phones.length) return toast('수신자를 선택하세요');
-  if(!content && !image_url) return toast('메시지 또는 이미지를 입력하세요');
+  if(!phones.length) return toast('받는 사람을 선택하세요');
+  if(!content && !image_url) return toast('메시지를 입력하세요');
   const btn=document.getElementById('sendBtn'); btn.disabled=true;
   try{
     if(scheduleOn){
@@ -411,22 +446,11 @@ async function doSend(){
       toast(`${r.queued}명 발송 큐 등록${r.excluded?` · ${r.excluded}명 수신거부 제외`:''}`);
     }
     document.getElementById('msgInp').value=''; removeImage();
-    selected.clear(); extraTags=[]; renderTags(); renderContacts(); updateQueue(); updateBytes();
+    document.getElementById('shortNote').classList.add('hidden');
+    recipients=[]; renderChips(); updateBytes(); updateSummary();
     refreshBootstrap(); loadThreads();
   }catch(e){ toast('실패: '+e.message); }
   btn.disabled=false;
-}
-
-/* ── 파일 import (CSV·TXT: 이름,번호) ── */
-async function importFile(e){
-  const f=e.target.files[0]; if(!f)return;
-  const text=await f.text();
-  const rows=text.split(/\r?\n/).map(l=>l.split(/[,\t]/)).filter(a=>a.length>=2 && digits(a[1]).length>=8)
-    .map(a=>({name:a[0].trim(), phone:a[1].trim()}));
-  if(!rows.length){ toast('이름,번호 형식을 찾지 못했습니다'); e.target.value=''; return; }
-  try{ const d=await api.post('/api/sms/members/import',{rows}); await loadMembers(); toast(`${d.imported}명 등록/갱신`); }
-  catch(err){ toast(err.message); }
-  e.target.value='';
 }
 
 /* ── 대화 스레드 ── */

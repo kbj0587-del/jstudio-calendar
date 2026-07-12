@@ -11,8 +11,11 @@
 <div class="wrap">
   <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap">
     <div><h1 class="page-title">연락처 관리</h1><p class="page-desc" style="margin:0">회원 정보를 등록·수정하고 그룹으로 분류합니다.</p></div>
-    <div style="display:flex;gap:8px">
-      <input id="searchInp" class="inp" style="width:220px" placeholder="이름·번호 검색" oninput="render()">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input id="searchInp" class="inp" style="width:200px" placeholder="이름·번호 검색" oninput="render()">
+      <button class="btn btn-ghost" onclick="openBlockedModal()">🚫 수신거부 <span class="badge badge-red" id="blockBadge">0</span></button>
+      <button class="btn btn-ghost" onclick="document.getElementById('csvInp').click()">CSV 업로드</button>
+      <input type="file" id="csvInp" accept=".csv,.txt" style="display:none" onchange="importFile(event)">
       <button class="btn btn-ghost" id="gwBtn" onclick="importGateway()">📱 게이트웨이 주소록</button>
       <button class="btn" onclick="openEdit()">+ 새 연락처</button>
     </div>
@@ -34,9 +37,46 @@ let members = [];
 const GROUP_LABELS = { active:'활동중', warning:'만료임박', expired:'만료', instructor:'강사', new:'신규' };
 const GROUP_BADGE = { active:'badge-green', warning:'badge-orange', expired:'badge-red', instructor:'badge-gray', new:'badge-gray' };
 
-async function boot(){ renderHeader('contacts'); await load(); refreshGwCount(); }
+async function boot(){ renderHeader('contacts'); await load(); refreshGwCount(); refreshBlockBadge(); }
 window.onAuthReady = boot;
 async function load(){ members = await api.get('/api/sms/members'); render(); }
+
+/* 수신거부 관리 (발신부에서 이동) */
+async function refreshBlockBadge(){
+  try{ const b=await api.get('/api/sms/blocked'); document.getElementById('blockBadge').textContent=b.length; }catch(e){}
+}
+async function openBlockedModal(){
+  const blocked = await api.get('/api/sms/blocked');
+  openModal(`
+    <h3>수신 거부 관리 <span class="badge badge-red">${blocked.length}</span></h3>
+    <div style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto">
+      ${blocked.map(b=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--surface2)">
+          <div class="dot dot-red"></div>
+          <div style="flex:1"><div style="font-size:12.5px;font-weight:500">${esc(fmtPhone(b.phone))}</div>
+            <div style="font-size:10.5px;color:var(--muted)">${esc(b.reason||'')}</div></div>
+          <button class="btn btn-ghost btn-sm" onclick="unblock('${b.id}')">해제</button>
+        </div>`).join('') || `<div style="font-size:12.5px;color:var(--muted);text-align:center;padding:12px">수신거부 없음</div>`}
+    </div>
+    <input class="inp" placeholder="번호 입력 후 Enter로 수신거부 등록" onkeydown="onBlockKey(event)">
+    <div style="font-size:10.5px;color:var(--muted);line-height:1.5">"수신거부" 답장 수신 시 자동 등록됩니다. 등록 번호는 발송 대상에서 자동 제외됩니다.</div>`);
+}
+async function onBlockKey(e){ if(e.key!=='Enter')return; const v=e.target.value.trim(); if(!v)return;
+  try{ await api.post('/api/sms/blocked',{phone:v}); toast('수신거부 등록'); openBlockedModal(); refreshBlockBadge(); await load(); }
+  catch(err){ toast(err.message); } }
+async function unblock(id){ await api.del('/api/sms/blocked/'+id); toast('해제 완료'); openBlockedModal(); refreshBlockBadge(); await load(); }
+
+/* CSV·TXT 업로드 (발신부에서 이동) — 이름,번호 형식 */
+async function importFile(e){
+  const f=e.target.files[0]; if(!f)return;
+  const text=await f.text();
+  const rows=text.split(/\r?\n/).map(l=>l.split(/[,\t]/)).filter(a=>a.length>=2 && digits(a[1]).length>=8)
+    .map(a=>({name:a[0].trim(), phone:a[1].trim()}));
+  if(!rows.length){ toast('이름,번호 형식을 찾지 못했습니다'); e.target.value=''; return; }
+  try{ const d=await api.post('/api/sms/members/import',{rows}); await load(); toast(`${d.imported}명 등록/갱신`); }
+  catch(err){ toast(err.message); }
+  e.target.value='';
+}
 
 /* 게이트웨이(폰) 주소록 연동 */
 async function refreshGwCount(){
