@@ -63,11 +63,16 @@ function registerSmsRoutes(app, deps) {
     return { queued: targets.length, excluded, blocked: [...blocked] };
   }
 
-  // ── 변수 치환 (뿌리오 호환: [*이름*], [*1*]~[*8*]) ──────────
+  // ── 변수 치환 (뿌리오 호환 [*이름*],[*1*]~[*8*] + 이름 있는 변수 [*프로그램*] 등) ──
   function renderTemplate(tpl, r) {
     let out = String(tpl || '');
     out = out.split('[*이름*]').join(r.name || '');
     for (let i = 1; i <= 8; i++) out = out.split('[*' + i + '*]').join(r['v' + i] || '');
+    if (r.vars && typeof r.vars === 'object') {
+      for (const k of Object.keys(r.vars)) {
+        out = out.split('[*' + k + '*]').join(r.vars[k] == null ? '' : String(r.vars[k]));
+      }
+    }
     return out;
   }
 

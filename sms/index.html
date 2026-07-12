@@ -235,6 +235,7 @@ async function loadGwContacts(){
 async function loadGroups(){
   groups = await api.get('/api/sms/groups');
   document.getElementById('groupChips').innerHTML =
+    `<span class="chip" onclick="openMemberPicker()">☑ 연락처에서 선택</span>` +
     `<span class="chip" onclick="addAllMembers()">전체 회원</span>` +
     groups.map(g=>`<span class="chip" onclick="addGroupChip('${g.id}')">${esc(g.name)} ${g.member_count}</span>`).join('') +
     `<span class="chip" onclick="document.getElementById('bulkFileInp').click()">📄 파일 대량 추가</span>` +
@@ -314,6 +315,46 @@ function addAllMembers(){
   afterRecipientChange();
 }
 function removeRecipient(i){ recipients.splice(i,1); afterRecipientChange(); }
+
+/* ── 연락처에서 선택 (체크박스 피커) ── */
+function openMemberPicker(){
+  window._picked=new Set();
+  openModal(`<h3>연락처에서 선택</h3>
+    <input class="inp" id="pickSearch" placeholder="이름·번호 검색" oninput="renderPicker(this.value)">
+    <div id="pickList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn" onclick="applyPicker()">추가 (<span id="pickCount">0</span>명)</button>
+    </div>`);
+  renderPicker('');
+}
+function renderPicker(term){
+  term=(term||'').trim();
+  const list=members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+  document.getElementById('pickList').innerHTML=list.map(m=>{
+    const ph=digits(m.phone);
+    const already=recipients.some(r=>r.kind==='person'&&r.phone===ph);
+    const on=window._picked.has(ph);
+    return `<div class="contact-row" style="${already?'opacity:.45;cursor:default':''}" onclick="${already?'':`togglePick('${ph}')`}">
+      <div class="check ${(on||already)?'on':''}">${(on||already)?'✓':''}</div>
+      <div class="avatar" style="width:26px;height:26px;font-size:11px;background:${avatarColor(m.name)}">${initial(m.name)}</div>
+      <div style="flex:1;min-width:0;font-size:13.5px;font-weight:500">${esc(m.name)} ${already?'<span class="badge badge-gray">추가됨</span>':''}</div>
+      <span style="font-size:12px;color:var(--muted)">${esc(fmtPhone(m.phone))}</span>
+    </div>`;}).join('') || `<div style="text-align:center;color:var(--muted);font-size:12.5px;padding:12px">회원이 없습니다</div>`;
+}
+function togglePick(ph){
+  const s=window._picked; s.has(ph)?s.delete(ph):s.add(ph);
+  document.getElementById('pickCount').textContent=s.size;
+  renderPicker(document.getElementById('pickSearch').value);
+}
+function applyPicker(){
+  let n=0;
+  members.forEach(m=>{ const ph=digits(m.phone);
+    if(window._picked.has(ph) && !recipients.some(r=>r.kind==='person'&&r.phone===ph)){
+      recipients.push({kind:'person', phone:ph, name:m.name}); n++; } });
+  closeModal(); afterRecipientChange();
+  if(n) toast(n+'명 추가');
+}
 function afterRecipientChange(){
   const inp=document.getElementById('tagInp'); inp.value='';
   hideSuggest(); renderChips(); renderVarChips(); updateSummary(); renderPreview(); inp.focus();
@@ -357,11 +398,11 @@ async function onBulkFile(e){
     let rows;
     if(/\.(xlsx|xls)$/i.test(f.name)) rows=await parseXlsx(f);
     else rows=parseCsv(await readTextSmart(f));
-    const recs=mapRows(rows);
+    const {recs, fmt, optout}=mapRows(rows);
     if(!recs.length) return toast('휴대폰 번호를 찾지 못했습니다 — 샘플 파일 형식을 확인하세요');
-    recipients.push({kind:'file', fileName:f.name, rows:recs});
+    recipients.push({kind:'file', fileName: fmt==='ezspo'?'이지스포 회원목록':f.name, fmt, rows:recs});
     afterRecipientChange();
-    toast(`${recs.length}명 불러옴 · 연락처에는 저장되지 않습니다`);
+    toast(`${fmt==='ezspo'?'이지스포 회원 ':''}${recs.length}명 불러옴${optout?` · 문자수신 거부 ${optout}명 제외`:''} · 연락처에는 저장되지 않습니다`);
   }catch(err){ toast('파일 읽기 실패: '+err.message); }
 }
 /* 한글 CSV는 엑셀 저장 시 EUC-KR이 흔함 → UTF-8 실패 시 EUC-KR 재해석 */
@@ -393,46 +434,92 @@ async function parseXlsx(f){
   const wb=XLSX.read(await f.arrayBuffer());
   return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, raw:false, defval:''});
 }
-/* 헤더 매핑: 이름/휴대폰/[*N*] — 헤더 없으면 뿌리오 순서(이름,휴대폰,1~8)로 간주 */
+/* 헤더 매핑 — 3가지 형식 자동 인식:
+   ① 이지스포(EzSpo) 회원 목록: 회원명·전화번호 + 회원권 정보(프로그램·시작/종료일·잔여)를 변수로
+   ② 뿌리오: 이름,휴대폰,[*1*]~[*8*] (헤더 없으면 이 순서로 간주)
+   ③ 일반: 이름/휴대폰 열 + 나머지 제목 있는 열은 이름 있는 변수로 */
 function mapRows(rows){
-  if(!rows.length) return [];
+  if(!rows.length) return {recs:[], fmt:'generic', optout:0};
   const h=rows[0].map(x=>String(x||'').replace(/^﻿/,'').trim());
+
+  // ① 이지스포
+  if(h.includes('회원명') && h.some(x=>/전화번호|휴대폰/.test(x))){
+    const pi=h.findIndex(x=>/전화번호|휴대폰/.test(x));
+    const ni=h.indexOf('회원명');
+    const smsIdx=h.indexOf('문자수신');
+    const varCols=['프로그램','시작일','종료일','잔여일','잔여횟수'].map(l=>({l,i:h.indexOf(l)})).filter(c=>c.i>=0);
+    const recs=[]; let optout=0;
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i];
+      const phone=digits(r[pi]||''); if(phone.length<8) continue;
+      if(smsIdx>=0){ const v=String(r[smsIdx]==null?'':r[smsIdx]).trim();
+        if(v==='0'||/^[xXnN]$/.test(v)||v==='거부'){ optout++; continue; } }
+      const vars={}; varCols.forEach(c=>{ vars[c.l]=String(r[c.i]==null?'':r[c.i]).trim(); });
+      recs.push({ name:String(r[ni]==null?'':r[ni]).trim(), phone, vars });
+    }
+    return {recs, fmt:'ezspo', optout};
+  }
+
+  // ②③ 뿌리오·일반
   const hasHeader=h.some(x=>/이름|name|휴대폰|전화|phone|번호|\[\*[1-8]\*\]/i.test(x));
-  let map, start;
+  let map, start, isPpurio=false;
   if(hasHeader){
     map=h.map(x=>{
-      const m=x.match(/\[\*([1-8])\*\]/); if(m) return 'v'+m[1];
+      const m=x.match(/\[\*([1-8])\*\]/); if(m){ isPpurio=true; return 'v'+m[1]; }
       if(/이름|name/i.test(x)) return 'name';
       if(/휴대폰|전화|폰|phone|mobile|번호/i.test(x)) return 'phone';
-      return null; });
+      return x ? ('var:'+x) : null;                 // 제목 있는 나머지 열 → 이름 있는 변수
+    });
     start=1;
-  } else { map=['name','phone','v1','v2','v3','v4','v5','v6','v7','v8']; start=0; }
-  const out=[];
+  } else { map=['name','phone','v1','v2','v3','v4','v5','v6','v7','v8']; start=0; isPpurio=true; }
+  const recs=[];
   for(let i=start;i<rows.length;i++){
-    const rec={};
-    rows[i].forEach((cell,ci)=>{ const k=map[ci]; if(k) rec[k]=String(cell==null?'':cell).trim(); });
-    if(digits(rec.phone||'').length>=8){ rec.phone=digits(rec.phone); out.push(rec); }
+    const rec={vars:{}};
+    rows[i].forEach((cell,ci)=>{
+      const k=map[ci]; if(!k) return;
+      const val=String(cell==null?'':cell).trim();
+      if(k.startsWith('var:')){ if(Object.keys(rec.vars).length<12) rec.vars[k.slice(4)]=val; }
+      else rec[k]=val;
+    });
+    if(!Object.keys(rec.vars).length) delete rec.vars;
+    if(digits(rec.phone||'').length>=8){ rec.phone=digits(rec.phone); recs.push(rec); }
   }
-  return out;
+  return {recs, fmt:isPpurio?'ppurio':'generic', optout:0};
 }
 
-/* ── 변수 (뿌리오 호환) ── */
-function tplHasVars(t){ return /\[\*(이름|[1-8])\*\]/.test(t||''); }
+/* ── 변수 (뿌리오 [*N*] + 이름 있는 변수 [*프로그램*] 등) ── */
+function tplHasVars(t){ return /\[\*.+?\*\]/.test(t||''); }
 function clientRender(tpl,r){
   let out=String(tpl||'');
   out=out.split('[*이름*]').join(r.name||'');
   for(let i=1;i<=8;i++) out=out.split('[*'+i+'*]').join(r['v'+i]||'');
+  if(r.vars) for(const k of Object.keys(r.vars)) out=out.split('[*'+k+'*]').join(r.vars[k]==null?'':String(r.vars[k]));
   return out;
+}
+/* 업로드된 파일들의 변수 열 이름 수집 */
+function fileVarKeys(){
+  const keys=[];
+  recipients.filter(r=>r.kind==='file').forEach(f=>{
+    f.rows.slice(0,30).forEach(row=>{
+      if(row.vars) Object.keys(row.vars).forEach(k=>{ if(!keys.includes(k)) keys.push(k); });
+    });
+  });
+  return keys;
 }
 function renderVarChips(){
   const el=document.getElementById('varChips'); if(!el) return;
-  const hasFile=recipients.some(r=>r.kind==='file');
+  const hasPpurio=recipients.some(r=>r.kind==='file'&&r.fmt==='ppurio');
+  const named=fileVarKeys();
   const chip=(tok,en)=>`<span class="chip ${en?'chip-accent':''}" style="${en?'':'opacity:.4;cursor:default'}"
-    ${en?`onclick="insertVar('${tok}')"`:''}>${tok}</span>`;
-  el.innerHTML = chip('[*이름*]',true) + [1,2,3,4,5,6,7,8].map(n=>chip('[*'+n+'*]',hasFile)).join('');
-  document.getElementById('varHint').textContent = hasFile
-    ? '변수를 클릭해 본문에 삽입하세요. 수신자마다 파일의 해당 열 값으로 치환됩니다.'
-    : '[*이름*]은 바로 사용 가능 · [*1*]~[*8*]은 파일 업로드 후 활성화됩니다.';
+    ${en?`onclick="insertVar('${tok.replace(/'/g,'&#39;')}')"`:''}>${esc(tok)}</span>`;
+  let html = chip('[*이름*]',true);
+  named.forEach(k=>{ html+=chip('[*'+k+'*]',true); });
+  if(hasPpurio || (!named.length)) html += [1,2,3,4,5,6,7,8].map(n=>chip('[*'+n+'*]',hasPpurio)).join('');
+  el.innerHTML=html;
+  const hintEl=document.getElementById('varHint');
+  if(named.length) hintEl.textContent='변수를 클릭해 본문에 삽입하세요 — 수신자마다 파일의 해당 열 값으로 치환됩니다.';
+  else if(hasPpurio) hintEl.textContent='변수를 클릭해 본문에 삽입하세요. [*1*]~[*8*]은 파일의 해당 열 값입니다.';
+  else hintEl.textContent='[*이름*]은 바로 사용 가능 · 나머지 변수는 파일(이지스포·뿌리오·CSV) 업로드 후 활성화됩니다.';
 }
 function insertVar(tok){
   const ta=document.getElementById('msgInp');
