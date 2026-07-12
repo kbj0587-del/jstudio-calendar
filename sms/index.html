@@ -14,19 +14,14 @@
     <!-- 왼쪽: 발송 패널 -->
     <div class="compose" id="compose">
 
-      <!-- ① 수신자 -->
+      <!-- ① 수신자 직접 입력 -->
       <div>
-        <div class="section-label">수신자</div>
-        <div id="tagChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
-        <input id="tagInp" class="inp" placeholder="번호 직접 입력 후 Enter" onkeydown="onTagKey(event)">
-        <input id="searchInp" class="inp" style="margin-top:8px" placeholder="이름·번호로 회원 검색" oninput="renderContacts()">
-        <div id="contactList" style="max-height:150px;overflow-y:auto;margin-top:8px;display:flex;flex-direction:column;gap:2px"></div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="groupChips"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
-          <span style="font-size:12px;color:var(--muted2);cursor:pointer" onclick="document.getElementById('fileInp').click()">＋ 연락처 파일(CSV·TXT) 업로드</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="section-label" style="margin:0">수신자</div>
           <span style="font-size:13px;font-weight:600;color:var(--accent)" id="queueCount">0명</span>
         </div>
-        <input type="file" id="fileInp" accept=".csv,.txt" style="display:none" onchange="importFile(event)">
+        <div id="tagChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+        <input id="tagInp" class="inp" placeholder="번호 직접 입력 후 Enter" onkeydown="onTagKey(event)">
       </div>
 
       <div class="divider"></div>
@@ -60,7 +55,21 @@
 
       <div class="divider"></div>
 
-      <!-- ③ 발신번호 (컴팩트, 접기) -->
+      <!-- ③ 회원 선택 (검색·그룹·파일) -->
+      <div>
+        <div class="section-label">회원 선택</div>
+        <input id="searchInp" class="inp" placeholder="이름·번호로 회원 검색" oninput="renderContacts()">
+        <div id="contactList" style="max-height:150px;overflow-y:auto;margin-top:8px;display:flex;flex-direction:column;gap:2px"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="groupChips"></div>
+        <div style="margin-top:10px">
+          <span style="font-size:12px;color:var(--muted2);cursor:pointer" onclick="document.getElementById('fileInp').click()">＋ 연락처 파일(CSV·TXT) 업로드</span>
+        </div>
+        <input type="file" id="fileInp" accept=".csv,.txt" style="display:none" onchange="importFile(event)">
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- ④ 발신번호 (컴팩트, 접기) -->
       <div>
         <div class="compact-box" onclick="toggleSender()">
           <span>발신번호 <b id="senderNowLabel" style="color:var(--text)">—</b></span>

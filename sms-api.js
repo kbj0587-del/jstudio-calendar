@@ -389,8 +389,11 @@ function registerSmsRoutes(app, deps) {
     );
     // 최근 대화순 정렬
     const threads = r.rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    const members = await q('SELECT name, phone FROM js_members');
+    // 이름 해석: 게이트웨이 주소록 → 회원 명부 순으로 덮어써서 회원 명부가 우선
     const nameByPhone = {};
+    const gc = await q('SELECT name, phone FROM js_gateway_contacts');
+    gc.rows.forEach((c) => { nameByPhone[digits(c.phone)] = c.name; });
+    const members = await q('SELECT name, phone FROM js_members');
     members.rows.forEach((m) => { nameByPhone[digits(m.phone)] = m.name; });
     res.json(threads.map((t) => ({
       phone: t.phone,
@@ -510,6 +513,34 @@ function registerSmsRoutes(app, deps) {
     if (!r.rows.length) return res.status(404).send('링크를 찾을 수 없습니다.');
     q('UPDATE js_short_urls SET clicks = clicks + 1 WHERE code = $1', [req.params.code]).catch(() => {});
     res.redirect(302, r.rows[0].url);
+  }));
+
+  // ══════════════════════════════════════════════════════════
+  //  게이트웨이 주소록 연동 — js_gateway_contacts (폰이 anon 키로 직접 upsert)
+  // ══════════════════════════════════════════════════════════
+  app.get('/api/sms/gateway-contacts', requireSmsAccess, wrap(async (req, res) => {
+    const gc = await q('SELECT phone, name, updated_at FROM js_gateway_contacts ORDER BY name ASC');
+    const mem = await q('SELECT phone FROM js_members');
+    const memberPhones = new Set(mem.rows.map((m) => digits(m.phone)));
+    res.json(gc.rows.map((c) => ({ ...c, in_members: memberPhones.has(digits(c.phone)) })));
+  }));
+
+  // 회원 명부에 없는 게이트웨이 연락처를 일괄 등록
+  app.post('/api/sms/gateway-contacts/import', requireSmsAccess, wrap(async (req, res) => {
+    const gc = await q('SELECT phone, name FROM js_gateway_contacts');
+    const mem = await q('SELECT phone FROM js_members');
+    const memberPhones = new Set(mem.rows.map((m) => digits(m.phone)));
+    let imported = 0;
+    for (const c of gc.rows) {
+      const ph = digits(c.phone);
+      if (ph.length < 8 || memberPhones.has(ph) || !c.name) continue;
+      await q(
+        "INSERT INTO js_members (name, phone, group_type) VALUES ($1, $2, 'new') ON CONFLICT (phone) DO NOTHING",
+        [c.name, ph]
+      );
+      imported++;
+    }
+    res.json({ ok: true, imported });
   }));
 
   // ══════════════════════════════════════════════════════════
