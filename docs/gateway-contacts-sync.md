@@ -1,160 +1,70 @@
-# JSMS 게이트웨이 앱 — 주소록 자동 연동 스펙 (A안 확정본)
+# 게이트웨이 앱 ↔ 웹 주소록 연동 (구현 완료본)
 
-> 이 문서를 게이트웨이 앱을 관리하는 세션/도구에 그대로 붙여넣으면 구현할 수 있도록 작성됨.
-> 웹/DB 수신측은 **이미 배포 완료** — 앱이 push를 시작하는 즉시 웹에 자동 반영된다.
+> **상태: 구현 완료 (2026-07-13).** 게이트웨이 앱(`~/jsms-gateway`, Flutter)과 웹 대시보드
+> (이 저장소) 양쪽 모두 반영됨. 이 문서는 "무엇을 어떻게 만들었는지"의 기록.
+>
+> ⚠️ 이전 버전(커밋 1848548)은 네이티브 Kotlin + anon upsert를 가정한 **틀린 스펙**이었음.
+> 실제 앱은 Flutter이고, 대상 테이블은 anon upsert가 불가하다. 아래가 실제 구현이다.
 
-## 확정된 설계 (2026-07-12 사용자 결정)
-
-1. **주소록 변경 감지 push** — ContentObserver로 주소록 변경을 감지해 즉시 push (디바운스 5초)
-2. **앱 시작 시 변경분만 push** — 전체 재전송이 아니라, 마지막 push 스냅샷과 비교해 달라진 것만 전송
-3. **일일 전체 동기화 없음** — 스냅샷 diff가 추가/수정/삭제를 모두 잡으므로 불필요 (사용자 판단으로 생략)
-
-삭제 처리: 스냅샷에 있었는데 현재 주소록에 없는 번호는 서버에서 DELETE. 별도 전체 동기화 없이도 삭제가 반영되는 이유.
-
-## 서버 수신 테이블 (배포됨)
+## 전체 그림
 
 ```
-js_gateway_contacts
-  phone       text PRIMARY KEY   -- 숫자만! 하이픈 제거 (01012345678)
-  name        text NOT NULL
-  updated_at  timestamptz DEFAULT now()
-```
-- RLS: anon ALL 정책 — 앱이 기존 js_message_logs / js_gateway_status와 **동일한 anon 키·동일한 방식**으로 쓰면 됨
-- 한 사람이 번호 2개면 → 2행 (번호가 PK). 동명이인도 자연스럽게 별도 행
-
-## REST 스펙 (앱이 이미 쓰는 Supabase 그대로)
-
-BASE = `https://owoviftkszmicysxgdpa.supabase.co`
-공통 헤더 = `apikey: {anon키}`, `Authorization: Bearer {anon키}`
-
-**추가/수정 (배치 upsert)**
-```
-POST {BASE}/rest/v1/js_gateway_contacts
-Content-Type: application/json
-Prefer: resolution=merge-duplicates
-Body: [{"phone":"01012345678","name":"홍길동"}, {"phone":"01098765432","name":"홍길동"}]
+게이트웨이 폰(Galaxy A32, Flutter 앱)
+  READ_CONTACTS → 폰 주소록 읽기(JsmsSender.getContacts)
+  앱 시작·재개 시 → js_gateway_contacts 전체 삭제 후 재삽입
+        │
+        ▼
+Supabase: js_gateway_contacts (phone PK, name, updated_at)
+        │
+        ▼
+웹 대시보드(이 저장소)
+  /api/sms/threads → 대화 목록 이름 해석에 반영 (회원 명부 우선, 그다음 주소록)
+  /api/sms/gateway-contacts + 연락처 페이지 "게이트웨이 주소록 가져오기" → js_members 등록
 ```
 
-**삭제 (번호 단위)**
-```
-DELETE {BASE}/rest/v1/js_gateway_contacts?phone=eq.01012345678
-```
+## 핵심 제약: 왜 upsert가 아니라 "삭제 후 재삽입"인가
 
-## 앱 구현 (Kotlin, 의존성 없음 — HttpURLConnection)
+`js_gateway_contacts`의 RLS 정책(실제 DB 확인):
+- anon **INSERT** 허용 (with_check: true)
+- anon **DELETE** 허용 (using: true)
+- anon **UPDATE 없음**, anon **SELECT 없음**
+- authenticated는 ALL
 
-### 권한 (AndroidManifest.xml)
-```xml
-<uses-permission android:name="android.permission.READ_CONTACTS" />
-```
-런타임 권한 요청 필요 (기존 SMS 권한 요청하는 곳에 READ_CONTACTS 추가).
+→ `upsert`는 내부적으로 UPDATE를 시도하므로 **42501(권한 거부)로 실패**한다.
+→ 따라서 갱신 = **전체 DELETE 후 bulk INSERT**(전체 새로고침) 방식.
+→ INSERT/DELETE 시 결과 row를 돌려받으면 SELECT가 필요해 또 실패하므로,
+  **`return=minimal`(supabase-dart에서 `.select()`를 체이닝하지 않으면 자동)** 로 호출한다.
 
-### ContactsSync.kt (드롭인)
-```kotlin
-import android.content.Context
-import android.database.ContentObserver
-import android.os.Handler
-import android.os.Looper
-import android.provider.ContactsContract
-import org.json.JSONArray
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+## 앱 쪽 구현 (`~/jsms-gateway/lib/main.dart`)
 
-object ContactsSync {
-    private const val BASE = "https://owoviftkszmicysxgdpa.supabase.co"
-    private const val ANON = "<앱이 이미 쓰는 anon 키 그대로>"
-    private const val PREF = "contacts_sync_snapshot"   // phone -> name
-    private val handler = Handler(Looper.getMainLooper())
-    private var pending: Runnable? = null
+`syncContactsToServer(SupabaseClient, Map<String,String>)`:
+1. 번호를 숫자만으로 정규화, 8자리 이상 + 이름 있는 것만, 중복 시 마지막 이름 우선
+2. **빈 목록이면 즉시 반환**(삭제 안 함) — 권한 거부 등으로 목록이 비면 서버를 지우지 않기 위한 안전장치
+3. 직전 동기화 내용과 해시가 같으면 스킵(불필요한 전체 재삽입 방지)
+4. `delete().neq('phone','___none___')` 로 전체 삭제 → 500건 청크로 `insert(rows)` 재삽입
 
-    /** 앱 시작 시 1회 호출: 변경분만 push + 변경 감지 등록 */
-    fun start(ctx: Context) {
-        Thread { syncDiff(ctx) }.start()                 // ① 시작 시 변경분만
-        ctx.contentResolver.registerContentObserver(     // ② 변경 감지
-            ContactsContract.Contacts.CONTENT_URI, true,
-            object : ContentObserver(handler) {
-                override fun onChange(selfChange: Boolean) {
-                    pending?.let { handler.removeCallbacks(it) }   // 5초 디바운스
-                    pending = Runnable { Thread { syncDiff(ctx) }.start() }
-                    handler.postDelayed(pending!!, 5000)
-                }
-            })
-    }
+호출 지점(`_HomeShellState`, `WidgetsBindingObserver`):
+- 앱 시작(`_bootstrap`) 시 1회
+- 앱 재개(`didChangeAppLifecycleState == resumed`) 시 — 폰에서 연락처를 추가/수정하고 앱을
+  다시 열면 반영됨. 별도 ContentObserver(네이티브 플러그인 필요) 없이 이 방식으로 충분.
 
-    /** 현재 주소록 vs 마지막 push 스냅샷 → 달라진 것만 upsert/DELETE */
-    @Synchronized private fun syncDiff(ctx: Context) {
-        try {
-            val current = readContacts(ctx)                        // phone -> name
-            val sp = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-            val snapshot = sp.all.mapValues { it.value.toString() }
+## 웹 쪽 구현 (이 저장소 — 이미 배포됨)
 
-            val upserts = current.filter { (p, n) -> snapshot[p] != n }
-            val deletes = snapshot.keys.filter { it !in current }
-            if (upserts.isEmpty() && deletes.isEmpty()) return     // 변경 없음 → 아무것도 안 함
-
-            if (upserts.isNotEmpty()) {
-                val body = JSONArray()
-                upserts.forEach { (p, n) ->
-                    body.put(JSONObject().put("phone", p).put("name", n))
-                }
-                http("POST", "$BASE/rest/v1/js_gateway_contacts", body.toString(),
-                     mapOf("Prefer" to "resolution=merge-duplicates"))
-            }
-            deletes.forEach { p ->
-                http("DELETE", "$BASE/rest/v1/js_gateway_contacts?phone=eq.$p", null, emptyMap())
-            }
-
-            val ed = sp.edit(); ed.clear()                          // 스냅샷 갱신
-            current.forEach { (p, n) -> ed.putString(p, n) }
-            ed.apply()
-        } catch (_: Exception) { /* 다음 변경/재시작 때 재시도됨 */ }
-    }
-
-    /** 주소록 읽기: 번호는 숫자만, 010/02로 시작하는 8자리 이상만 */
-    private fun readContacts(ctx: Context): Map<String, String> {
-        val out = HashMap<String, String>()
-        val cur = ctx.contentResolver.query(
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-            arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                    ContactsContract.CommonDataKinds.Phone.NUMBER),
-            null, null, null) ?: return out
-        cur.use {
-            while (it.moveToNext()) {
-                val name = it.getString(0)?.trim() ?: continue
-                val phone = (it.getString(1) ?: "").replace(Regex("\\D"), "")
-                if (name.isEmpty() || phone.length < 8) continue
-                out[phone] = name                                   // 번호 중복 시 마지막 이름
-            }
-        }
-        return out
-    }
-
-    private fun http(method: String, url: String, body: String?, extra: Map<String, String>) {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.requestMethod = method
-        c.setRequestProperty("apikey", ANON)
-        c.setRequestProperty("Authorization", "Bearer $ANON")
-        c.setRequestProperty("Content-Type", "application/json")
-        extra.forEach { (k, v) -> c.setRequestProperty(k, v) }
-        c.connectTimeout = 10000; c.readTimeout = 15000
-        if (body != null) { c.doOutput = true; c.outputStream.use { it.write(body.toByteArray()) } }
-        c.inputStream.use { it.readBytes() }                        // 응답 소비 (2xx 확인)
-        c.disconnect()
-    }
-}
-```
-
-### 연결 (기존 서비스의 onCreate 등 1곳)
-```kotlin
-ContactsSync.start(applicationContext)
-```
+- `sms-api.js`
+  - `GET /api/sms/threads`: 이름 해석 시 `js_gateway_contacts` → `js_members` 순으로 덮어써
+    회원 명부 이름을 우선 표시
+  - `GET /api/sms/gateway-contacts`: 목록 + 회원 등록 여부(`in_members`)
+  - `POST /api/sms/gateway-contacts/import`: 미등록 연락처를 `js_members`에 일괄 등록
+    (서버는 DATABASE_URL 직접 연결이라 RLS를 우회 → 이 조회/등록은 정상)
+- `sms/contacts.html`: "📱 게이트웨이 주소록 가져오기 (N)" 버튼
 
 ## 검증 방법
-1. 앱 설치 후 폰 주소록에 새 연락처 저장 → 5초 내
-   `https://jstudio-calendar.vercel.app/sms/contacts.html` 의 "게이트웨이 주소록" 버튼 숫자 증가 확인
-2. 발송센터 대화 목록에서 해당 번호가 이름으로 표시되는지 확인
-3. 주소록에서 삭제 → 웹에서도 사라지는지 확인 (스냅샷 diff의 DELETE 동작 확인)
+1. 앱을 게이트웨이 폰에 설치 → 앱 실행 → 연락처 권한 허용
+2. Supabase에서 `select count(*) from js_gateway_contacts;` 가 폰 주소록 수와 비슷해지는지 확인
+3. 웹 발송센터 대화 목록에서 번호가 이름으로 표시되는지 확인
+4. 폰 주소록에서 연락처 추가 → 앱을 백그라운드 갔다가 다시 열기 → 위 count 증가 확인
 
-## 주의
-- anon 키는 앱이 메시지 로그에 쓰는 키와 동일한 것 사용 (새 키 발급 불필요)
-- 번호 정규화(숫자만)를 지키지 않으면 웹 이름 매칭이 안 됨 — 서버는 하이픈 제거 후 비교하지만 PK 중복을 막기 위해 앱에서도 숫자만 저장할 것
+## 남은 하드닝 (별개 과제)
+`js_message_logs`·`js_members`·`js_gateway_status`는 아직 anon 전면 개방 상태다
+(anon 키가 APK에 있어 추출 시 접근 가능). 완전 잠금 = 폰 앱도 대시보드처럼 백엔드 API를
+경유하도록 바꾸고 anon 정책을 끄는 것(웹+앱 양쪽 큰 작업). `~/jsms-gateway/HANDOFF.md` 8번 참조.
