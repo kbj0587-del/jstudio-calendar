@@ -269,6 +269,14 @@ function registerSmsRoutes(app, deps) {
     res.json({ ok: true });
   }));
 
+  // 여러 회원 일괄 삭제 (연락처 페이지 다중 선택)
+  app.post('/api/sms/members/bulk-delete', requireSmsAccess, wrap(async (req, res) => {
+    const ids = (Array.isArray(req.body.ids) ? req.body.ids : []).filter(Boolean);
+    if (!ids.length) return res.json({ ok: true, deleted: 0 });
+    const r = await q('DELETE FROM js_members WHERE id = ANY($1::uuid[])', [ids]);
+    res.json({ ok: true, deleted: r.rowCount || 0 });
+  }));
+
   // 대량 import (엑셀/텍스트 파싱 결과: [{name, phone, program?}])
   app.post('/api/sms/members/import', requireSmsAccess, wrap(async (req, res) => {
     const rows = Array.isArray(req.body.rows) ? req.body.rows : [];

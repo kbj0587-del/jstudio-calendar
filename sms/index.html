@@ -166,6 +166,7 @@ async function boot(){
   await refreshBootstrap();
   await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadThreads(), loadGwContacts()]);
   renderVarChips(); updateBytes(); updateSummary();
+  applyPrefillRecipients();     // 연락처 페이지에서 "발송 대상으로 보내기"로 넘어온 수신자
   document.getElementById('tagInp').addEventListener('blur', ()=>setTimeout(hideSuggest, 200));
   setInterval(loadThreads, 20000);
   setInterval(refreshBootstrap, 30000);
@@ -317,20 +318,54 @@ function addAllMembers(){
 function removeRecipient(i){ recipients.splice(i,1); afterRecipientChange(); }
 
 /* ── 연락처에서 선택 (체크박스 피커) ── */
-function openMemberPicker(){
+let _pickGroup='__all__';           // 현재 필터 그룹
+let _pickGroupMembers={};           // groupId -> Set(phone) 캐시
+async function openMemberPicker(){
   window._picked=new Set();
+  _pickGroup='__all__'; _pickGroupMembers={};
   openModal(`<h3>연락처에서 선택</h3>
-    <input class="inp" id="pickSearch" placeholder="이름·번호 검색" oninput="renderPicker(this.value)">
-    <div id="pickList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+    <div id="pickGroupChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    <input class="inp" id="pickSearch" placeholder="이름·번호 검색" oninput="renderPicker()">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:11.5px;color:var(--muted)" id="pickInfo"></span>
+      <span style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="pickAllFiltered(true)">보이는 항목 전체 선택</button>
+        <button class="btn btn-ghost btn-sm" onclick="pickAllFiltered(false)">해제</button>
+      </span>
+    </div>
+    <div id="pickList" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-ghost" onclick="closeModal()">취소</button>
       <button class="btn" onclick="applyPicker()">추가 (<span id="pickCount">0</span>명)</button>
     </div>`);
-  renderPicker('');
+  // 그룹 필터 칩
+  document.getElementById('pickGroupChips').innerHTML =
+    `<span class="chip chip-accent" data-g="__all__" onclick="pickSetGroup('__all__')">전체 (${members.length})</span>` +
+    groups.map(g=>`<span class="chip" data-g="${g.id}" onclick="pickSetGroup('${g.id}')">${esc(g.name)} ${g.member_count}</span>`).join('');
+  // 그룹별 소속 번호를 미리 로드(멤버 필터·전체선택용)
+  await Promise.all(groups.map(async g=>{
+    try{ const gm=await api.get('/api/sms/groups/'+g.id+'/members');
+      _pickGroupMembers[g.id]=new Set(gm.map(m=>digits(m.phone))); }catch(e){ _pickGroupMembers[g.id]=new Set(); }
+  }));
+  renderPicker();
 }
-function renderPicker(term){
-  term=(term||'').trim();
-  const list=members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+function pickSetGroup(gid){
+  _pickGroup=gid;
+  document.querySelectorAll('#pickGroupChips .chip').forEach(c=>c.classList.toggle('chip-accent', c.dataset.g===gid));
+  renderPicker();
+}
+function pickFilteredMembers(){
+  const term=(document.getElementById('pickSearch')?.value||'').trim();
+  const gset=_pickGroup==='__all__'?null:(_pickGroupMembers[_pickGroup]||new Set());
+  return members.filter(m=>{
+    const ph=digits(m.phone);
+    if(gset && !gset.has(ph)) return false;
+    return !term||m.name.includes(term)||ph.includes(digits(term));
+  });
+}
+function renderPicker(){
+  const list=pickFilteredMembers();
+  document.getElementById('pickInfo').textContent=`${list.length}명 표시 · ${window._picked.size}명 선택`;
   document.getElementById('pickList').innerHTML=list.map(m=>{
     const ph=digits(m.phone);
     const already=recipients.some(r=>r.kind==='person'&&r.phone===ph);
@@ -340,12 +375,21 @@ function renderPicker(term){
       <div class="avatar" style="width:26px;height:26px;font-size:11px;background:${avatarColor(m.name)}">${initial(m.name)}</div>
       <div style="flex:1;min-width:0;font-size:13.5px;font-weight:500">${esc(m.name)} ${already?'<span class="badge badge-gray">추가됨</span>':''}</div>
       <span style="font-size:12px;color:var(--muted)">${esc(fmtPhone(m.phone))}</span>
-    </div>`;}).join('') || `<div style="text-align:center;color:var(--muted);font-size:12.5px;padding:12px">회원이 없습니다</div>`;
+    </div>`;}).join('') || `<div style="text-align:center;color:var(--muted);font-size:12.5px;padding:12px">해당 조건의 회원이 없습니다</div>`;
 }
 function togglePick(ph){
   const s=window._picked; s.has(ph)?s.delete(ph):s.add(ph);
   document.getElementById('pickCount').textContent=s.size;
-  renderPicker(document.getElementById('pickSearch').value);
+  renderPicker();
+}
+function pickAllFiltered(on){
+  pickFilteredMembers().forEach(m=>{
+    const ph=digits(m.phone);
+    if(recipients.some(r=>r.kind==='person'&&r.phone===ph)) return;
+    on?window._picked.add(ph):window._picked.delete(ph);
+  });
+  document.getElementById('pickCount').textContent=window._picked.size;
+  renderPicker();
 }
 function applyPicker(){
   let n=0;
@@ -656,6 +700,21 @@ function onTagKey(e){
   else toast('일치하는 이름이 없습니다');
 }
 function targetPhones(){ return allRecipients().map(r=>digits(r.phone)); }
+
+// 연락처 페이지에서 넘겨준 수신자 프리필 (localStorage 핸드오프)
+function applyPrefillRecipients(){
+  let raw; try{ raw=localStorage.getItem('sms_prefill_recipients'); }catch(e){ return; }
+  if(!raw) return;
+  localStorage.removeItem('sms_prefill_recipients');
+  let list; try{ list=JSON.parse(raw); }catch(e){ return; }
+  if(!Array.isArray(list)||!list.length) return;
+  let n=0;
+  list.forEach(x=>{ const ph=digits(x.phone);
+    if(ph.length>=8 && !recipients.some(r=>r.kind==='person'&&r.phone===ph)){
+      recipients.push({kind:'person', phone:ph, name:x.name||''}); n++; } });
+  renderChips(); updateSummary();
+  if(n) toast(`연락처에서 ${n}명 추가됨`);
+}
 
 /* ── 툴바 패널 ── */
 function togglePanel(which){

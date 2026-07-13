@@ -22,10 +22,20 @@
       <button class="btn" onclick="openEdit()">+ 새 연락처</button>
     </div>
   </div>
+  <div id="bulkBar" class="hidden" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;border-radius:12px;background:var(--accent-soft, color-mix(in srgb, var(--accent) 10%, transparent))">
+    <span style="font-size:13px;font-weight:600;color:var(--accent)"><span id="selCount">0</span>명 선택됨</span>
+    <span style="flex:1"></span>
+    <button class="btn btn-ghost btn-sm" onclick="selClear()">선택 해제</button>
+    <button class="btn btn-sm" onclick="sendSelected()">발송 대상으로 보내기</button>
+    <button class="btn btn-danger btn-sm" onclick="delSelected()">선택 삭제</button>
+  </div>
   <div class="card" style="padding:6px 6px 2px">
     <div class="tbl-scroll">
       <table class="tbl">
-        <thead><tr><th>이름</th><th>연락처</th><th>프로그램</th><th>상태</th><th>잔여</th><th>만료일</th><th></th></tr></thead>
+        <thead><tr>
+          <th style="width:34px"><div class="check" id="selAll" onclick="toggleSelAll()" style="cursor:pointer"></div></th>
+          <th>이름</th><th>연락처</th><th>프로그램</th><th>상태</th><th>잔여</th><th>만료일</th><th></th>
+        </tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
@@ -181,11 +191,16 @@ async function importGateway(){
   }catch(e){ toast(e.message); }
 }
 
-function render(){
+const selected = new Set();
+function curList(){
   const term=(document.getElementById('searchInp').value||'').trim();
-  const list=members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+  return members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+}
+function render(){
+  const list=curList();
   document.getElementById('rows').innerHTML = list.map(m=>`
     <tr>
+      <td><div class="check ${selected.has(m.id)?'on':''}" style="cursor:pointer" onclick="toggleSel('${m.id}')">${selected.has(m.id)?'✓':''}</div></td>
       <td><div style="display:flex;align-items:center;gap:10px">
         <div class="avatar" style="width:30px;height:30px;font-size:12px;background:${avatarColor(m.name)}">${initial(m.name)}</div>
         <span style="font-weight:600">${esc(m.name)}</span>
@@ -200,8 +215,40 @@ function render(){
         <button class="btn btn-ghost btn-sm" onclick='openEdit(${JSON.stringify(m).replace(/'/g,"&#39;")})'>수정</button>
         <button class="btn btn-danger btn-sm" onclick="del('${m.id}','${esc(m.name)}')">삭제</button>
       </td>
-    </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">연락처가 없습니다.</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">연락처가 없습니다.</td></tr>`;
   document.getElementById('count').textContent = `총 ${members.length}명`;
+  syncBulkBar();
+}
+
+/* ── 다중 선택 ── */
+function toggleSel(id){ selected.has(id)?selected.delete(id):selected.add(id); render(); }
+function toggleSelAll(){
+  const list=curList();
+  const allOn=list.length && list.every(m=>selected.has(m.id));
+  list.forEach(m=>allOn?selected.delete(m.id):selected.add(m.id));
+  render();
+}
+function selClear(){ selected.clear(); render(); }
+function syncBulkBar(){
+  const list=curList();
+  document.getElementById('selCount').textContent=selected.size;
+  document.getElementById('bulkBar').classList.toggle('hidden', selected.size===0);
+  const sa=document.getElementById('selAll');
+  const allOn=list.length && list.every(m=>selected.has(m.id));
+  sa.classList.toggle('on', allOn); sa.textContent=allOn?'✓':'';
+}
+async function delSelected(){
+  const ids=[...selected];
+  if(!ids.length) return;
+  if(!confirm(`선택한 ${ids.length}명을 삭제할까요? (되돌릴 수 없습니다)`)) return;
+  try{ const d=await api.post('/api/sms/members/bulk-delete',{ids}); selected.clear(); await load(); toast(`${d.deleted}명 삭제`); }
+  catch(e){ toast(e.message); }
+}
+function sendSelected(){
+  const picked=members.filter(m=>selected.has(m.id)).map(m=>({phone:digits(m.phone), name:m.name}));
+  if(!picked.length) return;
+  localStorage.setItem('sms_prefill_recipients', JSON.stringify(picked));
+  location.href='index.html';
 }
 
 function openEdit(m){
