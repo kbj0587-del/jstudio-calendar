@@ -23,6 +23,12 @@ function registerSmsRoutes(app, deps) {
 
   // 전화번호 → 숫자만 (로그/발송용). 회원 테이블은 하이픈 포함이라 매칭 시 정규화 필요.
   const digits = (s) => String(s || '').replace(/\D/g, '');
+  // 번호→id 매핑 등록 (전체 번호 + 뒤 8자리 키 모두 등록해 형식차 흡수)
+  const idmapSet = (map, dphone, id) => {
+    if (!dphone) return;
+    map.set(dphone, id);
+    if (dphone.length >= 8) map.set(dphone.slice(-8), id);
+  };
 
   function requireSmsAccess(req, res, next) {
     if (isAdmin(req) || isSubAdmin(req)) return next();
@@ -277,6 +283,95 @@ function registerSmsRoutes(app, deps) {
       ok++;
     }
     res.json({ ok: true, imported: ok });
+  }));
+
+  // 구글 연락처 가져오기 (라벨→그룹 포함). body.rows = [{name, phone, labels:[...]}]
+  // 회원 upsert + 라벨을 js_groups로 find-or-create + 멤버 배정. 벌크 처리(대량 대응).
+  const GROUP_COLORS = ['#0071e3', '#34c759', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#ffcc00', '#ff3b30'];
+  app.post('/api/sms/google-import', requireSmsAccess, wrap(async (req, res) => {
+    const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+    // 정규화 + 번호 기준 중복 제거(마지막 우선), 라벨 합집합
+    const byPhone = new Map();
+    for (const m of rows) {
+      const phone = digits(m.phone);
+      const name = String(m.name || '').trim();
+      if (phone.length < 8 || !name) continue;
+      const labels = (Array.isArray(m.labels) ? m.labels : [])
+        .map((l) => String(l || '').trim())
+        .filter((l) => l && !l.startsWith('*'));   // * 시스템 라벨 제외
+      const prev = byPhone.get(phone);
+      if (prev) { prev.name = name; labels.forEach((l) => prev.labels.add(l)); }
+      else byPhone.set(phone, { phone, name, labels: new Set(labels) });
+    }
+    const list = [...byPhone.values()];
+    if (!list.length) return res.json({ ok: true, imported: 0, groups: 0, assigned: 0 });
+
+    // 1) 회원 upsert (500건 청크 멀티로우)
+    let imported = 0;
+    for (let i = 0; i < list.length; i += 500) {
+      const chunk = list.slice(i, i + 500);
+      const vals = [], params = [];
+      chunk.forEach((m, j) => {
+        const b = j * 3;
+        vals.push(`($${b + 1},$${b + 2},$${b + 3})`);
+        params.push(m.name, m.phone, 'active');
+      });
+      await q(
+        `INSERT INTO js_members (name, phone, group_type) VALUES ${vals.join(',')}
+         ON CONFLICT (phone) DO UPDATE SET name = EXCLUDED.name`,
+        params
+      );
+      imported += chunk.length;
+    }
+
+    // 2) 전화번호 → member_id 매핑 (숫자만 기준)
+    const idmap = new Map();
+    const allPhones = list.map((m) => m.phone);
+    for (let i = 0; i < allPhones.length; i += 1000) {
+      const chunk = allPhones.slice(i, i + 1000);
+      const ph = chunk.map((_, j) => `$${j + 1}`).join(',');
+      const r = await q(
+        `SELECT id, regexp_replace(phone,'\\D','','g') dphone FROM js_members
+         WHERE regexp_replace(phone,'\\D','','g') IN (${ph})`, chunk
+      );
+      r.rows.forEach((row) => idmapSet(idmap, row.dphone, row.id));
+    }
+
+    // 3) 라벨 → 그룹 find-or-create
+    const wantLabels = [...new Set(list.flatMap((m) => [...m.labels]))];
+    const groupId = {};
+    if (wantLabels.length) {
+      const existing = await q('SELECT id, name FROM js_groups');
+      existing.rows.forEach((g) => { groupId[g.name] = g.id; });
+      let ci = existing.rows.length;
+      for (const label of wantLabels) {
+        if (groupId[label]) continue;
+        const gr = await q('INSERT INTO js_groups (name, color) VALUES ($1,$2) RETURNING id',
+          [label, GROUP_COLORS[ci % GROUP_COLORS.length]]);
+        groupId[label] = gr.rows[0].id;
+        ci++;
+      }
+    }
+
+    // 4) 멤버십 벌크 배정 (중복은 무시)
+    const pairs = [];
+    for (const m of list) {
+      const mid = idmap.get(m.phone);
+      if (!mid) continue;
+      for (const label of m.labels) {
+        const gid = groupId[label];
+        if (gid) pairs.push([gid, mid]);
+      }
+    }
+    let assigned = 0;
+    for (let i = 0; i < pairs.length; i += 500) {
+      const chunk = pairs.slice(i, i + 500);
+      const vals = [], params = [];
+      chunk.forEach((p, j) => { const b = j * 2; vals.push(`($${b + 1},$${b + 2})`); params.push(p[0], p[1]); });
+      await q(`INSERT INTO js_group_members (group_id, member_id) VALUES ${vals.join(',')} ON CONFLICT DO NOTHING`, params);
+      assigned += chunk.length;
+    }
+    res.json({ ok: true, imported, groups: wantLabels.length, assigned });
   }));
 
   // ══════════════════════════════════════════════════════════
