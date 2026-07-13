@@ -43,10 +43,16 @@ Supabase: js_gateway_contacts (phone PK, name, updated_at)
 3. 직전 동기화 내용과 해시가 같으면 스킵(불필요한 전체 재삽입 방지)
 4. `delete().neq('phone','___none___')` 로 전체 삭제 → 500건 청크로 `insert(rows)` 재삽입
 
-호출 지점(`_HomeShellState`, `WidgetsBindingObserver`):
-- 앱 시작(`_bootstrap`) 시 1회
-- 앱 재개(`didChangeAppLifecycleState == resumed`) 시 — 폰에서 연락처를 추가/수정하고 앱을
-  다시 열면 반영됨. 별도 ContentObserver(네이티브 플러그인 필요) 없이 이 방식으로 충분.
+두 가지 모드:
+- `incremental`(변경분): 마지막 스냅샷과 비교해 추가/이름변경/삭제분만 반영. 이름 변경도
+  UPDATE 불가라 "DELETE 후 INSERT". 스냅샷은 SharedPreferences(FGT)에 JSON으로 영속.
+- `full`(전체): 서버 전체 삭제 후 현재 주소록 전량 재삽입.
+
+호출 지점:
+- 자동(`_HomeShellState`, `WidgetsBindingObserver`): 앱 시작 + 앱 재개 시 → `incremental`
+- 수동(게이트웨이 화면 버튼): "변경분 동기화"=`incremental`, "전체 재동기화"=`full`.
+  마지막 동기화 요약(시각·총원·추가/삭제 수)을 화면에 표시.
+- ⚠️ 실시간 백그라운드 변경 감지(ContentObserver)는 미구현 — 앱을 열거나 버튼을 눌러야 반영.
 
 ## 웹 쪽 구현 (이 저장소 — 이미 배포됨)
 
