@@ -1,6 +1,6 @@
 # 게이트웨이 앱 ↔ 웹 주소록 연동 (구현 완료본)
 
-> **상태: 구현 완료 (2026-07-13).** 게이트웨이 앱(`~/jsms-gateway`, Flutter)과 웹 대시보드
+> **상태: 구현 완료 (2026-07-13).** 게이트웨이 앱(`~/Documents/AppDevelop/jsms-gateway`, Flutter)과 웹 대시보드
 > (이 저장소) 양쪽 모두 반영됨. 이 문서는 "무엇을 어떻게 만들었는지"의 기록.
 >
 > ⚠️ 이전 버전(커밋 1848548)은 네이티브 Kotlin + anon upsert를 가정한 **틀린 스펙**이었음.
@@ -35,7 +35,7 @@ Supabase: js_gateway_contacts (phone PK, name, updated_at)
 → INSERT/DELETE 시 결과 row를 돌려받으면 SELECT가 필요해 또 실패하므로,
   **`return=minimal`(supabase-dart에서 `.select()`를 체이닝하지 않으면 자동)** 로 호출한다.
 
-## 앱 쪽 구현 (`~/jsms-gateway/lib/main.dart`)
+## 앱 쪽 구현 (`~/Documents/AppDevelop/jsms-gateway/lib/main.dart`)
 
 `syncContactsToServer(SupabaseClient, Map<String,String>)`:
 1. 번호를 숫자만으로 정규화, 8자리 이상 + 이름 있는 것만, 중복 시 마지막 이름 우선
@@ -73,4 +73,4 @@ Supabase: js_gateway_contacts (phone PK, name, updated_at)
 ## 남은 하드닝 (별개 과제)
 `js_message_logs`·`js_members`·`js_gateway_status`는 아직 anon 전면 개방 상태다
 (anon 키가 APK에 있어 추출 시 접근 가능). 완전 잠금 = 폰 앱도 대시보드처럼 백엔드 API를
-경유하도록 바꾸고 anon 정책을 끄는 것(웹+앱 양쪽 큰 작업). `~/jsms-gateway/HANDOFF.md` 8번 참조.
+경유하도록 바꾸고 anon 정책을 끄는 것(웹+앱 양쪽 큰 작업). `~/Documents/AppDevelop/jsms-gateway/HANDOFF.md` 8번 참조.
