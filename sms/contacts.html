@@ -22,6 +22,7 @@
       <button class="btn" onclick="openEdit()">+ 새 연락처</button>
     </div>
   </div>
+  <div id="groupFilter" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>
   <div id="bulkBar" class="hidden" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;border-radius:12px;background:var(--accent-soft, color-mix(in srgb, var(--accent) 10%, transparent))">
     <span style="font-size:13px;font-weight:600;color:var(--accent)"><span id="selCount">0</span>명 선택됨</span>
     <span style="flex:1"></span>
@@ -46,12 +47,32 @@
 <script src="sms.js"></script>
 <script>
 let members = [];
+let groups = [];
+let curGroup = '__all__';          // 현재 그룹 필터
+let groupMemberSet = {};           // groupId -> Set(member id)
 const GROUP_LABELS = { active:'활동중', warning:'만료임박', expired:'만료', instructor:'강사', new:'신규' };
 const GROUP_BADGE = { active:'badge-green', warning:'badge-orange', expired:'badge-red', instructor:'badge-gray', new:'badge-gray' };
 
-async function boot(){ renderHeader('contacts'); await load(); refreshGwCount(); refreshBlockBadge(); }
+async function boot(){ renderHeader('contacts'); await load(); await loadGroupFilter(); refreshGwCount(); refreshBlockBadge(); }
 window.onAuthReady = boot;
 async function load(){ members = await api.get('/api/sms/members'); render(); }
+
+/* 그룹별 보기 필터 */
+async function loadGroupFilter(){
+  groups = await api.get('/api/sms/groups');
+  await Promise.all(groups.map(async g=>{
+    try{ const gm=await api.get('/api/sms/groups/'+g.id+'/members'); groupMemberSet[g.id]=new Set(gm.map(m=>m.id)); }
+    catch(e){ groupMemberSet[g.id]=new Set(); }
+  }));
+  renderGroupFilter();
+}
+function renderGroupFilter(){
+  const el=document.getElementById('groupFilter');
+  el.innerHTML =
+    `<span class="chip ${curGroup==='__all__'?'chip-accent':''}" onclick="setGroupFilter('__all__')">전체 ${members.length}</span>` +
+    groups.map(g=>`<span class="chip ${curGroup===g.id?'chip-accent':''}" onclick="setGroupFilter('${g.id}')">${esc(g.name)} ${g.member_count}</span>`).join('');
+}
+function setGroupFilter(gid){ curGroup=gid; selected.clear(); renderGroupFilter(); render(); }
 
 /* 수신거부 관리 (발신부에서 이동) */
 async function refreshBlockBadge(){
@@ -194,7 +215,11 @@ async function importGateway(){
 const selected = new Set();
 function curList(){
   const term=(document.getElementById('searchInp').value||'').trim();
-  return members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+  const gset = curGroup==='__all__' ? null : (groupMemberSet[curGroup]||new Set());
+  return members.filter(m=>{
+    if(gset && !gset.has(m.id)) return false;
+    return !term||m.name.includes(term)||digits(m.phone).includes(digits(term));
+  });
 }
 function render(){
   const list=curList();
@@ -216,7 +241,10 @@ function render(){
         <button class="btn btn-danger btn-sm" onclick="del('${m.id}','${esc(m.name)}')">삭제</button>
       </td>
     </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:30px">연락처가 없습니다.</td></tr>`;
-  document.getElementById('count').textContent = `총 ${members.length}명`;
+  const gname = curGroup==='__all__' ? '' : (groups.find(g=>g.id===curGroup)?.name || '');
+  document.getElementById('count').textContent = gname
+    ? `${gname} 그룹 ${curList().length}명 (전체 ${members.length}명)`
+    : `총 ${members.length}명`;
   syncBulkBar();
 }
 

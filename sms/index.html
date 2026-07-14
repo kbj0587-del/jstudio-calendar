@@ -236,9 +236,7 @@ async function loadGwContacts(){
 async function loadGroups(){
   groups = await api.get('/api/sms/groups');
   document.getElementById('groupChips').innerHTML =
-    `<span class="chip" onclick="openMemberPicker()">☑ 연락처에서 선택</span>` +
-    `<span class="chip" onclick="addAllMembers()">전체 회원</span>` +
-    groups.map(g=>`<span class="chip" onclick="addGroupChip('${g.id}')">${esc(g.name)} ${g.member_count}</span>`).join('') +
+    `<span class="chip chip-accent" onclick="openMemberPicker()">☑ 연락처·그룹에서 선택</span>` +
     `<span class="chip" onclick="document.getElementById('bulkFileInp').click()">📄 파일 대량 추가</span>` +
     `<a class="chip" href="sample-recipients.csv" download style="text-decoration:none">샘플 ⤓</a>`;
 }
@@ -352,6 +350,13 @@ async function openMemberPicker(){
 function pickSetGroup(gid){
   _pickGroup=gid;
   document.querySelectorAll('#pickGroupChips .chip').forEach(c=>c.classList.toggle('chip-accent', c.dataset.g===gid));
+  // 그룹을 고르면 그 그룹 멤버를 자동 선택(뺄 사람만 언체크). '전체'는 자동선택 안 함.
+  if(gid!=='__all__'){
+    const gset=_pickGroupMembers[gid]||new Set();
+    members.forEach(m=>{ const ph=digits(m.phone);
+      if(gset.has(ph) && !recipients.some(r=>r.kind==='person'&&r.phone===ph)) window._picked.add(ph); });
+    document.getElementById('pickCount').textContent=window._picked.size;
+  }
   renderPicker();
 }
 function pickFilteredMembers(){

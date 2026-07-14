@@ -68,31 +68,47 @@ async function del(id,name){ if(!confirm(`'${name}' 그룹을 삭제할까요? (
 
 async function manageMembers(gid){
   const inGroup = await api.get('/api/sms/groups/'+gid+'/members');
-  const set = new Set(inGroup.map(m=>m.id));
-  window._gset = set; window._gid = gid;
+  window._gset = new Set(inGroup.map(m=>m.id));
+  window._gid = gid; window._gaddMode = false;
+  const g = groups.find(x=>x.id===gid);
   openModal(`
-    <h3>멤버 편집</h3>
-    <input class="inp" placeholder="이름·번호 검색" oninput="filterMM(this.value)">
-    <div id="mmList" style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
+    <h3 id="mmTitle">${esc(g?g.name:'그룹')} 멤버</h3>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input class="inp" id="mmSearch" style="flex:1" placeholder="이름·번호 검색" oninput="renderMM()">
+      <button class="btn btn-ghost btn-sm" id="mmAddToggle" onclick="mmToggleAdd()">＋ 회원 추가</button>
+    </div>
+    <div id="mmList" style="max-height:330px;overflow-y:auto;display:flex;flex-direction:column;gap:2px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn btn-ghost" onclick="closeModal()">취소</button>
-      <button class="btn" onclick="saveMembers()">저장 (<span id="mmCount">${set.size}</span>명)</button>
+      <button class="btn" onclick="saveMembers()">저장 (<span id="mmCount">${window._gset.size}</span>명)</button>
     </div>`);
-  renderMM('');
+  renderMM();
 }
-function renderMM(term){
+function mmToggleAdd(){
+  window._gaddMode = !window._gaddMode;
+  document.getElementById('mmAddToggle').textContent = window._gaddMode ? '← 멤버 목록' : '＋ 회원 추가';
+  document.getElementById('mmSearch').placeholder = window._gaddMode ? '추가할 회원 검색' : '이름·번호 검색';
+  renderMM();
+}
+function renderMM(){
   const set=window._gset;
-  const list=members.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+  const term=(document.getElementById('mmSearch').value||'').trim();
+  // 기본: 그룹 멤버만. 추가 모드: 그룹에 없는 회원만.
+  const base = members.filter(m=> window._gaddMode ? !set.has(m.id) : set.has(m.id));
+  const list = base.filter(m=>!term||m.name.includes(term)||digits(m.phone).includes(digits(term)));
+  document.getElementById('mmCount').textContent = set.size;
   document.getElementById('mmList').innerHTML = list.map(m=>`
-    <div class="contact-row" onclick="toggleMM('${m.id}')">
-      <div class="check ${set.has(m.id)?'on':''}">${set.has(m.id)?'✓':''}</div>
-      <div class="avatar" style="width:26px;height:26px;font-size:11px;background:${avatarColor(m.name)}">${initial(m.name)}</div>
-      <div style="flex:1;font-size:13.5px;font-weight:500">${esc(m.name)}</div>
-      <span style="font-size:12px;color:var(--muted)">${esc(fmtPhone(m.phone))}</span>
-    </div>`).join('');
+    <div class="contact-row">
+      <div class="avatar" style="width:28px;height:28px;font-size:11px;background:${avatarColor(m.name)}">${initial(m.name)}</div>
+      <div style="flex:1;min-width:0;font-size:13.5px;font-weight:500">${esc(m.name)}</div>
+      <span style="font-size:12px;color:var(--muted);margin-right:8px">${esc(fmtPhone(m.phone))}</span>
+      ${window._gaddMode
+        ? `<button class="btn btn-ghost btn-sm" onclick="mmAdd('${m.id}')">＋ 추가</button>`
+        : `<button class="btn btn-danger btn-sm" onclick="mmRemove('${m.id}')">제거</button>`}
+    </div>`).join('') || `<div style="text-align:center;color:var(--muted);font-size:12.5px;padding:14px">${window._gaddMode?'추가할 회원이 없습니다':'이 그룹에 멤버가 없습니다'}</div>`;
 }
-function filterMM(v){ renderMM(v.trim()); }
-function toggleMM(id){ const s=window._gset; s.has(id)?s.delete(id):s.add(id); document.getElementById('mmCount').textContent=s.size; renderMM(document.querySelector('#modalHost input').value.trim()); }
+function mmRemove(id){ window._gset.delete(id); renderMM(); }
+function mmAdd(id){ window._gset.add(id); renderMM(); }
 async function saveMembers(){
   await api.post('/api/sms/groups/'+window._gid+'/members',{ member_ids:[...window._gset] });
   closeModal(); await load(); toast('멤버 저장 완료');
