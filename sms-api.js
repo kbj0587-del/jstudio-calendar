@@ -745,6 +745,171 @@ function registerSmsRoutes(app, deps) {
     res.json({ ok: true, url: SUPA_URL + '/storage/v1/object/public/mms/' + name });
   }));
 
+  // ══════════════════════════════════════════════════════════
+  //  게이트웨이 전용 API (/api/sms/gw/*)
+  //  폰(게이트웨이 앱)이 anon 키 직접접근 대신 이 엔드포인트만 사용한다.
+  //  인증 = Bearer 토큰(JSMS_GATEWAY_TOKEN). 토큰이 APK에서 추출돼도
+  //  여기서 허용하는 좁은 작업(큐 클레임/상태/수신로그/하트비트/주소록/스레드)만
+  //  가능해, 전체 PII 열람·이력 통삭제는 불가하다. DB는 service-role pg풀(RLS 우회).
+  // ══════════════════════════════════════════════════════════
+  const crypto = require('crypto');
+  const GW_TOKEN = process.env.JSMS_GATEWAY_TOKEN || '';
+  function requireGateway(req, res, next) {
+    if (!GW_TOKEN) return res.status(503).json({ error: 'gateway_disabled', message: 'JSMS_GATEWAY_TOKEN 미설정' });
+    const h = req.headers['authorization'] || '';
+    const t = h.startsWith('Bearer ') ? h.slice(7) : '';
+    const a = Buffer.from(t), b = Buffer.from(GW_TOKEN);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    next();
+  }
+  const GW_STATUSES = ['success', 'failed', 'queued', 'sending', 'received'];
+
+  // 발송 큐 원자적 클레임: queued → sending 로 바꾸며 그 행들을 돌려준다(중복발송 방지).
+  app.post('/api/sms/gw/claim-queue', requireGateway, wrap(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.body?.limit) || 20, 1), 50);
+    const r = await q(
+      "UPDATE js_message_logs SET status='sending' WHERE id IN " +
+      "(SELECT id FROM js_message_logs WHERE dir='out' AND status='queued' ORDER BY created_at ASC LIMIT $1) " +
+      "RETURNING id, phone, content, image_url",
+      [limit]
+    );
+    res.json({ items: r.rows });
+  }));
+
+  // 발송 결과 반영
+  app.post('/api/sms/gw/status', requireGateway, wrap(async (req, res) => {
+    const { id, status } = req.body || {};
+    if (!id || !GW_STATUSES.includes(status)) return res.status(400).json({ error: 'bad_request' });
+    await q('UPDATE js_message_logs SET status=$2 WHERE id=$1', [id, status]);
+    res.json({ ok: true });
+  }));
+
+  // 로그 추가 (수신 dir=in / 삼성 발신함 동기화 dir=out / 인앱 발송 dir=out+queued).
+  // dedupMin 지정 시 같은 번호+내용+방향이 그 분(min) 내 있으면 스킵(중복 방지).
+  app.post('/api/sms/gw/log', requireGateway, wrap(async (req, res) => {
+    const { phone, content, dir, image_url, dedupMin } = req.body || {};
+    const status = req.body?.status || (dir === 'out' ? 'success' : 'received');
+    const p = digits(phone);
+    if (p.length < 8 || (dir !== 'in' && dir !== 'out')) return res.status(400).json({ error: 'bad_request' });
+    if (dedupMin) {
+      const dup = await q(
+        "SELECT 1 FROM js_message_logs WHERE phone=$1 AND content=$2 AND dir=$3 AND created_at > now() - ($4 || ' minutes')::interval LIMIT 1",
+        [p, content || '', dir, String(dedupMin)]
+      );
+      if (dup.rows.length) return res.json({ ok: true, skipped: true });
+    }
+    const ins = await q(
+      'INSERT INTO js_message_logs (phone, content, dir, status, image_url) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [p, content || '', dir, status, image_url || null]
+    );
+    if (dir === 'in') { try { await runTick(false); } catch (_) {} } // 자동응답/수신거부 처리 기회
+    res.json({ ok: true, id: ins.rows[0].id });
+  }));
+
+  // 하트비트 (앱 생존 관측)
+  app.post('/api/sms/gw/heartbeat', requireGateway, wrap(async (req, res) => {
+    const { id, note, battery } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'bad_request' });
+    await q(
+      'INSERT INTO js_gateway_status (id, battery_level, network_status, last_ping) VALUES ($1,$2,$3,now()) ' +
+      'ON CONFLICT (id) DO UPDATE SET battery_level=EXCLUDED.battery_level, network_status=EXCLUDED.network_status, last_ping=EXCLUDED.last_ping',
+      [id, Number(battery) || 0, note || '']
+    );
+    res.json({ ok: true });
+  }));
+
+  // 하트비트 조회 (게이트웨이 화면 상태 표시)
+  app.get('/api/sms/gw/health', requireGateway, wrap(async (req, res) => {
+    const r = await q('SELECT id, network_status, last_ping FROM js_gateway_status');
+    res.json({ items: r.rows });
+  }));
+
+  // 주소록 동기화 (server pg = 정식 upsert 가능, anon delete+insert 제약 없음)
+  app.post('/api/sms/gw/contacts', requireGateway, wrap(async (req, res) => {
+    const { mode, all, add, remove } = req.body || {};
+    const norm = (arr) => (arr || [])
+      .map((c) => ({ phone: digits(c.phone), name: String(c.name || '').trim() }))
+      .filter((c) => c.phone.length >= 8 && c.name);
+    const bulkUpsert = async (list) => {
+      for (let i = 0; i < list.length; i += 500) {
+        const chunk = list.slice(i, i + 500);
+        const vals = []; const params = []; let k = 1;
+        for (const c of chunk) { vals.push(`($${k++},$${k++},now())`); params.push(c.phone, c.name); }
+        await q(
+          `INSERT INTO js_gateway_contacts (phone, name, updated_at) VALUES ${vals.join(',')} ` +
+          'ON CONFLICT (phone) DO UPDATE SET name=EXCLUDED.name, updated_at=now()', params
+        );
+      }
+    };
+    if (mode === 'full') {
+      const list = norm(all);
+      if (!list.length) return res.json({ ok: false, reason: 'empty' });
+      await q('DELETE FROM js_gateway_contacts');
+      await bulkUpsert(list);
+    } else {
+      const addl = norm(add);
+      const reml = (remove || []).map(digits).filter((p) => p.length >= 8);
+      for (let i = 0; i < reml.length; i += 500) {
+        await q('DELETE FROM js_gateway_contacts WHERE phone = ANY($1)', [reml.slice(i, i + 500)]);
+      }
+      await bulkUpsert(addl);
+      const cnt = await q('SELECT count(*)::int c FROM js_gateway_contacts');
+      return res.json({ ok: true, total: cnt.rows[0].c, added: addl.length, removed: reml.length });
+    }
+    const cnt = await q('SELECT count(*)::int c FROM js_gateway_contacts');
+    res.json({ ok: true, total: cnt.rows[0].c });
+  }));
+
+  // MMS 이미지 업로드 (in/ 수신, out/ 발신)
+  app.post('/api/sms/gw/upload', requireGateway, wrap(async (req, res) => {
+    const { data, contentType, ext, dir } = req.body || {};
+    if (!data) return res.status(400).json({ error: 'no_data' });
+    const buf = Buffer.from(data, 'base64');
+    if (buf.length > 5 * 1024 * 1024) return res.status(400).json({ error: 'too_big' });
+    const safeExt = String(ext || 'jpg').replace(/[^a-z0-9]/gi, '').slice(0, 5).toLowerCase() || 'jpg';
+    const prefix = dir === 'in' ? 'in/' : 'out/';
+    const name = prefix + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '.' + safeExt;
+    const up = await fetch(SUPA_URL + '/storage/v1/object/mms/' + name, {
+      method: 'POST',
+      headers: { apikey: SUPA_ANON, authorization: 'Bearer ' + SUPA_ANON, 'content-type': contentType || 'image/jpeg', 'x-upsert': 'true' },
+      body: buf,
+    });
+    if (!up.ok) { const t = await up.text().catch(() => ''); throw new Error('storage_upload_fail ' + up.status + ' ' + t.slice(0, 120)); }
+    res.json({ ok: true, url: SUPA_URL + '/storage/v1/object/public/mms/' + name });
+  }));
+
+  // 인앱 메시지 UI: 대화 목록 (번호별 최신 1건)
+  app.get('/api/sms/gw/threads', requireGateway, wrap(async (req, res) => {
+    const r = await q(
+      'SELECT DISTINCT ON (phone) phone, content, dir, created_at FROM js_message_logs ORDER BY phone, created_at DESC'
+    );
+    const items = r.rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json({ items });
+  }));
+
+  // 인앱 메시지 UI: 특정 번호 스레드
+  app.get('/api/sms/gw/thread', requireGateway, wrap(async (req, res) => {
+    const p = digits(req.query.phone);
+    if (p.length < 8) return res.json({ items: [] });
+    const r = await q(
+      "SELECT id, phone, content, dir, status, created_at, image_url FROM js_message_logs " +
+      "WHERE regexp_replace(phone,'\\D','','g') = $1 ORDER BY created_at ASC LIMIT 500", [p]
+    );
+    res.json({ items: r.rows });
+  }));
+
+  // 인앱 메시지 UI: 로그 삭제
+  app.post('/api/sms/gw/delete', requireGateway, wrap(async (req, res) => {
+    let ids = req.body?.ids || [];
+    if (req.body?.id) ids = [req.body.id];
+    ids = ids.filter(Boolean);
+    if (!ids.length) return res.json({ ok: true, deleted: 0 });
+    await q('DELETE FROM js_message_logs WHERE id = ANY($1)', [ids]);
+    res.json({ ok: true, deleted: ids.length });
+  }));
+
   // 수동 tick (대시보드 폴링용)
   app.get('/api/sms/tick', requireSmsAccess, wrap(async (req, res) => {
     await runTick(true);
