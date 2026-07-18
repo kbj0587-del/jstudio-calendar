@@ -28,6 +28,15 @@
           <div class="section-label" style="margin:0">받는 사람</div>
           <span style="font-size:13px;font-weight:600;color:var(--accent)" id="queueCount">0명</span>
         </div>
+
+        <!-- 답장 / 대량 발송 상태 표시 + 명단 교체 되돌리기 -->
+        <div id="replyBar" class="hidden"
+             style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <span id="replyBadge" class="pill" style="font-size:11.5px"></span>
+          <button id="replyUndo" class="btn btn-ghost btn-sm hidden"
+                  style="font-size:11.5px;padding:3px 10px" onclick="undoRecipientReplace()">되돌리기</button>
+        </div>
+
         <div style="position:relative">
           <div class="chipfield" onclick="document.getElementById('tagInp').focus()">
             <span id="tagChips" style="display:contents"></span>
@@ -47,8 +56,9 @@
       <!-- ② 메시지: 본문 + 하단 툴바 -->
       <div>
         <div class="msgcard">
-          <textarea id="msgInp" rows="5" placeholder="메시지를 입력하세요 — 링크는 자동으로 단축됩니다"
-                    oninput="updateBytes(); debounceShorten()" onblur="autoShorten(false)" onpaste="onMsgPaste()"></textarea>
+          <textarea id="msgInp" rows="5" placeholder="메시지를 입력하세요 — 링크는 자동으로 단축됩니다 (Ctrl+Enter 발송)"
+                    oninput="updateBytes(); debounceShorten()" onblur="autoShorten(false)" onpaste="onMsgPaste()"
+                    onkeydown="onMsgKey(event)"></textarea>
           <div class="toolbar">
             <button class="tool-btn" id="tb_img" title="이미지 첨부 (MMS)" onclick="togglePanel('img')">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
@@ -160,9 +170,13 @@
           <div class="pill pill-green" id="fcmPill"><div class="dot dot-green"></div>게이트웨이</div>
         </div>
         <div class="chat-body" id="chatBody"></div>
-        <div style="padding:14px 20px;border-top:1px solid var(--border2);display:flex;gap:10px;align-items:flex-end">
-          <textarea id="replyInp" class="inp" rows="1" placeholder="답장 입력… (Ctrl+Enter 전송)" style="resize:none" onkeydown="onReplyKey(event)"></textarea>
-          <button class="btn" onclick="sendReply()">전송</button>
+        <!-- 입력창은 왼쪽 하나로 통합됨. 이 자리는 안내 줄(누르면 왼쪽 본문으로 이동) -->
+        <div id="composeHint" onclick="focusComposer()"
+             style="padding:14px 20px;border-top:1px solid var(--border2);display:flex;gap:8px;
+                    align-items:center;justify-content:center;cursor:pointer;color:var(--muted);
+                    font-size:12.5px;user-select:none">
+          <span style="font-size:14px">←</span>
+          <span>왼쪽 입력창에서 작성해 보냅니다</span>
         </div>
       </div>
     </div>
@@ -433,6 +447,8 @@ function applyPicker(){
 function afterRecipientChange(){
   const inp=document.getElementById('tagInp'); inp.value='';
   hideSuggest(); renderChips(); renderVarChips(); updateSummary(); renderPreview(); inp.focus();
+  // 받는 사람이 바뀌면 오른쪽 대화도 맞춘다 (openThread에서 부를 땐 _syncing으로 건너뜀)
+  if(!_syncing && typeof syncThreadToRecipients==='function') syncThreadToRecipients();
 }
 function renderChips(){
   document.getElementById('tagChips').innerHTML = recipients.map((r,i)=>{
@@ -789,6 +805,11 @@ function buildCharGrids(){
   fill('symGrid', SYMBOLS, '');
 }
 
+/* 본문 발송 단축키: Ctrl+Enter(맥 Cmd+Enter). 그냥 Enter는 줄바꿈 그대로. */
+function onMsgKey(e){
+  if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); doSend(); }
+}
+
 /* 본문 textarea의 커서 위치에 삽입(선택 영역이 있으면 대체) */
 function insertChar(ch){
   const ta = document.getElementById('msgInp');
@@ -944,8 +965,12 @@ async function doSend(){
     }
     document.getElementById('msgInp').value=''; removeImage();
     document.getElementById('shortNote').classList.add('hidden');
-    recipients=[]; renderChips(); renderVarChips(); updateBytes();
+    // 발송 후 명단은 비우되, 열려 있던 대화는 그대로 두고 새로고침해
+    // 방금 보낸 말풍선이 바로 보이게 한다.
+    _syncing=true; recipients=[]; renderChips(); renderVarChips(); updateBytes(); _syncing=false;
+    _prevRecipients=null; renderReplyBar(false);
     refreshBootstrap(); loadThreads();
+    if(activeThread) refreshChat(true);
   }catch(e){ toast('실패: '+e.message); }
   btn.disabled=false;
 }
@@ -966,7 +991,100 @@ async function loadThreads(){
     if(activeThread) refreshChat(false);
   }catch(e){ if(e.message!=='auth') console.error(e); }
 }
-async function openThread(phone){ activeThread=phone; loadThreads(); refreshChat(true); }
+/* ── 대화 선택 ↔ 받는 사람 연동 (입력창 통합) ──
+   대화를 고르면 받는 사람을 그 사람으로 "교체"하고 왼쪽 본문에 커서를 둔다.
+   교체로 기존 명단이 날아가는 사고를 막기 위해 직전 명단을 보관해 되돌릴 수 있게 한다.
+   afterRecipientChange()와 서로를 부르므로 _syncing 으로 재귀를 막는다. */
+let _prevRecipients = null;   // 되돌리기용 직전 명단
+let _syncing = false;         // 상호 호출 재귀 방지
+
+async function openThread(phone){
+  const t = threads.find(x=>x.phone===phone);
+  const hadOthers = recipients.length>0 &&
+    !(recipients.length===1 && recipients[0].kind==='person' && recipients[0].phone===phone);
+
+  if(hadOthers) _prevRecipients = recipients.slice();
+  else _prevRecipients = null;
+
+  activeThread = phone;
+  _syncing = true;
+  recipients = [{ kind:'person', phone, name:(t&&t.name)||'' }];
+  afterRecipientChange();
+  _syncing = false;
+
+  renderReplyBar(hadOthers);
+  loadThreads();
+  refreshChat(true);
+  focusComposer();
+}
+
+/* 명단 교체 되돌리기 */
+function undoRecipientReplace(){
+  if(!_prevRecipients) return;
+  _syncing = true;
+  recipients = _prevRecipients.slice();
+  _prevRecipients = null;
+  afterRecipientChange();
+  _syncing = false;
+  syncThreadToRecipients();
+  renderReplyBar(false);
+  toast('이전 명단으로 되돌렸습니다');
+}
+
+/* 왼쪽 본문으로 커서 이동 (좁은 화면에선 스크롤도 함께) */
+function focusComposer(){
+  const el = document.getElementById('msgInp');
+  if(!el) return;
+  if(window.innerWidth <= 900) el.scrollIntoView({behavior:'smooth', block:'center'});
+  el.focus();
+}
+
+/* 받는 사람 상태에 따라 오른쪽 대화를 맞춘다.
+   1명 → 그 대화 자동 열기 · 0명/2명 이상 → 대량(또는 미선택) 상태 */
+function syncThreadToRecipients(){
+  const only = recipients.length===1 && recipients[0].kind==='person' ? recipients[0].phone : null;
+  if(only){
+    if(activeThread!==only){ activeThread=only; loadThreads(); refreshChat(true); }
+  }
+  renderReplyBar(false);
+}
+
+/* 답장 / 대량 발송 배지 렌더 */
+function renderReplyBar(showUndo){
+  const bar=document.getElementById('replyBar');
+  const badge=document.getElementById('replyBadge');
+  const undo=document.getElementById('replyUndo');
+  if(!bar) return;
+  const total = allRecipients().length;
+  const only = recipients.length===1 && recipients[0].kind==='person' ? recipients[0] : null;
+
+  if(only){
+    badge.className='pill pill-blue';
+    badge.textContent='답장 중 · '+(only.name || fmtPhone(only.phone));
+    bar.classList.remove('hidden');
+  } else if(total>1){
+    badge.className='pill pill-gray';
+    badge.textContent='대량 발송 · '+total+'명';
+    bar.classList.remove('hidden');
+  } else {
+    bar.classList.add('hidden');
+  }
+  undo.classList.toggle('hidden', !showUndo || !_prevRecipients);
+  renderChatMode(total, only);
+}
+
+/* 오른쪽 대화 머리말: 2명 이상이면 대량 발송 중임을 알린다 */
+function renderChatMode(total, only){
+  const pill=document.getElementById('fcmPill');
+  const hint=document.getElementById('composeHint');
+  if(!pill||!hint) return;
+  if(!only && total>1){
+    hint.innerHTML='<span>대량 발송 중 · 왼쪽에서 보냅니다</span>';
+    hint.style.color='var(--muted)';
+  } else {
+    hint.innerHTML='<span style="font-size:14px">←</span><span>왼쪽 입력창에서 작성해 보냅니다</span>';
+  }
+}
 async function refreshChat(scroll){
   if(!activeThread)return;
   const msgs=await api.get('/api/sms/thread/'+activeThread);
@@ -981,13 +1099,8 @@ async function refreshChat(scroll){
     </div>`).join('');
   const body=document.getElementById('chatBody'); if(scroll!==false) body.scrollTop=body.scrollHeight;
 }
-function onReplyKey(e){ if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); sendReply(); } }
-async function sendReply(){
-  const inp=document.getElementById('replyInp'); const content=inp.value.trim();
-  if(!content||!activeThread)return;
-  try{ await api.post('/api/sms/send',{ phones:[activeThread], content }); inp.value=''; toast('전송 큐 등록'); refreshChat(); refreshBootstrap(); }
-  catch(e){ toast(e.message); }
-}
+/* 오른쪽 답장 입력(replyInp)·onReplyKey()·sendReply() 는 입력창 통합으로 제거됨.
+   발송은 왼쪽 doSend() 한 곳으로만 이뤄진다. */
 
 boot();
 </script>
