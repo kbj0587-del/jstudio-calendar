@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>메시지 발송센터 · J.SMS</title>
 <link rel="stylesheet" href="sms.css">
+<!-- PWA: /sms/ 전용 앱으로 설치(캘린더와 별도 앱) -->
+<link rel="manifest" href="/sms/manifest.json">
+<meta name="theme-color" content="#0A84FF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="J.SMS">
+<link rel="apple-touch-icon" href="/icons/sms-192.png">
+<link rel="icon" href="/icons/sms-192.png">
 </head>
 <body>
 <div id="hdr"></div>
@@ -54,6 +62,10 @@
               <span class="dot hidden" id="dot_sched"></span>
             </button>
             <button class="tool-btn" id="tb_var" title="변수 삽입 — 수신자별 개인화" onclick="togglePanel('var')" style="font-size:13px;font-weight:700">{&#8202;}</button>
+            <button class="tool-btn" id="tb_emoji" title="이모티콘" onclick="togglePanel('emoji')">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+            </button>
+            <button class="tool-btn" id="tb_sym" title="특수문자" onclick="togglePanel('sym')" style="font-size:15px;font-weight:700">※</button>
             <span style="flex:1;text-align:right;font-size:11.5px;color:var(--muted)" id="byteInfo">0 byte · SMS</span>
           </div>
 
@@ -61,6 +73,20 @@
           <div class="tool-panel hidden" id="panel_var">
             <div style="display:flex;flex-wrap:wrap;gap:6px" id="varChips"></div>
             <div style="font-size:11px;color:var(--muted)" id="varHint"></div>
+          </div>
+
+          <!-- 이모티콘 패널 -->
+          <div class="tool-panel hidden" id="panel_emoji">
+            <div style="font-size:11px;color:var(--muted)">
+              ⚠️ 이모지를 넣으면 문자가 유니코드로 전송돼 <b>1건당 70자</b>로 줄어듭니다 (byte 표시 확인).
+            </div>
+            <div class="charGrid" id="emojiGrid"></div>
+          </div>
+
+          <!-- 특수문자 패널 -->
+          <div class="tool-panel hidden" id="panel_sym">
+            <div style="font-size:11px;color:var(--muted)">탭하면 커서 위치에 삽입됩니다.</div>
+            <div class="charGrid" id="symGrid"></div>
           </div>
 
           <!-- 미리보기 (변수 사용 시 자동 표시) -->
@@ -723,11 +749,57 @@ function applyPrefillRecipients(){
 
 /* ── 툴바 패널 ── */
 function togglePanel(which){
-  ['img','tpl','sched','var'].forEach(k=>{
+  ['img','tpl','sched','var','emoji','sym'].forEach(k=>{
     const on = k===which && document.getElementById('panel_'+k).classList.contains('hidden');
     document.getElementById('panel_'+k).classList.toggle('hidden', !on);
     document.getElementById('tb_'+k).classList.toggle('active', on);
   });
+  if(which==='emoji' || which==='sym') buildCharGrids();
+}
+
+/* ══ 이모티콘 · 특수문자 삽입 ══ */
+const EMOJIS = ('😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 '+
+'😋 😛 😜 🤪 😝 🤗 🤭 🤔 🤐 😐 😑 😶 😏 😒 🙄 😬 😔 😪 😴 😷 '+
+'🤒 🤕 🥵 🥶 😵 🤯 🤠 🥳 😎 🤓 😕 😟 🙁 😮 😯 😲 😳 🥺 😦 😧 '+
+'😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 💀 💩 '+
+'👍 👎 👌 ✌️ 🤞 🤝 👏 🙏 💪 🤙 👋 ✋ 🖐️ 👇 👆 👉 👈 ☝️ ✍️ 💅 '+
+'❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💕 💖 💗 💓 💞 💯 💢 💥 ✨ ⭐ 🌟 '+
+'🎉 🎊 🎁 🎂 🍰 ☕ 🍵 🍺 🍻 🥂 🌸 🌺 🌷 🌹 🌻 🌱 🌿 🍀 🌈 ☀️ '+
+'☁️ 🌧️ ❄️ ⛄ 🔥 💧 ⚡ 🎯 🏆 🥇 📱 💻 ⌚ 📷 🎵 🎶 📢 🔔 ⏰ 📅 '+
+'✅ ❌ ⭕ ❗ ❓ ⚠️ 🚫 💤 🙌 🤲 🧘 🤸 🏃 🚶 💃 🕺 🧖 💆 💇 🛀').split(' ');
+
+const SYMBOLS = ('· … ~ ∼ ㆍ 「 」 『 』 【 】 〈 〉 《 》 （ ） ［ ］ ｛ ｝ 〔 〕 “ ” ‘ ’ '+
+'→ ← ↑ ↓ ↔ ↕ ⇒ ⇐ ⇔ ⇧ ⇩ ↗ ↘ ↙ ↖ '+
+'★ ☆ ♥ ♡ ◆ ◇ ■ □ ● ○ ▲ △ ▼ ▽ ◈ ※ ◎ ☞ ☜ ♣ ♠ ♤ ♧ ☎ ✆ ✔ ✓ ✗ ✘ ◐ '+
+'± × ÷ ≠ ≤ ≥ ≒ ∞ √ ∑ ∏ ∫ ∵ ∴ ∝ ° ℃ ℉ ㎜ ㎝ ㎞ ㎡ ㎥ ㎏ ㎖ ％ ‰ № ㏊ Å '+
+'₩ ＄ ￥ ￡ € ¢ ฿ ₫ ₽ ₴ '+
+'① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩ ㉠ ㉡ ㉢ ㉣ ㉤ ㈜ ™ © ® ℠ '+
+'Ⅰ Ⅱ Ⅲ Ⅳ Ⅴ Ⅵ Ⅶ Ⅷ Ⅸ Ⅹ').split(' ').filter(Boolean);
+
+let _gridsBuilt = false;
+function buildCharGrids(){
+  if(_gridsBuilt) return;
+  _gridsBuilt = true;
+  const fill = (id, list, cls) => {
+    document.getElementById(id).innerHTML = list.map(c =>
+      `<button type="button" class="charBtn ${cls}" onclick="insertChar('${c.replace(/'/g,"\\'")}')">${c}</button>`
+    ).join('');
+  };
+  fill('emojiGrid', EMOJIS, 'big');
+  fill('symGrid', SYMBOLS, '');
+}
+
+/* 본문 textarea의 커서 위치에 삽입(선택 영역이 있으면 대체) */
+function insertChar(ch){
+  const ta = document.getElementById('msgInp');
+  const s = ta.selectionStart ?? ta.value.length;
+  const e = ta.selectionEnd   ?? ta.value.length;
+  ta.value = ta.value.slice(0, s) + ch + ta.value.slice(e);
+  const pos = s + ch.length;
+  ta.setSelectionRange(pos, pos);
+  ta.focus();
+  updateBytes();
+  if (typeof updateSummary === 'function') updateSummary();
 }
 function toggleSchedule(e){
   if(e) e.preventDefault();

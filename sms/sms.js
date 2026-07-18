@@ -168,3 +168,14 @@ function renderHeader(active, rightHtml){
   tb.innerHTML = SMS_PAGES.map(p =>
     `<a class="${p.key===active?'active':''}" href="${p.href}">${svgIcon(p.icon,22)}<span>${p.label}</span></a>`).join('');
 }
+
+/* ══ PWA: /sms/ 전용 서비스워커 등록 ══
+   scope를 /sms/ 로 명시해 루트 캘린더 SW와 분리한다.
+   이게 있어야 Chrome이 J.SMS를 "별도 앱"으로 설치 제안한다. */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sms/sw.js', { scope: '/sms/' })
+      .then(r => console.log('[J.SMS] SW 등록됨, scope=', r.scope))
+      .catch(e => console.warn('[J.SMS] SW 등록 실패', e));
+  });
+}

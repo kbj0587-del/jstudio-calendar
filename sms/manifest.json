@@ -1,0 +1,43 @@
+{
+  "name": "J.SMS 메시지 발송센터",
+  "short_name": "J.SMS",
+  "description": "제이스튜디오 문자 발송센터 — 발송, 주소록, 그룹, 템플릿, 자동응답",
+  "id": "/sms/",
+  "start_url": "/sms/",
+  "scope": "/sms/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0A84FF",
+  "orientation": "any",
+  "lang": "ko",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/sms-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/sms-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/sms-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/sms-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "J.SMS 발송센터"
+    }
+  ]
+}
