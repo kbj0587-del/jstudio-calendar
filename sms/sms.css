@@ -235,3 +235,21 @@ body.resizing{cursor:col-resize;user-select:none}
 .charBtn.big{font-size:21px}
 .charBtn:hover{background:var(--surface);border-color:var(--border)}
 .charBtn:active{transform:scale(.92)}
+
+/* ══ 전화 자동응답 설정용 (스위치 · 라디오칩) ══ */
+.sw{position:relative;display:inline-block;width:44px;height:26px;flex-shrink:0}
+.sw input{opacity:0;width:0;height:0}
+.sw span{position:absolute;inset:0;cursor:pointer;background:var(--surface2);
+  border:1px solid var(--border);border-radius:100px;transition:.2s}
+.sw span::before{content:"";position:absolute;width:20px;height:20px;left:2px;top:2px;
+  background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sw input:checked+span{background:var(--accent);border-color:var(--accent)}
+.sw input:checked+span::before{transform:translateX(18px)}
+.radiochip{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;
+  border:1px solid var(--border);border-radius:var(--radius-xs);font-size:12.5px;
+  cursor:pointer;background:var(--surface2)}
+.radiochip:has(input:checked){border-color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--accent)}
+.tplrow{display:flex;align-items:center;gap:10px;padding:11px 14px;
+  border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface2)}
+.tplrow.isdef{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}

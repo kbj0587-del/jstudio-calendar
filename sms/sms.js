@@ -179,3 +179,47 @@ if ('serviceWorker' in navigator) {
       .catch(e => console.warn('[J.SMS] SW 등록 실패', e));
   });
 }
+
+/* ══ 공용: 이모티콘 · 특수문자 (발송센터·자동응답 공용) ══ */
+const EMOJIS = ('😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 '+
+'😋 😛 😜 🤪 😝 🤗 🤭 🤔 🤐 😐 😑 😶 😏 😒 🙄 😬 😔 😪 😴 😷 '+
+'🤒 🤕 🥵 🥶 😵 🤯 🤠 🥳 😎 🤓 😕 😟 🙁 😮 😯 😲 😳 🥺 😦 😧 '+
+'😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 💀 💩 '+
+'👍 👎 👌 ✌️ 🤞 🤝 👏 🙏 💪 🤙 👋 ✋ 🖐️ 👇 👆 👉 👈 ☝️ ✍️ 💅 '+
+'❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💕 💖 💗 💓 💞 💯 💢 💥 ✨ ⭐ 🌟 '+
+'🎉 🎊 🎁 🎂 🍰 ☕ 🍵 🍺 🍻 🥂 🌸 🌺 🌷 🌹 🌻 🌱 🌿 🍀 🌈 ☀️ '+
+'☁️ 🌧️ ❄️ ⛄ 🔥 💧 ⚡ 🎯 🏆 🥇 📱 💻 ⌚ 📷 🎵 🎶 📢 🔔 ⏰ 📅 '+
+'✅ ❌ ⭕ ❗ ❓ ⚠️ 🚫 💤 🙌 🤲 🧘 🤸 🏃 🚶 💃 🕺 🧖 💆 💇 🛀').split(' ');
+
+const SYMBOLS = ('· … ~ ∼ ㆍ 「 」 『 』 【 】 〈 〉 《 》 （ ） ［ ］ ｛ ｝ 〔 〕 “ ” ‘ ’ '+
+'→ ← ↑ ↓ ↔ ↕ ⇒ ⇐ ⇔ ⇧ ⇩ ↗ ↘ ↙ ↖ '+
+'★ ☆ ♥ ♡ ◆ ◇ ■ □ ● ○ ▲ △ ▼ ▽ ◈ ※ ◎ ☞ ☜ ♣ ♠ ♤ ♧ ☎ ✆ ✔ ✓ ✗ ✘ ◐ '+
+'± × ÷ ≠ ≤ ≥ ≒ ∞ √ ∑ ∏ ∫ ∵ ∴ ∝ ° ℃ ℉ ㎜ ㎝ ㎞ ㎡ ㎥ ㎏ ㎖ ％ ‰ № ㏊ Å '+
+'₩ ＄ ￥ ￡ € ¢ ฿ ₫ ₽ ₴ '+
+'① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩ ㉠ ㉡ ㉢ ㉣ ㉤ ㈜ ™ © ® ℠ '+
+'Ⅰ Ⅱ Ⅲ Ⅳ Ⅴ Ⅵ Ⅶ Ⅷ Ⅸ Ⅹ').split(' ').filter(Boolean);
+
+function buildCharGrid(gridElId, kind, targetId){
+  const el = document.getElementById(gridElId);
+  if(!el || el.dataset.built) return;
+  el.dataset.built = '1';
+  const list = kind === 'emoji' ? EMOJIS : SYMBOLS;
+  const cls  = kind === 'emoji' ? 'big' : '';
+  el.innerHTML = list.map(c =>
+    `<button type="button" class="charBtn ${cls}" onclick="insertCharTo('${targetId}','${c.replace(/'/g,"\\'")}')">${c}</button>`
+  ).join('');
+}
+
+/* 지정한 textarea의 커서 위치에 삽입(선택 영역이 있으면 대체) */
+function insertCharTo(targetId, ch){
+  const ta = document.getElementById(targetId);
+  if(!ta) return;
+  const s = ta.selectionStart ?? ta.value.length;
+  const e = ta.selectionEnd   ?? ta.value.length;
+  ta.value = ta.value.slice(0, s) + ch + ta.value.slice(e);
+  const pos = s + ch.length;
+  ta.setSelectionRange(pos, pos);
+  ta.focus();
+  ta.dispatchEvent(new Event('input', {bubbles:true}));
+}
+

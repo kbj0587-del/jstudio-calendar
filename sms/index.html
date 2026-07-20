@@ -22,6 +22,9 @@
     <!-- 왼쪽: 발송 패널 (B안 메신저 컴포저) -->
     <div class="compose" id="compose">
 
+      <!-- ⓪ 통화 후 발송 대기 (반자동 · 대기 건이 있을 때만 보임) -->
+      <div id="callPending" class="hidden" style="margin-bottom:14px"></div>
+
       <!-- ① 받는 사람: 칩 필드 하나로 통합 -->
       <div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -204,12 +207,13 @@ async function boot(){
   window.addEventListener('resize', applyComposeWidth);
   window.addEventListener('paste', onGlobalPaste);
   await refreshBootstrap();
-  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadThreads(), loadGwContacts()]);
+  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadThreads(), loadGwContacts(), loadCallPending()]);
   renderVarChips(); updateBytes(); updateSummary();
   applyPrefillRecipients();     // 연락처 페이지에서 "발송 대상으로 보내기"로 넘어온 수신자
   document.getElementById('tagInp').addEventListener('blur', ()=>setTimeout(hideSuggest, 200));
   setInterval(loadThreads, 20000);
   setInterval(refreshBootstrap, 30000);
+  setInterval(loadCallPending, 30000);
 }
 window.onAuthReady = boot;
 
@@ -773,37 +777,15 @@ function togglePanel(which){
   if(which==='emoji' || which==='sym') buildCharGrids();
 }
 
-/* ══ 이모티콘 · 특수문자 삽입 ══ */
-const EMOJIS = ('😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 '+
-'😋 😛 😜 🤪 😝 🤗 🤭 🤔 🤐 😐 😑 😶 😏 😒 🙄 😬 😔 😪 😴 😷 '+
-'🤒 🤕 🥵 🥶 😵 🤯 🤠 🥳 😎 🤓 😕 😟 🙁 😮 😯 😲 😳 🥺 😦 😧 '+
-'😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 💀 💩 '+
-'👍 👎 👌 ✌️ 🤞 🤝 👏 🙏 💪 🤙 👋 ✋ 🖐️ 👇 👆 👉 👈 ☝️ ✍️ 💅 '+
-'❤️ 🧡 💛 💚 💙 💜 🖤 🤍 💔 💕 💖 💗 💓 💞 💯 💢 💥 ✨ ⭐ 🌟 '+
-'🎉 🎊 🎁 🎂 🍰 ☕ 🍵 🍺 🍻 🥂 🌸 🌺 🌷 🌹 🌻 🌱 🌿 🍀 🌈 ☀️ '+
-'☁️ 🌧️ ❄️ ⛄ 🔥 💧 ⚡ 🎯 🏆 🥇 📱 💻 ⌚ 📷 🎵 🎶 📢 🔔 ⏰ 📅 '+
-'✅ ❌ ⭕ ❗ ❓ ⚠️ 🚫 💤 🙌 🤲 🧘 🤸 🏃 🚶 💃 🕺 🧖 💆 💇 🛀').split(' ');
-
-const SYMBOLS = ('· … ~ ∼ ㆍ 「 」 『 』 【 】 〈 〉 《 》 （ ） ［ ］ ｛ ｝ 〔 〕 “ ” ‘ ’ '+
-'→ ← ↑ ↓ ↔ ↕ ⇒ ⇐ ⇔ ⇧ ⇩ ↗ ↘ ↙ ↖ '+
-'★ ☆ ♥ ♡ ◆ ◇ ■ □ ● ○ ▲ △ ▼ ▽ ◈ ※ ◎ ☞ ☜ ♣ ♠ ♤ ♧ ☎ ✆ ✔ ✓ ✗ ✘ ◐ '+
-'± × ÷ ≠ ≤ ≥ ≒ ∞ √ ∑ ∏ ∫ ∵ ∴ ∝ ° ℃ ℉ ㎜ ㎝ ㎞ ㎡ ㎥ ㎏ ㎖ ％ ‰ № ㏊ Å '+
-'₩ ＄ ￥ ￡ € ¢ ฿ ₫ ₽ ₴ '+
-'① ② ③ ④ ⑤ ⑥ ⑦ ⑧ ⑨ ⑩ ㉠ ㉡ ㉢ ㉣ ㉤ ㈜ ™ © ® ℠ '+
-'Ⅰ Ⅱ Ⅲ Ⅳ Ⅴ Ⅵ Ⅶ Ⅷ Ⅸ Ⅹ').split(' ').filter(Boolean);
-
+/* 이모티콘·특수문자는 sms.js 공용 부품 사용 (본문 대상 = msgInp) */
 let _gridsBuilt = false;
 function buildCharGrids(){
   if(_gridsBuilt) return;
   _gridsBuilt = true;
-  const fill = (id, list, cls) => {
-    document.getElementById(id).innerHTML = list.map(c =>
-      `<button type="button" class="charBtn ${cls}" onclick="insertChar('${c.replace(/'/g,"\\'")}')">${c}</button>`
-    ).join('');
-  };
-  fill('emojiGrid', EMOJIS, 'big');
-  fill('symGrid', SYMBOLS, '');
+  buildCharGrid('emojiGrid','emoji','msgInp');
+  buildCharGrid('symGrid','sym','msgInp');
 }
+function insertChar(ch){ insertCharTo('msgInp', ch); updateBytes(); if(typeof updateSummary==='function') updateSummary(); }
 
 /* 본문 발송 단축키: Ctrl+Enter(맥 Cmd+Enter). 그냥 Enter는 줄바꿈 그대로. */
 function onMsgKey(e){
@@ -973,6 +955,51 @@ async function doSend(){
     if(activeThread) refreshChat(true);
   }catch(e){ toast('실패: '+e.message); }
   btn.disabled=false;
+}
+
+/* ── 통화 후 발송 대기 목록 (반자동) ── */
+let pendingCalls=[], callTpls=[];
+async function loadCallPending(){
+  try{
+    const [list, tpl] = await Promise.all([
+      api.get('/api/sms/call-pending'),
+      callTpls.length ? Promise.resolve(callTpls) : api.get('/api/sms/call-templates'),
+    ]);
+    pendingCalls = list; callTpls = tpl;
+    const box = document.getElementById('callPending');
+    if(!list.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
+    box.classList.remove('hidden');
+    const opts = callTpls.map(t=>`<option value="${t.id}" ${t.is_default?'selected':''}>${esc(t.name)}</option>`).join('');
+    box.innerHTML = `
+      <div class="card" style="padding:14px 16px;background:color-mix(in srgb,var(--accent) 6%,var(--surface))">
+        <div style="font-size:12.5px;font-weight:600;margin-bottom:10px">
+          통화 후 발송 대기 ${list.length}건
+          <span style="font-weight:400;color:var(--muted)"> · 상담한 신규 번호입니다</span>
+        </div>
+        ${list.map(c=>`
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border2)">
+            <div style="flex:1;min-width:130px">
+              <div style="font-size:13.5px;font-weight:600">${fmtPhone(c.phone)}</div>
+              <div style="font-size:11.5px;color:var(--muted)">${durLabel(c.duration_sec)} 통화 · ${fmtDateTime(c.occurred_at)}</div>
+            </div>
+            <select class="inp" id="pt_${c.id}" style="width:auto;min-width:130px;padding:5px 8px;font-size:12px">${opts}</select>
+            <button class="btn btn-sm" onclick="sendPending('${c.id}')">보내기</button>
+            <button class="btn btn-ghost btn-sm" onclick="dismissPending('${c.id}')">무시</button>
+          </div>`).join('')}
+      </div>`;
+  }catch(e){ if(e.message!=='auth') console.error(e); }
+}
+function durLabel(s){ s=Number(s)||0; return s>=60 ? `${Math.floor(s/60)}분 ${s%60}초` : `${s}초`; }
+async function sendPending(id){
+  const sel=document.getElementById('pt_'+id);
+  try{
+    await api.post(`/api/sms/call-pending/${id}/send`, { template_id: sel && sel.value });
+    toast('발송 큐에 등록했습니다'); loadCallPending(); refreshBootstrap(); loadThreads();
+  }catch(e){ toast(e.message); }
+}
+async function dismissPending(id){
+  try{ await api.post(`/api/sms/call-pending/${id}/dismiss`, {}); loadCallPending(); }
+  catch(e){ toast(e.message); }
 }
 
 /* ── 대화 스레드 ── */
