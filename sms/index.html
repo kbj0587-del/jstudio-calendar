@@ -170,7 +170,11 @@
         <div id="chatHeader" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border2)">
           <div><div id="chatName" style="font-size:14.5px;font-weight:600">대화를 선택하세요</div>
                <div id="chatPhone" style="font-size:12px;color:var(--muted);margin-top:1px"></div></div>
-          <div class="pill pill-green" id="fcmPill"><div class="dot dot-green"></div>게이트웨이</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn btn-ghost btn-sm" id="delThreadBtn" onclick="delThread()"
+                    title="이 대화 기록 전체 삭제" style="color:var(--red);display:none">대화 삭제</button>
+            <div class="pill pill-green" id="fcmPill"><div class="dot dot-green"></div>게이트웨이</div>
+          </div>
         </div>
         <div class="chat-body" id="chatBody"></div>
         <!-- 입력창은 왼쪽 하나로 통합됨. 이 자리는 안내 줄(누르면 왼쪽 본문으로 이동) -->
@@ -957,6 +961,38 @@ async function doSend(){
   btn.disabled=false;
 }
 
+/* ── 메시지 삭제 ──
+   ⚠️ 지워지는 건 우리 기록뿐입니다. 이미 나간 문자는 상대 폰에서 사라지지 않습니다.
+      단, 아직 안 나간 '전송대기'를 지우면 발송 자체가 취소됩니다. */
+async function delMsg(id, isQueued){
+  const msg = isQueued
+    ? '아직 발송되지 않은 메시지입니다.\n삭제하면 발송이 취소됩니다. 진행할까요?'
+    : '이 메시지 기록을 삭제할까요?\n(이미 보낸 문자는 상대방 폰에서 지워지지 않습니다)';
+  if(!confirm(msg)) return;
+  try{
+    const r = await api.post('/api/sms/messages/delete', { ids:[id] });
+    toast(r.cancelled ? '발송이 취소되었습니다' : '삭제되었습니다');
+    refreshChat(false); loadThreads();
+  }catch(e){ toast(e.message); }
+}
+
+async function delThread(){
+  if(!activeThread) return;
+  const t = threads.find(x=>x.phone===activeThread);
+  const who = (t && t.name) || fmtPhone(activeThread);
+  if(!confirm(`${who} 님과의 대화 기록을 전부 삭제할까요?\n되돌릴 수 없습니다. (이미 보낸 문자는 상대방 폰에 남습니다)`)) return;
+  try{
+    const r = await api.post('/api/sms/messages/delete-thread', { phone: activeThread });
+    toast(`${r.deleted}건 삭제${r.cancelled?` · 발송대기 ${r.cancelled}건 취소`:''}`);
+    activeThread = null;
+    document.getElementById('chatBody').innerHTML='';
+    document.getElementById('chatName').textContent='대화를 선택하세요';
+    document.getElementById('chatPhone').textContent='';
+    document.getElementById('delThreadBtn').style.display='none';
+    loadThreads(); renderReplyBar(false);
+  }catch(e){ toast(e.message); }
+}
+
 /* ── 통화 후 발송 대기 목록 (반자동) ── */
 let pendingCalls=[], callTpls=[];
 async function loadCallPending(){
@@ -1118,11 +1154,15 @@ async function refreshChat(scroll){
   const t=threads.find(x=>x.phone===activeThread);
   document.getElementById('chatName').textContent=t?t.name:fmtPhone(activeThread);
   document.getElementById('chatPhone').textContent=fmtPhone(activeThread);
+  const dtb=document.getElementById('delThreadBtn'); if(dtb) dtb.style.display='';
   document.getElementById('chatBody').innerHTML=msgs.map(m=>`
-    <div style="display:flex;flex-direction:column;gap:3px;align-items:${m.dir==='out'?'flex-end':'flex-start'}">
+    <div class="msgrow" style="display:flex;flex-direction:column;gap:3px;align-items:${m.dir==='out'?'flex-end':'flex-start'}">
       ${m.image_url?`<img src="${esc(m.image_url)}" style="max-width:200px;border-radius:12px;border:1px solid var(--border2)">`:''}
       ${m.content?`<div class="bubble ${m.dir==='out'?'bubble-out':'bubble-in'}">${esc(m.content)}</div>`:''}
-      <div class="bubble-time">${fmtDateTime(m.created_at)}${m.dir==='out'?' · '+(m.status==='queued'?'전송대기':'전송됨'):''}</div>
+      <div class="bubble-time">
+        ${fmtDateTime(m.created_at)}${m.dir==='out'?' · '+(m.status==='queued'?'전송대기':'전송됨'):''}
+        <button class="msgdel" title="이 메시지 기록 삭제" onclick="delMsg('${m.id}',${m.status==='queued'})">삭제</button>
+      </div>
     </div>`).join('');
   const body=document.getElementById('chatBody'); if(scroll!==false) body.scrollTop=body.scrollHeight;
 }

@@ -253,3 +253,10 @@ body.resizing{cursor:col-resize;user-select:none}
 .tplrow{display:flex;align-items:center;gap:10px;padding:11px 14px;
   border:1px solid var(--border);border-radius:var(--radius-xs);background:var(--surface2)}
 .tplrow.isdef{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+
+/* ══ 메시지 삭제 버튼 (말풍선 시각 옆, 평소 숨김) ══ */
+.msgdel{border:none;background:none;color:var(--red);font-size:11px;cursor:pointer;
+  padding:0 2px;margin-left:6px;opacity:0;transition:opacity .15s}
+.msgrow:hover .msgdel{opacity:.75}
+.msgdel:hover{opacity:1;text-decoration:underline}
+@media (hover:none){ .msgdel{opacity:.6} }

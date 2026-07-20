@@ -31,12 +31,23 @@
   <div class="card" style="padding:6px 6px 2px">
     <div class="tbl-scroll">
       <table class="tbl">
-        <thead><tr><th>구분</th><th>연락처</th><th>내용</th><th>상태</th><th>시각</th></tr></thead>
+        <thead><tr>
+          <th style="width:34px"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)" title="전체 선택"></th>
+          <th>구분</th><th>연락처</th><th>내용</th><th>상태</th><th>시각</th><th style="width:64px"></th>
+        </tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
   </div>
-  <div id="count" style="font-size:12.5px;color:var(--muted);margin-top:12px"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">
+    <div id="count" style="font-size:12.5px;color:var(--muted)"></div>
+    <button class="btn btn-ghost btn-sm hidden" id="delSelBtn" style="color:var(--red);margin-left:auto"
+            onclick="delSelected()">선택 삭제</button>
+  </div>
+  <div style="font-size:11.5px;color:var(--muted);margin-top:8px">
+    삭제는 이 기록에서만 지워집니다. 이미 보낸 문자는 상대방 폰에서 지워지지 않습니다.
+    단, <b>전송대기</b> 상태를 지우면 발송이 취소됩니다.
+  </div>
 </div>
 
 <script src="sms.js"></script>
@@ -55,6 +66,7 @@ async function load(){
   const rows = await api.get('/api/sms/history?'+qs.toString());
   document.getElementById('rows').innerHTML = rows.map(m=>`
     <tr>
+      <td><input type="checkbox" class="rowchk" value="${m.id}" data-q="${m.status==='queued'?1:0}" onchange="syncSel()"></td>
       <td><span class="badge ${m.dir==='out'?'badge-green':'badge-gray'}">${m.dir==='out'?'발신':'수신'}</span></td>
       <td style="white-space:nowrap">${esc(fmtPhone(m.phone))}</td>
       <td style="max-width:420px">
@@ -63,8 +75,41 @@ async function load(){
       </td>
       <td><span style="font-size:12px;color:${m.status==='queued'?'var(--orange-d)':'var(--muted)'}">${statusLabel(m.status)}</span></td>
       <td style="white-space:nowrap;color:var(--muted2)">${fmtDateTime(m.created_at)}</td>
-    </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">기록이 없습니다.</td></tr>`;
+      <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" style="color:var(--red);padding:4px 9px;white-space:nowrap"
+                  onclick="delOne('${m.id}',${m.status==='queued'})">삭제</button></td>
+    </tr>`).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">기록이 없습니다.</td></tr>`;
   document.getElementById('count').textContent = `${rows.length}건 표시`;
+  document.getElementById('chkAll').checked = false;
+  syncSel();
+}
+
+/* ── 삭제 ──
+   ⚠️ 우리 기록만 지웁니다. 이미 나간 문자는 상대 폰에 남습니다.
+      'queued'(전송대기)를 지우면 발송이 취소됩니다. */
+function selectedIds(){ return [...document.querySelectorAll('.rowchk:checked')].map(c=>c.value); }
+function toggleAll(on){ document.querySelectorAll('.rowchk').forEach(c=>c.checked=on); syncSel(); }
+function syncSel(){
+  const n = selectedIds().length;
+  const btn = document.getElementById('delSelBtn');
+  btn.classList.toggle('hidden', n===0);
+  btn.textContent = `선택 ${n}건 삭제`;
+}
+async function runDelete(ids, queuedCount){
+  const warn = queuedCount
+    ? `${ids.length}건을 삭제합니다.\n이 중 ${queuedCount}건은 아직 발송 전이라 발송이 취소됩니다. 진행할까요?`
+    : `${ids.length}건의 기록을 삭제할까요?\n(이미 보낸 문자는 상대방 폰에서 지워지지 않습니다)`;
+  if(!confirm(warn)) return;
+  try{
+    const r = await api.post('/api/sms/messages/delete', { ids });
+    toast(`${r.deleted}건 삭제${r.cancelled?` · 발송 ${r.cancelled}건 취소`:''}`);
+    load();
+  }catch(e){ toast(e.message); }
+}
+function delOne(id, isQueued){ runDelete([id], isQueued?1:0); }
+function delSelected(){
+  const boxes=[...document.querySelectorAll('.rowchk:checked')];
+  if(!boxes.length) return;
+  runDelete(boxes.map(b=>b.value), boxes.filter(b=>b.dataset.q==='1').length);
 }
 function statusLabel(s){ return ({queued:'전송대기',success:'전송됨',received:'수신',failed:'실패'})[s]||s||'-'; }
 boot();

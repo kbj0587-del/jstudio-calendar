@@ -556,6 +556,27 @@ function registerSmsRoutes(app, deps) {
   }));
 
   // 대화 스레드 목록 (번호별 최근 메시지 + 회원명)
+  // ── 메시지 삭제 (관리자) ──
+  // ⚠️ 기록만 지웁니다. 이미 발송된 문자는 상대 폰에서 지워지지 않습니다.
+  //    'queued'(아직 안 나간 문자)를 지우면 발송 자체가 취소됩니다.
+  app.post('/api/sms/messages/delete', requireSmsAccess, wrap(async (req, res) => {
+    const ids = (req.body?.ids || []).filter(Boolean);
+    if (!ids.length) return res.json({ ok: true, deleted: 0, cancelled: 0 });
+    const pre = await q("SELECT count(*)::int c FROM js_message_logs WHERE id = ANY($1) AND status='queued'", [ids]);
+    const r = await q('DELETE FROM js_message_logs WHERE id = ANY($1)', [ids]);
+    res.json({ ok: true, deleted: r.rowCount, cancelled: pre.rows[0].c });
+  }));
+
+  // 한 번호의 대화 전체 삭제
+  app.post('/api/sms/messages/delete-thread', requireSmsAccess, wrap(async (req, res) => {
+    const p = digits(req.body?.phone);
+    if (p.length < 8) return res.status(400).json({ error: 'bad_request' });
+    const pre = await q(
+      "SELECT count(*)::int c FROM js_message_logs WHERE regexp_replace(phone,'\\D','','g') = $1 AND status='queued'", [p]);
+    const r = await q("DELETE FROM js_message_logs WHERE regexp_replace(phone,'\\D','','g') = $1", [p]);
+    res.json({ ok: true, deleted: r.rowCount, cancelled: pre.rows[0].c });
+  }));
+
   app.get('/api/sms/threads', requireSmsAccess, wrap(async (req, res) => {
     runTick();
     const r = await q(
