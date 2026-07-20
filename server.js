@@ -331,8 +331,17 @@ function ensureDefaultAdmin() {
 }
 
 // ── 인증 헬퍼 ──────────────────────────────────────
+// 관리자 비밀번호는 기본적으로 ADMIN_PW(환경변수, 미설정시 기본값)와 비교하지만,
+// 사용자가 관리자패널에서 변경하면 store.adminPasswordHash(해시)로 저장되어
+// 그 뒤로는 이 해시가 우선한다. /api/admin/verify(로그인)와 isAdmin() 둘 다
+// 반드시 이 함수 하나로 판정해야 변경 후에도 로그인이 어긋나지 않는다.
+function checkAdminPassword(pw) {
+  if (!pw) return false;
+  if (store.adminPasswordHash) return hashPin(String(pw)) === store.adminPasswordHash;
+  return pw === ADMIN_PW;
+}
 function isAdmin(req) {
-  return req.headers['x-admin-password'] === ADMIN_PW;
+  return checkAdminPassword(req.headers['x-admin-password']);
 }
 
 function requireAdmin(req, res, next) {
@@ -456,7 +465,18 @@ app.post('/api/auth/login', (req, res) => {
 // 관리자 비밀번호 확인
 app.post('/api/admin/verify', (req, res) => {
   const { password } = req.body;
-  res.json({ ok: password === ADMIN_PW });
+  res.json({ ok: checkAdminPassword(password) });
+});
+
+// 관리자 비밀번호 변경 (현재 비밀번호는 이미 x-admin-password 헤더로 검증됨 — requireAdmin)
+app.post('/api/admin/change-password', requireAdmin, async (req, res) => {
+  const { newPassword } = req.body || {};
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 6) {
+    return res.status(400).json({ error: 'bad_request', message: '새 비밀번호는 6자 이상이어야 합니다.' });
+  }
+  store.adminPasswordHash = hashPin(newPassword.trim());
+  await saveToFile();
+  res.json({ ok: true });
 });
 
 // 사용자 목록

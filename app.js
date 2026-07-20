@@ -4286,6 +4286,39 @@ function lockAdminPanel() {
   showToast('관리자 패널이 잠겼습니다.');
 }
 
+// 관리자 비밀번호 변경 — 성공 시 현재 세션의 adminPw/localStorage도 함께 갱신해
+// 새로고침 없이 계속 로그인 상태를 유지한다.
+async function changeAdminPassword() {
+  const msgEl = document.getElementById('changeAdminPwMsg');
+  const pw1 = document.getElementById('newAdminPw1')?.value || '';
+  const pw2 = document.getElementById('newAdminPw2')?.value || '';
+  if (msgEl) msgEl.textContent = '';
+
+  if (pw1.length < 6) {
+    if (msgEl) msgEl.textContent = '⚠️ 비밀번호는 6자 이상이어야 합니다.';
+    return;
+  }
+  if (pw1 !== pw2) {
+    if (msgEl) msgEl.textContent = '⚠️ 두 비밀번호가 서로 다릅니다.';
+    return;
+  }
+  try {
+    const resp = await apiPost('/api/admin/change-password', { newPassword: pw1 });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      adminPw = pw1;
+      localStorage.setItem('cc_admin_pw', pw1);
+      document.getElementById('newAdminPw1').value = '';
+      document.getElementById('newAdminPw2').value = '';
+      showToast('비밀번호가 변경되었습니다.');
+    } else {
+      if (msgEl) msgEl.textContent = '⚠️ ' + (data.message || '변경에 실패했습니다.');
+    }
+  } catch {
+    if (msgEl) msgEl.textContent = '⚠️ 서버에 연결할 수 없습니다.';
+  }
+}
+
 function showAdminPanel() {
   document.getElementById('adminLoginArea')?.classList.add('hidden');
   document.getElementById('adminPanelArea')?.classList.remove('hidden');
@@ -4301,7 +4334,7 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === tab)
   );
-  ['Users','Invites','Activity','Roleconfig','Server'].forEach(name => {
+  ['Users','Invites','Activity','Roleconfig','Server','Security'].forEach(name => {
     const el = document.getElementById('adminTab' + name);
     if (el) el.classList.toggle('hidden', name.toLowerCase() !== tab);
   });
@@ -5050,6 +5083,9 @@ function bindStaticEvents() {
   // ── 서버 상태 / DB 재연결 ──
   document.getElementById('btnCheckServerStatus')?.addEventListener('click', loadServerStatus);
   document.getElementById('btnDbReconnect')?.addEventListener('click', attemptDbReconnect);
+
+  // ── 관리자 비밀번호 변경 ──
+  document.getElementById('btnChangeAdminPw')?.addEventListener('click', changeAdminPassword);
 
 
   // ── 데이터 백업 내보내기 (로컬) ──

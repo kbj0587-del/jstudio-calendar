@@ -477,6 +477,7 @@
             <button class="admin-tab-btn" data-tab="activity">📋 기록</button>
             <button class="admin-tab-btn" data-tab="roleconfig">⚙️ 역할설정</button>
             <button class="admin-tab-btn" data-tab="server">🗄️ 서버</button>
+            <button class="admin-tab-btn" data-tab="security">🔒 보안</button>
           </div>
 
           <!-- 사용자 관리 탭 -->
@@ -524,6 +525,18 @@
               <button id="btnCheckServerStatus" class="btn-save" style="flex:1">🔄 상태 새로고침</button>
               <button id="btnDbReconnect" class="btn-save" style="flex:1;background:#7c3aed">🗄️ DB 재연결 시도</button>
             </div>
+          </div>
+
+          <!-- 보안 탭 (관리자 비밀번호 변경) -->
+          <div id="adminTabSecurity" class="admin-tab-content hidden">
+            <p class="setting-hint" style="margin-bottom:10px">
+              이 비밀번호는 관리자 패널과 메시지 발송센터(J.SMS)에 공용으로 쓰입니다.<br>
+              변경 후에는 새 비밀번호로 다시 로그인해야 합니다.
+            </p>
+            <input type="password" id="newAdminPw1" class="pw-input" placeholder="새 비밀번호 (6자 이상)" style="width:100%;margin-bottom:8px" />
+            <input type="password" id="newAdminPw2" class="pw-input" placeholder="새 비밀번호 확인" style="width:100%;margin-bottom:10px" />
+            <button id="btnChangeAdminPw" class="btn-save" style="width:100%">비밀번호 변경</button>
+            <p id="changeAdminPwMsg" class="setting-hint" style="margin-top:8px"></p>
           </div>
         </div>
       </div>
