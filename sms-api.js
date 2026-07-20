@@ -910,6 +910,240 @@ function registerSmsRoutes(app, deps) {
     res.json({ ok: true, deleted: ids.length });
   }));
 
+  // ══════════════════════════════════════════════════════════
+  //  v30 · 부재중 자동응답 + 통화 후 자료 발송
+  //  앱은 통화 "사실"만 보고하고, 판단과 발송은 전부 여기서 한다.
+  //  → 문구·첨부·자동/반자동을 앱 재빌드 없이 웹에서 바꿀 수 있고,
+  //    반복 발송도 DB 기록 기준으로 확실히 막힌다(인메모리 스로틀 금지).
+  // ══════════════════════════════════════════════════════════
+  const CALL_DEFAULTS = {
+    missed:   { enabled: false, memberText: '', guestText: '', cooldownMin: 120, start: '09:00', end: '21:00' },
+    postCall: { enabled: false, mode: 'manual', minDurationSec: 30, blockDays: 10,
+                defaultTemplateId: null, start: '09:00', end: '21:00' },
+    dailyCap: 100,   // 업무 제한이 아니라 버그 대비 비상 차단기
+  };
+  async function loadCallConfig() {
+    const cfg = await loadConfig();
+    const c = cfg.callConfig || {};
+    return {
+      missed:   { ...CALL_DEFAULTS.missed,   ...(c.missed   || {}) },
+      postCall: { ...CALL_DEFAULTS.postCall, ...(c.postCall || {}) },
+      dailyCap: Number.isFinite(c.dailyCap) ? c.dailyCap : CALL_DEFAULTS.dailyCap,
+    };
+  }
+  async function saveCallConfig(next) {
+    const cfg = await loadConfig();
+    cfg.callConfig = next;
+    await saveConfig(cfg);
+  }
+
+  // 010 휴대폰만 대상 (070·15xx·대표번호·유선·국제·표시제한 자동 배제)
+  const isMobile010 = (p) => /^010\d{8}$/.test(p);
+
+  // 주소록(js_gateway_contacts) 또는 회원명부(js_members)에 있는 번호인가.
+  // 형식 차이(하이픈/숫자만)를 흡수하려고 뒤 8자리로 맞춘다.
+  async function isKnownNumber(p) {
+    const last8 = p.slice(-8);
+    if (last8.length < 8) return false;
+    const m = await q(
+      "SELECT 1 FROM js_members WHERE regexp_replace(phone,'\\D','','g') LIKE $1 LIMIT 1", ['%' + last8]);
+    if (m.rows.length) return true;
+    const g = await q('SELECT 1 FROM js_gateway_contacts WHERE phone LIKE $1 LIMIT 1', ['%' + last8]);
+    return g.rows.length > 0;
+  }
+
+  // 수신거부 확인 후 발송 큐에 1건 등록
+  async function enqueueOne(phone, content, imageUrl) {
+    const bl = await q(
+      "SELECT 1 FROM js_blocked WHERE regexp_replace(phone,'\\D','','g') = $1 LIMIT 1", [phone]);
+    if (bl.rows.length) return { blocked: true };
+    const r = await q(
+      "INSERT INTO js_message_logs (phone, content, dir, status, image_url) VALUES ($1,$2,'out','queued',$3) RETURNING id",
+      [phone, content, imageUrl || null]);
+    return { id: r.rows[0].id };
+  }
+
+  // 오늘(KST) 자동 발송한 건수 — 비상 차단기용
+  async function todaySentCount() {
+    const r = await q(
+      "SELECT count(*)::int c FROM js_call_events WHERE decision='sent' " +
+      "AND (created_at AT TIME ZONE 'Asia/Seoul')::date = (now() AT TIME ZONE 'Asia/Seoul')::date");
+    return r.rows[0].c;
+  }
+
+  async function pickTemplate(id) {
+    if (id) {
+      const r = await q('SELECT * FROM js_call_templates WHERE id=$1', [id]);
+      if (r.rows.length) return r.rows[0];
+    }
+    const d = await q('SELECT * FROM js_call_templates WHERE is_default = true ORDER BY sort_order ASC LIMIT 1');
+    return d.rows[0] || null;
+  }
+
+  // ── 통화 이벤트 판단 엔진 ──────────────────────────────────
+  // 반환: { decision:'sent'|'pending'|'skipped', skip_reason? }
+  async function decideCallEvent(ev) {
+    const cfg = await loadCallConfig();
+    const nowHM = kstHM(new Date());
+
+    if (!isMobile010(ev.phone)) return { decision: 'skipped', skip_reason: 'not_mobile_010' };
+    if (ev.call_type === 'rejected')                 return { decision: 'skipped', skip_reason: 'rejected_call' };
+    if (ev.call_type === 'answered' && ev.direction !== 'in')
+      return { decision: 'skipped', skip_reason: 'outgoing_call' };
+
+    if (await todaySentCount() >= cfg.dailyCap)
+      return { decision: 'skipped', skip_reason: 'daily_cap' };
+
+    const known = await isKnownNumber(ev.phone);
+
+    // ① 부재중 자동응답
+    if (ev.call_type === 'missed') {
+      const m = cfg.missed;
+      if (!m.enabled) return { decision: 'skipped', skip_reason: 'missed_disabled', is_member: known };
+      if (!inTimeWindow(nowHM, m.start, m.end))
+        return { decision: 'skipped', skip_reason: 'out_of_hours', is_member: known };
+      const dup = await q(
+        "SELECT 1 FROM js_call_events WHERE phone=$1 AND call_type='missed' AND decision='sent' " +
+        "AND created_at > now() - ($2 || ' minutes')::interval LIMIT 1", [ev.phone, String(m.cooldownMin)]);
+      if (dup.rows.length) return { decision: 'skipped', skip_reason: 'cooldown', is_member: known };
+
+      const text = (known ? m.memberText : m.guestText || m.memberText || '').trim();
+      if (!text) return { decision: 'skipped', skip_reason: 'no_text', is_member: known };
+      const sent = await enqueueOne(ev.phone, text, null);
+      if (sent.blocked) return { decision: 'skipped', skip_reason: 'blocked', is_member: known };
+      return { decision: 'sent', is_member: known, message_log_id: sent.id };
+    }
+
+    // ② 통화 후 자료 발송 (수신 통화만)
+    if (ev.call_type === 'answered') {
+      const p = cfg.postCall;
+      if (!p.enabled) return { decision: 'skipped', skip_reason: 'postcall_disabled', is_member: known };
+      if (known)      return { decision: 'skipped', skip_reason: 'already_member', is_member: true };
+      if ((ev.duration_sec || 0) < p.minDurationSec)
+        return { decision: 'skipped', skip_reason: 'too_short', is_member: known };
+      const recent = await q(
+        "SELECT 1 FROM js_call_events WHERE phone=$1 AND call_type='answered' AND decision='sent' " +
+        "AND created_at > now() - ($2 || ' days')::interval LIMIT 1", [ev.phone, String(p.blockDays)]);
+      if (recent.rows.length) return { decision: 'skipped', skip_reason: 'recently_sent', is_member: known };
+
+      // 반자동이면 보내지 않고 대기 목록에만 올린다
+      if (p.mode !== 'auto') return { decision: 'pending', is_member: known };
+
+      if (!inTimeWindow(nowHM, p.start, p.end))
+        return { decision: 'pending', is_member: known }; // 시간대 밖 → 대기로 돌림
+      const tpl = await pickTemplate(p.defaultTemplateId);
+      if (!tpl) return { decision: 'skipped', skip_reason: 'no_template', is_member: known };
+      const sent = await enqueueOne(ev.phone, tpl.content, tpl.image_url);
+      if (sent.blocked) return { decision: 'skipped', skip_reason: 'blocked', is_member: known };
+      return { decision: 'sent', is_member: known, template_id: tpl.id, message_log_id: sent.id };
+    }
+    return { decision: 'skipped', skip_reason: 'unknown_type' };
+  }
+
+  // 앱이 통화 이벤트를 보고하는 창구 (게이트웨이 토큰)
+  app.post('/api/sms/gw/call-event', requireGateway, wrap(async (req, res) => {
+    const { call_type, direction, duration_sec, occurred_at, android_call_id } = req.body || {};
+    const phone = digits(req.body?.phone);
+    if (!phone || !call_type) return res.status(400).json({ error: 'bad_request' });
+
+    // 같은 통화기록을 두 번 보고해도 한 번만 처리 (앱 재시작·중복 감지 대비)
+    if (android_call_id != null) {
+      const seen = await q('SELECT decision FROM js_call_events WHERE android_call_id=$1 LIMIT 1', [android_call_id]);
+      if (seen.rows.length) return res.json({ ok: true, duplicated: true, decision: seen.rows[0].decision });
+    }
+
+    const ev = {
+      phone,
+      call_type,
+      direction: direction === 'out' ? 'out' : 'in',
+      duration_sec: Number(duration_sec) || 0,
+      occurred_at: occurred_at || new Date().toISOString(),
+    };
+    let r;
+    try {
+      r = await decideCallEvent(ev);
+    } catch (e) {
+      console.error('[call-event]', e.message);
+      r = { decision: 'skipped', skip_reason: 'error:' + e.message.slice(0, 60) };
+    }
+    await q(
+      'INSERT INTO js_call_events (phone, call_type, direction, duration_sec, occurred_at, android_call_id, is_member, decision, skip_reason, template_id, message_log_id) ' +
+      'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING',
+      [ev.phone, ev.call_type, ev.direction, ev.duration_sec, ev.occurred_at,
+       android_call_id ?? null, r.is_member ?? null, r.decision, r.skip_reason || null,
+       r.template_id || null, r.message_log_id || null]
+    );
+    res.json({ ok: true, decision: r.decision, reason: r.skip_reason || null });
+  }));
+
+  // ── 관리자용 설정·샘플·대기목록 ────────────────────────────
+  app.get('/api/sms/call-config', requireSmsAccess, wrap(async (req, res) => {
+    res.json(await loadCallConfig());
+  }));
+  app.post('/api/sms/call-config', requireSmsAccess, wrap(async (req, res) => {
+    const cur = await loadCallConfig();
+    const b = req.body || {};
+    const next = {
+      missed:   { ...cur.missed,   ...(b.missed   || {}) },
+      postCall: { ...cur.postCall, ...(b.postCall || {}) },
+      dailyCap: Number.isFinite(b.dailyCap) ? b.dailyCap : cur.dailyCap,
+    };
+    await saveCallConfig(next);
+    res.json({ ok: true, ...next });
+  }));
+
+  app.get('/api/sms/call-templates', requireSmsAccess, wrap(async (req, res) => {
+    const r = await q('SELECT * FROM js_call_templates ORDER BY sort_order ASC, created_at ASC');
+    res.json(r.rows);
+  }));
+  app.post('/api/sms/call-templates', requireSmsAccess, wrap(async (req, res) => {
+    const { name, content, image_url, is_default } = req.body || {};
+    if (!name) return res.status(400).json({ error: '이름을 입력하세요' });
+    if (is_default) await q('UPDATE js_call_templates SET is_default=false');
+    const r = await q(
+      'INSERT INTO js_call_templates (name, content, image_url, is_default) VALUES ($1,$2,$3,$4) RETURNING *',
+      [name, content || '', image_url || null, !!is_default]);
+    res.json(r.rows[0]);
+  }));
+  app.put('/api/sms/call-templates/:id', requireSmsAccess, wrap(async (req, res) => {
+    const { name, content, image_url, is_default } = req.body || {};
+    if (is_default) await q('UPDATE js_call_templates SET is_default=false');
+    const r = await q(
+      'UPDATE js_call_templates SET name=$1, content=$2, image_url=$3, is_default=$4 WHERE id=$5 RETURNING *',
+      [name, content || '', image_url || null, !!is_default, req.params.id]);
+    res.json(r.rows[0] || {});
+  }));
+  app.delete('/api/sms/call-templates/:id', requireSmsAccess, wrap(async (req, res) => {
+    await q('DELETE FROM js_call_templates WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  }));
+
+  // 반자동 대기 목록 (오늘 통화한 신규 번호)
+  app.get('/api/sms/call-pending', requireSmsAccess, wrap(async (req, res) => {
+    const r = await q(
+      "SELECT id, phone, duration_sec, occurred_at, direction FROM js_call_events " +
+      "WHERE decision='pending' ORDER BY occurred_at DESC LIMIT 50");
+    res.json(r.rows);
+  }));
+  app.post('/api/sms/call-pending/:id/send', requireSmsAccess, wrap(async (req, res) => {
+    const ev = await q("SELECT * FROM js_call_events WHERE id=$1 AND decision='pending'", [req.params.id]);
+    if (!ev.rows.length) return res.status(404).json({ error: '이미 처리된 건입니다' });
+    const tpl = await pickTemplate(req.body?.template_id);
+    if (!tpl) return res.status(400).json({ error: '보낼 샘플 메시지를 선택하세요' });
+    const sent = await enqueueOne(ev.rows[0].phone, tpl.content, tpl.image_url);
+    if (sent.blocked) {
+      await q("UPDATE js_call_events SET decision='skipped', skip_reason='blocked' WHERE id=$1", [req.params.id]);
+      return res.status(400).json({ error: '수신거부 번호입니다' });
+    }
+    await q("UPDATE js_call_events SET decision='sent', template_id=$2, message_log_id=$3 WHERE id=$1",
+      [req.params.id, tpl.id, sent.id]);
+    res.json({ ok: true });
+  }));
+  app.post('/api/sms/call-pending/:id/dismiss', requireSmsAccess, wrap(async (req, res) => {
+    await q("UPDATE js_call_events SET decision='skipped', skip_reason='dismissed' WHERE id=$1", [req.params.id]);
+    res.json({ ok: true });
+  }));
+
   // 수동 tick (대시보드 폴링용)
   app.get('/api/sms/tick', requireSmsAccess, wrap(async (req, res) => {
     await runTick(true);
