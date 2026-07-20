@@ -109,6 +109,56 @@ function registerSmsRoutes(app, deps) {
     return null;
   }
 
+  // ── MMS 이미지 보관기간 정리 (30일) ──
+  // 게이트웨이 폰(삼성 기본 문자함)에 사진 원본이 그대로 남아있어(2026-07-20 실기기로
+  // 확인) Supabase 쪽 사본은 "웹에서 최근 대화 보기용"으로만 두면 충분 → 30일
+  // 지난 사본은 정리해 스토리지가 무한정 쌓이는 것을 막는다. runTick과 같은 이유로
+  // 별도 크론 없이 하루 1회만 기회적으로 실행(js_sms_config.mmsCleanupLast로 스로틀).
+  const MMS_RETENTION_DAYS = 30;
+  async function cleanupOldMmsImages(force) {
+    const cfg = await loadConfig();
+    const last = cfg.mmsCleanupLast ? new Date(cfg.mmsCleanupLast).getTime() : 0;
+    if (!force && Date.now() - last < 24 * 3600 * 1000) return;
+    try {
+      const r = await q(
+        `SELECT id, image_url FROM js_message_logs
+         WHERE image_url IS NOT NULL AND created_at < now() - interval '${MMS_RETENTION_DAYS} days'
+         ORDER BY created_at ASC LIMIT 500`
+      );
+      if (r.rows.length) {
+        const prefix = SUPA_URL + '/storage/v1/object/public/mms/';
+        const idByPath = new Map();
+        for (const row of r.rows) {
+          if (row.image_url && row.image_url.startsWith(prefix)) {
+            idByPath.set(row.image_url.slice(prefix.length), row.id);
+          }
+        }
+        const paths = [...idByPath.keys()];
+        let cleaned = 0;
+        for (let i = 0; i < paths.length; i += 100) {
+          const chunk = paths.slice(i, i + 100);
+          const del = await fetch(SUPA_URL + '/storage/v1/object/mms', {
+            method: 'DELETE',
+            headers: { apikey: SUPA_ANON, authorization: 'Bearer ' + SUPA_ANON, 'content-type': 'application/json' },
+            body: JSON.stringify({ prefixes: chunk }),
+          });
+          if (del.ok) {
+            const ids = chunk.map((p) => idByPath.get(p)).filter(Boolean);
+            if (ids.length) await q('UPDATE js_message_logs SET image_url = NULL WHERE id = ANY($1)', [ids]);
+            cleaned += chunk.length;
+          } else {
+            console.error('[MMS cleanup] storage 삭제 실패', del.status, (await del.text().catch(() => '')).slice(0, 200));
+          }
+        }
+        if (cleaned) console.log(`[MMS cleanup] ${MMS_RETENTION_DAYS}일 경과 이미지 ${cleaned}개 정리`);
+      }
+      cfg.mmsCleanupLast = new Date().toISOString();
+      await saveConfig(cfg);
+    } catch (e) {
+      console.error('[MMS cleanup]', e.message);
+    }
+  }
+
   // ── 백그라운드 tick: 예약발송 실행 + 수신 자동응답/수신거부 처리 ──
   // 서버리스라 별도 크론이 없으므로 API 요청 시 기회적으로 실행 (15초 스로틀)
   let lastTickAt = 0;
@@ -182,6 +232,9 @@ function registerSmsRoutes(app, deps) {
         cfg.autoreplyLastSeen = new Date(maxSeenMs).toISOString();
         await saveConfig(cfg);
       }
+
+      // 3) MMS 이미지 보관기간(30일) 정리 — 자체 24시간 스로틀 있음
+      await cleanupOldMmsImages(force);
     } catch (e) {
       console.error('[SMS tick]', e.message);
     } finally {
