@@ -5,6 +5,8 @@
 //  발송 = js_message_logs 에 dir='out', status='queued' INSERT → 게이트웨이가 실제 전송.
 // ══════════════════════════════════════════════════════════════
 
+const webpush = require('web-push');
+
 function registerSmsRoutes(app, deps) {
   const { getPool, isAdmin, isSubAdmin } = deps;
 
@@ -13,6 +15,52 @@ function registerSmsRoutes(app, deps) {
   const SUPA_URL  = process.env.SUPABASE_URL || 'https://owoviftkszmicysxgdpa.supabase.co';
   const SUPA_ANON = process.env.SUPABASE_ANON_KEY ||
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93b3ZpZnRrc3ptaWN5c3hnZHBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzNDgyMTgsImV4cCI6MjA5NTkyNDIxOH0.9e4P3we-mlwXtffte1Zkx45nL5ujcN8dtgsLunAOQ9Y';
+
+  // ── Web Push (새 수신 문자 알림·배지) ──
+  // VAPID 키는 Vercel env에만 있음(민감정보라 코드 상수 폴백 없음) → 미설정 시 조용히 비활성.
+  const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY || '';
+  const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
+  const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+  const PUSH_ENABLED = !!(VAPID_PUBLIC && VAPID_PRIVATE);
+  if (PUSH_ENABLED) webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+
+  // 전화번호로 회원/주소록 이름 하나 조회(알림 제목용). 못 찾으면 null.
+  async function resolveName(phone) {
+    const p = digits(phone);
+    if (p.length < 8) return null;
+    const r = await q(
+      `SELECT COALESCE(
+         (SELECT name FROM js_members WHERE regexp_replace(phone,'\\D','','g') = $1 LIMIT 1),
+         (SELECT name FROM js_gateway_contacts WHERE regexp_replace(phone,'\\D','','g') = $1 LIMIT 1)
+       ) AS name`,
+      [p]
+    );
+    return (r.rows[0] && r.rows[0].name) || null;
+  }
+
+  // 등록된 모든 기기로 푸시 발송. 만료/무효 구독(404·410)은 자동 정리.
+  async function sendPushToAll(payload) {
+    if (!PUSH_ENABLED) return;
+    let subs;
+    try { subs = await q('SELECT id, endpoint, p256dh, auth FROM js_push_subscriptions'); }
+    catch (e) { console.error('[push] 구독 조회 실패', e.message); return; }
+    if (!subs.rows.length) return;
+    const body = JSON.stringify(payload);
+    await Promise.all(subs.rows.map(async (s) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+          body
+        );
+      } catch (e) {
+        if (e.statusCode === 404 || e.statusCode === 410) {
+          await q('DELETE FROM js_push_subscriptions WHERE id=$1', [s.id]).catch(() => {});
+        } else {
+          console.error('[push] 발송 실패', e.statusCode, e.message);
+        }
+      }
+    }));
+  }
 
   // ── 공통 헬퍼 ────────────────────────────────────────────────
   const q = (sql, params) => {
@@ -23,6 +71,14 @@ function registerSmsRoutes(app, deps) {
 
   // 전화번호 → 숫자만 (로그/발송용). 회원 테이블은 하이픈 포함이라 매칭 시 정규화 필요.
   const digits = (s) => String(s || '').replace(/\D/g, '');
+  // 알림 제목용 하이픈 포맷 (sms/sms.js의 fmtPhone과 동일 규칙)
+  const fmtPhoneKr = (s) => {
+    const d = digits(s);
+    if (d.length === 11) return d.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+    if (d.length === 10 && d.startsWith('02')) return d.replace(/(\d{2})(\d{4})(\d{4})/, '$1-$2-$3');
+    if (d.length === 10) return d.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+    return s || '';
+  };
   // 번호→id 매핑 등록 (전체 번호 + 뒤 8자리 키 모두 등록해 형식차 흡수)
   const idmapSet = (map, dphone, id) => {
     if (!dphone) return;
@@ -878,8 +934,49 @@ function registerSmsRoutes(app, deps) {
       'INSERT INTO js_message_logs (phone, content, dir, status, image_url) VALUES ($1,$2,$3,$4,$5) RETURNING id',
       [p, content || '', dir, status, image_url || null]
     );
-    if (dir === 'in') { try { await runTick(false); } catch (_) {} } // 자동응답/수신거부 처리 기회
+    if (dir === 'in') {
+      try { await runTick(false); } catch (_) {} // 자동응답/수신거부 처리 기회
+      // 새 수신 문자 → 등록된 모든 기기(윈도우·맥·아이폰)로 푸시 알림 + 배지
+      try {
+        const name = await resolveName(p);
+        const from = name || fmtPhoneKr(p);
+        await sendPushToAll({
+          title: from,
+          body: image_url ? '[이미지] ' + (content || '').slice(0, 100) : (content || '').slice(0, 120),
+          url: '/sms/',
+          tag: 'inbound-' + p,
+        });
+      } catch (e) { console.error('[push] gw/log 알림 실패', e.message); }
+    }
     res.json({ ok: true, id: ins.rows[0].id });
+  }));
+
+  // ══════════════════════════════════════════════════════════
+  //  Web Push 구독 관리 (새 문자 알림·배지 — 윈도우/맥/아이폰 공용)
+  // ══════════════════════════════════════════════════════════
+  app.get('/api/sms/push/vapid-public-key', requireSmsAccess, wrap(async (req, res) => {
+    if (!PUSH_ENABLED) return res.status(503).json({ error: 'push_disabled' });
+    res.json({ publicKey: VAPID_PUBLIC });
+  }));
+
+  app.post('/api/sms/push/subscribe', requireSmsAccess, wrap(async (req, res) => {
+    if (!PUSH_ENABLED) return res.status(503).json({ error: 'push_disabled' });
+    const { endpoint, keys, deviceLabel } = req.body || {};
+    if (!endpoint || !keys || !keys.p256dh || !keys.auth) return res.status(400).json({ error: 'bad_request' });
+    await q(
+      `INSERT INTO js_push_subscriptions (endpoint, p256dh, auth, device_label)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (endpoint) DO UPDATE SET p256dh=EXCLUDED.p256dh, auth=EXCLUDED.auth, device_label=EXCLUDED.device_label`,
+      [endpoint, keys.p256dh, keys.auth, deviceLabel || null]
+    );
+    res.json({ ok: true });
+  }));
+
+  app.post('/api/sms/push/unsubscribe', requireSmsAccess, wrap(async (req, res) => {
+    const { endpoint } = req.body || {};
+    if (!endpoint) return res.status(400).json({ error: 'bad_request' });
+    await q('DELETE FROM js_push_subscriptions WHERE endpoint=$1', [endpoint]);
+    res.json({ ok: true });
   }));
 
   // 하트비트 (앱 생존 관측)

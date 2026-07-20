@@ -161,12 +161,13 @@ function renderHeader(active, rightHtml){
        <div class="hdr-logo">J</div>
        <div><div class="hdr-title">메시지 발송센터</div><div class="hdr-sub">J.SMS 게이트웨이</div></div>
      </a>
-     <div class="hdr-nav">${nav}${rightHtml||''}</div>`;
+     <div class="hdr-nav">${nav}${rightHtml||''}<span class="pill pill-gray" id="pushPill" onclick="togglePush()" style="cursor:pointer;display:none">🔔</span></div>`;
   // 모바일 탭바
   let tb = document.getElementById('tabbar');
   if (!tb){ tb = document.createElement('div'); tb.id='tabbar'; tb.className='tabbar'; document.body.appendChild(tb); }
   tb.innerHTML = SMS_PAGES.map(p =>
     `<a class="${p.key===active?'active':''}" href="${p.href}">${svgIcon(p.icon,22)}<span>${p.label}</span></a>`).join('');
+  initPushUi();
 }
 
 /* ══ PWA: /sms/ 전용 서비스워커 등록 ══
@@ -179,6 +180,81 @@ if ('serviceWorker' in navigator) {
       .catch(e => console.warn('[J.SMS] SW 등록 실패', e));
   });
 }
+
+/* ══ Web Push: 새 문자 알림 + 앱 배지 (윈도우·맥·아이폰 공용) ══
+   ⚠️ 아이폰은 "홈 화면에 추가"로 설치한 상태에서만 알림·배지가 동작한다
+   (사파리 탭 상태로는 iOS가 지원 안 함 — Apple 정책, 우리 쪽에서 우회 불가). */
+function _b64ToUint8(base64) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4);
+  const raw = atob((base64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+function _pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+function updatePushPill(state) {
+  const el = document.getElementById('pushPill');
+  if (!el) return;
+  if (state === 'on') { el.textContent = '🔔 알림 켜짐'; el.className = 'pill pill-blue'; }
+  else { el.textContent = '🔕 알림'; el.className = 'pill pill-gray'; }
+}
+async function initPushUi() {
+  const el = document.getElementById('pushPill');
+  if (!el || !_pushSupported()) { if (el) el.style.display = 'none'; return; }
+  el.style.display = '';
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    updatePushPill(sub ? 'on' : 'off');
+  } catch (_) { updatePushPill('off'); }
+}
+async function togglePush() {
+  if (!_pushSupported()) return toast('이 브라우저에서는 알림을 지원하지 않습니다');
+  const reg = await navigator.serviceWorker.ready;
+  const existing = await reg.pushManager.getSubscription();
+  if (existing) {
+    try { await api.post('/api/sms/push/unsubscribe', { endpoint: existing.endpoint }); } catch (_) {}
+    await existing.unsubscribe();
+    updatePushPill('off');
+    return toast('알림을 껐습니다');
+  }
+  if (Notification.permission === 'denied') {
+    return toast('알림 권한이 차단돼 있습니다 — 브라우저 설정에서 허용해주세요');
+  }
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') return toast('알림 권한이 필요합니다');
+  try {
+    const { publicKey } = await api.get('/api/sms/push/vapid-public-key');
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: _b64ToUint8(publicKey),
+    });
+    const j = sub.toJSON();
+    await api.post('/api/sms/push/subscribe', {
+      endpoint: j.endpoint, keys: j.keys,
+      deviceLabel: (navigator.platform || navigator.userAgent || '').slice(0, 60),
+    });
+    updatePushPill('on');
+    toast('알림을 켰습니다');
+  } catch (e) {
+    toast('알림 등록 실패: ' + e.message);
+  }
+}
+/* 화면을 다시 보게 되면(포그라운드 복귀) 알림·배지 정리 */
+async function clearBadgeAndNotifications() {
+  if ('clearAppBadge' in navigator) { try { await navigator.clearAppBadge(); } catch (_) {} }
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      (await reg.getNotifications()).forEach((n) => n.close());
+    } catch (_) {}
+  }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') clearBadgeAndNotifications(); });
+window.addEventListener('focus', clearBadgeAndNotifications);
+window.addEventListener('load', clearBadgeAndNotifications);
 
 /* ══ 공용: 이모티콘 · 특수문자 (발송센터·자동응답 공용) ══ */
 const EMOJIS = ('😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 '+
