@@ -175,8 +175,10 @@ async function loadTpl(){
       <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="delTpl('${t.id}')">삭제</button>
     </div>`).join('') || `<div style="font-size:12.5px;color:var(--muted);text-align:center;padding:14px">등록된 샘플이 없습니다.</div>`;
 }
+let tplImage = ''; // 샘플 편집 모달에서 현재 첨부된 이미지 URL
 function openTpl(t){
   t = t || {};
+  tplImage = t.image_url || '';
   openModal(`<h3>${t.id?'샘플 수정':'새 샘플'}</h3>
     <div><label class="lbl">샘플 이름 *</label><input id="t_name" class="inp" value="${esc(t.name||'')}" placeholder="예: 7월 시간표 안내"></div>
     <div style="margin-top:10px"><label class="lbl">내용</label>
@@ -189,8 +191,20 @@ function openTpl(t){
       <div id="t_emoji" class="hidden" style="margin-top:8px"><div class="charGrid" id="t_emojiGrid"></div></div>
       <div id="t_sym" class="hidden" style="margin-top:8px"><div class="charGrid" id="t_symGrid"></div></div>
     </div>
-    <div style="margin-top:10px"><label class="lbl">첨부 이미지 URL (선택 · 넣으면 사진 문자로 발송)</label>
-      <input id="t_img" class="inp" value="${esc(t.image_url||'')}" placeholder="https://..."></div>
+    <div style="margin-top:10px">
+      <label class="lbl">첨부 이미지 (선택 · 넣으면 사진 문자로 발송)</label>
+      <div id="t_imgZone" class="img-zone"
+           onclick="document.getElementById('t_imgFileInp').click()"
+           ondragover="tplImgDrag(event,true)" ondragleave="tplImgDrag(event,false)" ondrop="tplImgDrop(event)">
+        이미지를 드래그하거나 클릭해 첨부 · 붙여넣기(Ctrl+V) 지원
+      </div>
+      <input type="file" id="t_imgFileInp" accept="image/*" style="display:none" onchange="onTplImgFile(event)">
+      <input id="t_imgUrlInp" class="inp" style="margin-top:8px" value="${esc(t.image_url||'')}"
+             placeholder="또는 이미지 URL 입력" onchange="setTplImageFromUrl()">
+      <div id="t_imgPreview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        ${t.image_url ? `<div class="img-thumb"><img src="${esc(t.image_url)}"><div class="rm" onclick="removeTplImage()">×</div></div>` : ''}
+      </div>
+    </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:12px">
       <input type="checkbox" id="t_def" ${t.is_default?'checked':''}> 자동 발송 시 쓰는 기본 샘플로 지정</label>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
@@ -199,6 +213,39 @@ function openTpl(t){
     </div>`);
   tplBytes();
 }
+/* ── 샘플 편집 모달: 이미지 첨부 (sms.js의 uploadImageToServer 재사용) ── */
+function tplImgDrag(e,on){ e.preventDefault(); document.getElementById('t_imgZone')?.classList.toggle('dragover',on); }
+function tplImgDrop(e){ e.preventDefault(); document.getElementById('t_imgZone')?.classList.remove('dragover');
+  const f=e.dataTransfer.files[0]; if(f) uploadTplImageFile(f); }
+function onTplImgFile(e){ const f=e.target.files[0]; if(f) uploadTplImageFile(f); e.target.value=''; }
+async function uploadTplImageFile(file){
+  const url = await uploadImageToServer(file);
+  if(url) setTplImage(url);
+}
+function setTplImageFromUrl(){ const u=document.getElementById('t_imgUrlInp').value.trim(); if(u) setTplImage(u); }
+function setTplImage(url){
+  tplImage = url;
+  const inp = document.getElementById('t_imgUrlInp'); if(inp) inp.value = url;
+  const pv = document.getElementById('t_imgPreview');
+  if(pv) pv.innerHTML = url ? `<div class="img-thumb"><img src="${esc(url)}"><div class="rm" onclick="removeTplImage()">×</div></div>` : '';
+}
+function removeTplImage(){
+  tplImage = '';
+  const inp = document.getElementById('t_imgUrlInp'); if(inp) inp.value = '';
+  const pv = document.getElementById('t_imgPreview'); if(pv) pv.innerHTML = '';
+}
+// 샘플 모달이 열려있을 때만(요소 존재로 판별) 붙여넣기 이미지를 가로챈다.
+document.addEventListener('paste', (e) => {
+  if(!document.getElementById('t_imgZone')) return;
+  const items=(e.clipboardData||{}).items||[];
+  for(const it of items){
+    if(it.type && it.type.startsWith('image/')){
+      const f=it.getAsFile();
+      if(f){ uploadTplImageFile(f); e.preventDefault(); return; }
+    }
+  }
+});
+
 function tplPanel(kind){
   const em=document.getElementById('t_emoji'), sy=document.getElementById('t_sym');
   const on = kind==='emoji' ? em : sy, off = kind==='emoji' ? sy : em;
@@ -216,7 +263,7 @@ async function saveTpl(id){
   const body={
     name: document.getElementById('t_name').value.trim(),
     content: document.getElementById('t_content').value,
-    image_url: document.getElementById('t_img').value.trim() || null,
+    image_url: tplImage.trim() || null,
     is_default: document.getElementById('t_def').checked,
   };
   if(!body.name) return toast('샘플 이름을 입력하세요');

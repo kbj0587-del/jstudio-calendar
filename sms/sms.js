@@ -76,6 +76,23 @@ function avatarColor(seed){
 }
 function initial(name){ return (String(name||'?').trim()[0] || '?').toUpperCase(); }
 
+/* ── 이미지 업로드 (발송센터·샘플편집 공용) ──
+   파일을 base64로 읽어 서버(/api/sms/upload-image)에 올리고 공개 URL을 반환.
+   실패/검증오류 시 null(호출측 UI 갱신은 각자 담당). */
+function fileToBase64(file){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(file); }); }
+async function uploadImageToServer(file){
+  if(!file || !file.type.startsWith('image/')){ toast('이미지 파일만 첨부할 수 있습니다'); return null; }
+  if(file.size>5*1024*1024){ toast('5MB 이하 이미지만 가능합니다'); return null; }
+  toast('이미지 업로드 중…');
+  try{
+    const data=await fileToBase64(file);
+    const d=await api.post('/api/sms/upload-image',{ data, contentType:file.type, ext:(file.name.split('.').pop()||'jpg') });
+    toast('이미지 첨부 완료');
+    return d.url;
+  }catch(e){ toast('업로드 실패: '+e.message); return null; }
+}
+
 /* ── 토스트 ── */
 function toast(msg){
   let t = document.getElementById('toast');

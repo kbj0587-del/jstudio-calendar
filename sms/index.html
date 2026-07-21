@@ -892,18 +892,10 @@ async function autoShorten(completeOnly){
   }
 }
 
-/* ── 이미지 첨부 ── */
-function fileToBase64(file){ return new Promise((res,rej)=>{ const r=new FileReader();
-  r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(file); }); }
+/* ── 이미지 첨부 (업로드 네트워크 로직은 sms.js의 uploadImageToServer 공용) ── */
 async function uploadImageFile(file){
-  if(!file || !file.type.startsWith('image/')) return toast('이미지 파일만 첨부할 수 있습니다');
-  if(file.size>5*1024*1024) return toast('5MB 이하 이미지만 가능합니다');
-  toast('이미지 업로드 중…');
-  try{
-    const data=await fileToBase64(file);
-    const d=await api.post('/api/sms/upload-image',{ data, contentType:file.type, ext:(file.name.split('.').pop()||'jpg') });
-    setImage(d.url); toast('이미지 첨부 완료');
-  }catch(e){ toast('업로드 실패: '+e.message); }
+  const url = await uploadImageToServer(file);
+  if(url) setImage(url);
 }
 function onImgFile(e){ const f=e.target.files[0]; if(f) uploadImageFile(f); e.target.value=''; }
 function imgDrag(e,on){ e.preventDefault(); document.getElementById('imgZone').classList.toggle('dragover',on); }
