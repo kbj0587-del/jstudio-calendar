@@ -109,20 +109,24 @@ function registerSmsRoutes(app, deps) {
   }
 
   // 발송 큐에 넣기 (수신거부 자동 제외). 반환 { queued, excluded }
-  async function enqueue(phones, content, imageUrl) {
+  // batchId: 지정하면 그 값으로, 안 주면 받는사람이 2명 이상일 때만 자동 생성해
+  // 묶는다(1명이면 그냥 개별 발송이라 묶을 필요 없음). 대화목록에서
+  // "그룹발송 1건"으로 접어 보여주는 데 쓰인다(js_message_logs.batch_id).
+  async function enqueue(phones, content, imageUrl, batchId) {
     const list = [...new Set((phones || []).map(digits).filter((p) => p.length >= 8))];
     if (!list.length) return { queued: 0, excluded: 0, blocked: [] };
     const bl = await q('SELECT phone FROM js_blocked');
     const blocked = new Set(bl.rows.map((r) => digits(r.phone)));
     const targets = list.filter((p) => !blocked.has(p));
     const excluded = list.length - targets.length;
+    const bid = batchId || (targets.length > 1 ? crypto.randomUUID() : null);
     for (const p of targets) {
       await q(
-        "INSERT INTO js_message_logs (phone, content, dir, status, image_url) VALUES ($1, $2, 'out', 'queued', $3)",
-        [p, content, imageUrl || null]
+        "INSERT INTO js_message_logs (phone, content, dir, status, image_url, batch_id) VALUES ($1, $2, 'out', 'queued', $3, $4)",
+        [p, content, imageUrl || null, bid]
       );
     }
-    return { queued: targets.length, excluded, blocked: [...blocked] };
+    return { queued: targets.length, excluded, blocked: [...blocked], batch_id: bid };
   }
 
   // ── 변수 치환 (뿌리오 호환 [*이름*],[*1*]~[*8*] + 이름 있는 변수 [*프로그램*] 등) ──
@@ -236,12 +240,12 @@ function registerSmsRoutes(app, deps) {
             for (const it of row.items) {
               const ph = digits(it.phone);
               if (ph.length < 8 || blockedDue.has(ph)) continue;
-              await q("INSERT INTO js_message_logs (phone, content, dir, status, image_url) VALUES ($1, $2, 'out', 'queued', $3)",
-                [ph, it.content || '', row.image_url || null]);
+              await q("INSERT INTO js_message_logs (phone, content, dir, status, image_url, batch_id) VALUES ($1, $2, 'out', 'queued', $3, $4)",
+                [ph, it.content || '', row.image_url || null, row.batch_id || null]);
             }
           } else {
             const phones = Array.isArray(row.phones) ? row.phones : [];
-            await enqueue(phones, row.content, row.image_url);
+            await enqueue(phones, row.content, row.image_url, row.batch_id || null);
           }
           await q("UPDATE js_scheduled SET status = 'sent' WHERE id = $1", [row.id]);
         }
@@ -603,11 +607,14 @@ function registerSmsRoutes(app, deps) {
     if (!targets.length) return res.json({ ok: true, queued: 0, scheduled: 0, batches: 0, excluded, total: 0 });
 
     const items = targets.map((r) => ({ phone: r.phone, content: renderTemplate(template, r) }));
+    // 대량발송 전체(즉시분+분할예약분 전부)를 하나의 묶음으로 표시하기 위한 공용 id.
+    // 100명 넘게 보내도 대화목록엔 "그룹발송 1건"으로만 뜨게 하는 게 목적.
+    const groupBatchId = items.length > 1 ? crypto.randomUUID() : null;
     let queued = 0, scheduled = 0, batches = 0;
     const immediate = items.slice(0, BULK_IMMEDIATE);
     for (const it of immediate) {
-      await q("INSERT INTO js_message_logs (phone, content, dir, status, image_url) VALUES ($1, $2, 'out', 'queued', $3)",
-        [it.phone, it.content, image_url || null]);
+      await q("INSERT INTO js_message_logs (phone, content, dir, status, image_url, batch_id) VALUES ($1, $2, 'out', 'queued', $3, $4)",
+        [it.phone, it.content, image_url || null, groupBatchId]);
       queued++;
     }
     const rest = items.slice(BULK_IMMEDIATE);
@@ -615,12 +622,12 @@ function registerSmsRoutes(app, deps) {
       const batch = rest.slice(i, i + BULK_PER_MIN);
       batches++;
       await q(
-        "INSERT INTO js_scheduled (phones, content, image_url, send_at, items) VALUES ('[]', '', $1, now() + ($2 || ' minutes')::interval, $3)",
-        [image_url || null, String(batches), JSON.stringify(batch)]
+        "INSERT INTO js_scheduled (phones, content, image_url, send_at, items, batch_id) VALUES ('[]', '', $1, now() + ($2 || ' minutes')::interval, $3, $4)",
+        [image_url || null, String(batches), JSON.stringify(batch), groupBatchId]
       );
       scheduled += batch.length;
     }
-    res.json({ ok: true, queued, scheduled, batches, excluded, total: items.length });
+    res.json({ ok: true, queued, scheduled, batches, excluded, total: items.length, batch_id: groupBatchId });
   }));
 
   app.post('/api/sms/schedule', requireSmsAccess, wrap(async (req, res) => {
@@ -688,25 +695,90 @@ function registerSmsRoutes(app, deps) {
 
   app.get('/api/sms/threads', requireSmsAccess, wrap(async (req, res) => {
     runTick();
-    const r = await q(
+    // 그룹발송(batch_id 공유 + 2건 이상)은 대화목록에서 "그룹발송 1건"으로 접어 보여준다.
+    // 1건짜리 batch_id는 사실상 개별발송이라 굳이 묶지 않고 평소처럼 표시한다.
+    const individual = await q(
       `SELECT DISTINCT ON (phone) phone, content, dir, image_url, created_at
-       FROM js_message_logs ORDER BY phone, created_at DESC`
+       FROM js_message_logs
+       WHERE batch_id IS NULL OR batch_id NOT IN (
+         SELECT batch_id FROM js_message_logs WHERE batch_id IS NOT NULL GROUP BY batch_id HAVING count(*) > 1
+       )
+       ORDER BY phone, created_at DESC`
     );
-    // 최근 대화순 정렬
-    const threads = r.rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const batches = await q(
+      `SELECT batch_id, count(*)::int AS n, max(created_at) AS created_at,
+              (array_agg(content ORDER BY created_at ASC))[1] AS sample_content,
+              (array_agg(image_url ORDER BY created_at ASC))[1] AS sample_image_url
+       FROM js_message_logs
+       WHERE batch_id IS NOT NULL
+       GROUP BY batch_id
+       HAVING count(*) > 1`
+    );
     // 이름 해석: 게이트웨이 주소록 → 회원 명부 순으로 덮어써서 회원 명부가 우선
     const nameByPhone = {};
     const gc = await q('SELECT name, phone FROM js_gateway_contacts');
     gc.rows.forEach((c) => { nameByPhone[digits(c.phone)] = c.name; });
     const members = await q('SELECT name, phone FROM js_members');
     members.rows.forEach((m) => { nameByPhone[digits(m.phone)] = m.name; });
-    res.json(threads.map((t) => ({
-      phone: t.phone,
-      name: nameByPhone[digits(t.phone)] || t.phone,
-      last: t.image_url && !t.content ? '[이미지]' : (t.content || ''),
-      dir: t.dir,
-      created_at: t.created_at,
-    })));
+
+    const list = [
+      ...individual.rows.map((t) => ({
+        kind: 'person',
+        phone: t.phone,
+        name: nameByPhone[digits(t.phone)] || t.phone,
+        last: t.image_url && !t.content ? '[이미지]' : (t.content || ''),
+        dir: t.dir,
+        created_at: t.created_at,
+      })),
+      ...batches.rows.map((b) => ({
+        kind: 'batch',
+        batch_id: b.batch_id,
+        count: b.n,
+        last: b.sample_image_url && !b.sample_content ? '[이미지]' : (b.sample_content || ''),
+        dir: 'out',
+        created_at: b.created_at,
+      })),
+    ];
+    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json(list);
+  }));
+
+  // 그룹발송 상세: 보낸 내용 + 수신자별 발송 상태(읽기 전용 — 답장은 각자 개별 대화목록에 표시됨)
+  app.get('/api/sms/batch/:id', requireSmsAccess, wrap(async (req, res) => {
+    const r = await q(
+      `SELECT id, phone, content, image_url, status, created_at
+       FROM js_message_logs WHERE batch_id = $1 ORDER BY phone ASC`,
+      [req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'not_found' });
+    const nameByPhone = {};
+    const gc = await q('SELECT name, phone FROM js_gateway_contacts');
+    gc.rows.forEach((c) => { nameByPhone[digits(c.phone)] = c.name; });
+    const members = await q('SELECT name, phone FROM js_members');
+    members.rows.forEach((m) => { nameByPhone[digits(m.phone)] = m.name; });
+    const items = r.rows.map((row) => ({
+      id: row.id,
+      phone: row.phone,
+      name: nameByPhone[digits(row.phone)] || row.phone,
+      content: row.content,
+      image_url: row.image_url,
+      status: row.status,
+      created_at: row.created_at,
+    }));
+    const summary = { queued: 0, sending: 0, success: 0, failed: 0 };
+    for (const it of items) {
+      if (it.status === 'queued') summary.queued++;
+      else if (it.status === 'sending') summary.sending++;
+      else if (it.status === 'success') summary.success++;
+      else summary.failed++; // failed:코드:이유 형식도 포함
+    }
+    res.json({
+      batch_id: req.params.id,
+      count: items.length,
+      created_at: items.reduce((max, it) => (it.created_at > max ? it.created_at : max), items[0].created_at),
+      summary,
+      items,
+    });
   }));
 
   // 특정 번호 대화 내역

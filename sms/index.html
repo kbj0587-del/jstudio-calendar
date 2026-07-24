@@ -1034,7 +1034,19 @@ async function dismissPending(id){
 async function loadThreads(){
   try{
     threads=await api.get('/api/sms/threads');
-    document.getElementById('threadItems').innerHTML=threads.map(t=>`
+    document.getElementById('threadItems').innerHTML=threads.map(t=>{
+      if(t.kind==='batch'){
+        return `
+      <div class="thread-item ${activeBatch===t.batch_id?'active':''}" onclick="openBatch('${t.batch_id}')">
+        <div class="avatar" style="width:34px;height:34px;font-size:15px;background:var(--surface2);color:var(--muted2)">📢</div>
+        <div class="thread-meta" style="flex:1;min-width:0">
+          <div style="font-size:13.5px;font-weight:600">그룹발송 · ${t.count}명</div>
+          <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.last)}</div>
+        </div>
+        <span class="thread-meta" style="font-size:10.5px;color:var(--muted)">${relTime(t.created_at)}</span>
+      </div>`;
+      }
+      return `
       <div class="thread-item ${activeThread===t.phone?'active':''}" onclick="openThread('${t.phone}')">
         <div class="avatar" style="width:34px;height:34px;font-size:13px;background:${avatarColor(t.name)}">${initial(t.name)}</div>
         <div class="thread-meta" style="flex:1;min-width:0">
@@ -1042,9 +1054,48 @@ async function loadThreads(){
           <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.last)}</div>
         </div>
         <span class="thread-meta" style="font-size:10.5px;color:var(--muted)">${relTime(t.created_at)}</span>
-      </div>`).join('') || `<div style="font-size:12.5px;color:var(--muted);padding:16px;text-align:center">대화 없음</div>`;
+      </div>`;
+    }).join('') || `<div style="font-size:12.5px;color:var(--muted);padding:16px;text-align:center">대화 없음</div>`;
     if(activeThread) refreshChat(false);
   }catch(e){ if(e.message!=='auth') console.error(e); }
+}
+
+/* ── 그룹발송 상세(읽기 전용) ── */
+let activeBatch = null;
+async function openBatch(batchId){
+  activeThread = null; activeBatch = batchId;
+  document.getElementById('delThreadBtn').style.display='none';
+  loadThreads();
+  try{
+    const b = await api.get('/api/sms/batch/'+batchId);
+    document.getElementById('chatName').textContent = `그룹발송 · ${b.count}명`;
+    document.getElementById('chatPhone').textContent =
+      `성공 ${b.summary.success} · 대기 ${b.summary.queued+b.summary.sending} · 실패 ${b.summary.failed}`;
+    const first = b.items[0];
+    document.getElementById('chatBody').innerHTML = `
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border2)">
+        ${first.image_url?`<img src="${esc(first.image_url)}" style="max-width:220px;border-radius:12px;border:1px solid var(--border2);margin-bottom:8px">`:''}
+        <div style="font-size:13.5px;white-space:pre-wrap;line-height:1.55">${esc(first.content)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">이 문구를 포함해 개인별로 조금씩 다를 수 있습니다(변수 치환) · 아래는 수신자별 발송 상태입니다</div>
+      </div>
+      <div style="padding:8px 12px">
+        ${b.items.map(it=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 8px;border-bottom:1px solid var(--border2)">
+            <div class="avatar" style="width:26px;height:26px;font-size:11px;background:${avatarColor(it.name)}">${initial(it.name)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12.5px;font-weight:600">${esc(it.name)}</div>
+              <div style="font-size:11px;color:var(--muted)">${esc(fmtPhone(it.phone))}</div>
+            </div>
+            <span style="font-size:11px;color:${it.status==='success'?'var(--green-d)':it.status==='queued'||it.status==='sending'?'var(--orange-d)':'var(--red)'}">${statusLabelKo(it.status)}</span>
+          </div>`).join('')}
+      </div>`;
+  }catch(e){ toast(e.message); }
+}
+function statusLabelKo(s){
+  if(s==='success') return '전송됨';
+  if(s==='queued') return '대기중';
+  if(s==='sending') return '전송중';
+  return '실패';
 }
 /* ── 대화 선택 ↔ 받는 사람 연동 (입력창 통합) ──
    대화를 고르면 받는 사람을 그 사람으로 "교체"하고 왼쪽 본문에 커서를 둔다.
@@ -1054,6 +1105,7 @@ let _prevRecipients = null;   // 되돌리기용 직전 명단
 let _syncing = false;         // 상호 호출 재귀 방지
 
 async function openThread(phone){
+  activeBatch = null;
   const t = threads.find(x=>x.phone===phone);
   const hadOthers = recipients.length>0 &&
     !(recipients.length===1 && recipients[0].kind==='person' && recipients[0].phone===phone);
