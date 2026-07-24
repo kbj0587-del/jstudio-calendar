@@ -111,7 +111,7 @@ function delSelected(){
   if(!boxes.length) return;
   runDelete(boxes.map(b=>b.value), boxes.filter(b=>b.dataset.q==='1').length);
 }
-function statusLabel(s){ return ({queued:'전송대기',success:'전송됨',received:'수신',failed:'실패'})[s]||s||'-'; }
+function statusLabel(s){ return smsStatusLabel(s); }
 boot();
 </script>
 </body>

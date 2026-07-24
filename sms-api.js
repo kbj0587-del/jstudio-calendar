@@ -967,6 +967,11 @@ function registerSmsRoutes(app, deps) {
     next();
   }
   const GW_STATUSES = ['success', 'failed', 'queued', 'sending', 'received'];
+  // 'failed:RADIO_OFF' 처럼 실패 사유가 붙은 상태도 허용한다(v32+ 앱이 보냄).
+  // 사유는 폰의 SmsManager resultCode 해석 문자열 — 저장해 두면 이력/그룹상세에서
+  // "왜 실패했는지"를 보여줄 수 있다. 임의 문자열 폭주 방지를 위해 형식·길이 제한.
+  const isValidGwStatus = (s) =>
+    GW_STATUSES.includes(s) || /^failed:[A-Za-z0-9_\-:]{1,60}$/.test(String(s || ''));
 
   // 발송 큐 원자적 클레임: queued → sending 로 바꾸며 그 행들을 돌려준다(중복발송 방지).
   app.post('/api/sms/gw/claim-queue', requireGateway, wrap(async (req, res) => {
@@ -983,7 +988,7 @@ function registerSmsRoutes(app, deps) {
   // 발송 결과 반영
   app.post('/api/sms/gw/status', requireGateway, wrap(async (req, res) => {
     const { id, status } = req.body || {};
-    if (!id || !GW_STATUSES.includes(status)) return res.status(400).json({ error: 'bad_request' });
+    if (!id || !isValidGwStatus(status)) return res.status(400).json({ error: 'bad_request' });
     await q('UPDATE js_message_logs SET status=$2 WHERE id=$1', [id, status]);
     res.json({ ok: true });
   }));

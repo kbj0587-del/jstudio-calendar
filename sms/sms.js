@@ -93,6 +93,34 @@ async function uploadImageToServer(file){
   }catch(e){ toast('업로드 실패: '+e.message); return null; }
 }
 
+/* ── 발송 상태 라벨 (이력·대화방·그룹상세 공용) ──
+   'failed:RADIO_OFF' 처럼 폰이 보고한 실패 사유가 붙어 있으면 한글로 풀어 보여준다.
+   ⚠️ 이 실패는 "폰이 통신사에 못 넘긴" 즉시 실패다. 통신사가 받은 뒤 상대 폰에
+   못 전달한 경우(없는 번호 등)는 여기 안 잡힌다(배달확인 미구현). */
+const FAIL_REASONS = {
+  RADIO_OFF: '전파 꺼짐(비행기모드)',
+  NO_SERVICE: '서비스 없음(신호 약함)',
+  GENERIC_FAILURE: '발송 오류',
+  NULL_PDU: '메시지 생성 오류',
+  LIMIT_EXCEEDED: '발송 한도 초과',
+  FDN_CHECK_FAILURE: '허용번호 제한(FDN)',
+  TIMEOUT: '응답 없음(시간 초과)',
+};
+function smsStatusLabel(s){
+  s = String(s || '');
+  if (s === 'queued') return '전송대기';
+  if (s === 'sending') return '전송중';
+  if (s === 'success') return '전송됨';
+  if (s === 'received') return '수신';
+  if (s.startsWith('failed')) {
+    // 형식: failed | failed:CODE | failed:CODE:설명 (구버전 호환)
+    const parts = s.split(':');
+    const reason = FAIL_REASONS[parts[1]] || FAIL_REASONS[parts[2]] || parts[1] || '';
+    return reason ? `실패 · ${reason}` : '실패';
+  }
+  return s || '-';
+}
+
 /* ── 토스트 ── */
 function toast(msg){
   let t = document.getElementById('toast');

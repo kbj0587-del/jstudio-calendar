@@ -1097,12 +1097,7 @@ async function openBatch(batchId){
       </div>`;
   }catch(e){ toast(e.message); }
 }
-function statusLabelKo(s){
-  if(s==='success') return '전송됨';
-  if(s==='queued') return '대기중';
-  if(s==='sending') return '전송중';
-  return '실패';
-}
+function statusLabelKo(s){ return smsStatusLabel(s); }
 /* ── 대화 선택 ↔ 받는 사람 연동 (입력창 통합) ──
    대화를 고르면 받는 사람을 그 사람으로 "교체"하고 왼쪽 본문에 커서를 둔다.
    교체로 기존 명단이 날아가는 사고를 막기 위해 직전 명단을 보관해 되돌릴 수 있게 한다.
