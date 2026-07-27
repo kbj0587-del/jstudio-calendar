@@ -110,6 +110,29 @@
   <button class="btn-add-slot" onclick="addSlot()">+ 시간대 추가</button>
 </div>
 
+<!-- 프로그램 소개 편집 (모든 달 공통) -->
+<div class="sch-table-wrap" id="programWrap" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;
+              padding:10px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+    <strong style="font-size:0.95rem">📋 프로그램 소개 <small style="font-weight:400;color:var(--text-muted)">— 모든 달에 공통 적용</small></strong>
+    <div style="display:flex;gap:6px">
+      <button class="btn-add-slot" style="margin:0;padding:6px 12px" onclick="addProgram()">+ 항목 추가</button>
+      <button class="btn-save" onclick="savePrograms()">저장</button>
+    </div>
+  </div>
+  <table class="sch-table">
+    <thead>
+      <tr>
+        <th style="width:150px">프로그램</th>
+        <th style="width:130px">레벨</th>
+        <th>설명</th>
+        <th style="width:60px">삭제</th>
+      </tr>
+    </thead>
+    <tbody id="programBody"></tbody>
+  </table>
+</div>
+
 <!-- No data -->
 <div id="noData" style="display:none;text-align:center;padding:60px 20px;color:var(--text-muted)">
   <div style="font-size:2rem;margin-bottom:12px">📋</div>
@@ -295,7 +318,9 @@ async function doAuth() {
     document.getElementById('adminBar').style.display = '';
     document.getElementById('noteArea').style.display = '';
     document.getElementById('tableWrap').style.display = '';
+    document.getElementById('programWrap').style.display = '';
     await loadAll();
+    await loadPrograms();
   } catch {
     document.getElementById('authError').textContent = '서버 연결 오류.';
   }
@@ -303,6 +328,70 @@ async function doAuth() {
 
 function apiHeaders() {
   return { 'Content-Type': 'application/json', 'x-admin-password': adminPw };
+}
+
+// ── 프로그램 소개 ──────────────────────────────
+let programs = [];
+
+async function loadPrograms() {
+  try {
+    const r = await fetch('/api/schedule/programs', { headers: apiHeaders() });
+    const d = await r.json();
+    programs = (d.programs && d.programs.items) || [];
+  } catch { programs = []; }
+  renderProgramRows();
+}
+
+function renderProgramRows() {
+  const tb = document.getElementById('programBody');
+  tb.innerHTML = '';
+  programs.forEach((p, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input class="form-input" style="width:100%;font-size:0.83rem;padding:6px 8px"
+            value="${escAttr(p.name)}" oninput="programs[${i}].name=this.value"></td>
+      <td><input class="form-input" style="width:100%;font-size:0.83rem;padding:6px 8px"
+            value="${escAttr(p.level)}" oninput="programs[${i}].level=this.value"></td>
+      <td><input class="form-input" style="width:100%;font-size:0.83rem;padding:6px 8px"
+            value="${escAttr(p.desc)}" oninput="programs[${i}].desc=this.value"></td>
+      <td style="text-align:center">
+        <button class="btn-cancel-sm" style="padding:4px 9px" onclick="removeProgram(${i})">✕</button>
+      </td>`;
+    tb.appendChild(tr);
+  });
+  if (!programs.length) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">항목이 없어요. “+ 항목 추가”를 눌러 주세요.</td></tr>';
+  }
+}
+
+function addProgram() {
+  programs.push({ name: '', level: '', desc: '' });
+  renderProgramRows();
+}
+
+function removeProgram(i) {
+  programs.splice(i, 1);
+  renderProgramRows();
+}
+
+async function savePrograms() {
+  const items = programs.filter(p => (p.name || '').trim());
+  try {
+    const r = await fetch('/api/schedule/programs', {
+      method: 'PUT', headers: apiHeaders(), body: JSON.stringify({ items })
+    });
+    if (!r.ok) { toast('저장 실패 (권한 또는 서버 오류)'); return; }
+    const d = await r.json();
+    programs = (d.programs && d.programs.items) || items;
+    renderProgramRows();
+    toast('프로그램 소개를 저장했어요!');
+  } catch {
+    toast('서버 연결 오류');
+  }
+}
+
+function escAttr(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
 
 // ── Load ─────────────────────────────────────

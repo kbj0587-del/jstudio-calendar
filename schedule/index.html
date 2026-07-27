@@ -10,6 +10,7 @@
 <meta property="og:type" content="website">
 <link rel="stylesheet" href="schedule.css">
 <link rel="stylesheet" href="canvas.css">
+<script src="vendor/html-to-image.js"></script>
 </head>
 <body>
 
@@ -21,7 +22,6 @@
       <span>미사 제이스튜디오<span class="dot">.</span></span>
     </div>
     <nav class="sch-nav">
-      <button class="sch-btn ghost" onclick="window.print()" title="저장 / 인쇄">🖨️ 인쇄</button>
       <button class="sch-btn ghost" onclick="shareUrl()" title="공유">🔗 공유</button>
     </nav>
   </div>
@@ -32,6 +32,16 @@
   <button class="btn-month-arrow" id="btnPrev" onclick="changeMonth(-1)" title="이전 달">‹</button>
   <h1 id="monthTitle">—<small id="monthSub"></small></h1>
   <button class="btn-month-arrow" id="btnNext" onclick="changeMonth(1)" title="다음 달">›</button>
+</div>
+
+<!-- 탭 + 저장/인쇄 -->
+<div class="sch-tabbar" id="tabBar">
+  <button class="sch-tab active" id="tabSchedule" onclick="setView('schedule')">📅 시간표</button>
+  <button class="sch-tab" id="tabProgram" onclick="setView('program')">📖 프로그램 소개</button>
+  <span class="spacer"></span>
+  <button class="sch-tab" id="btnSaveSchedule" onclick="savePng('schedule')">🖼️ 시간표 저장</button>
+  <button class="sch-tab" id="btnSaveProgram" onclick="savePng('program')">🖼️ 프로그램 저장</button>
+  <button class="sch-tab" onclick="window.print()">🖨️ 인쇄</button>
 </div>
 
 <!-- NAS 원본과 동일한 고정폭 캔버스 (좁은 화면에서는 JS가 통째로 축소) -->
@@ -66,6 +76,12 @@
         </thead>
         <tbody id="cvBody"></tbody>
       </table>
+    </div>
+
+    <!-- 프로그램 소개 (탭에 따라 표시) -->
+    <div class="cv-programs" id="cvPrograms" style="display:none">
+      <div class="cv-programs-bar"><span>📋 프로그램 소개</span></div>
+      <div id="cvProgramRows"></div>
     </div>
 
     <div class="cv-footer">
@@ -107,9 +123,12 @@ const PROGRAMS = ['번지피지오','스텝박스','플라잉요가','플라잉�
 let availableMonths = [];
 let currentIdx = 0;
 let timetable = null;
+let programs = null;
+let currentView = 'schedule';
 
 async function init() {
   const urlM = new URLSearchParams(location.search).get('m');
+  loadPrograms();
   await loadList();
   if (availableMonths.length === 0) { showNoData(); return; }
 
@@ -127,6 +146,141 @@ async function loadList() {
     const d = await r.json();
     availableMonths = d.months || [];
   } catch { availableMonths = []; }
+}
+
+async function loadPrograms() {
+  try {
+    const r = await fetch('/api/schedule/programs');
+    const d = await r.json();
+    programs = (d.programs && d.programs.items) || [];
+  } catch { programs = []; }
+  renderPrograms();
+}
+
+/* 프로그램 색 계열 — 시간표와 동일한 3색 체계 */
+function programFamily(name) {
+  if (name === '번지피지오') return '번지피지오';
+  if (name === '스텝박스') return '스텝박스';
+  if (['플라잉요가', '플라잉스트레칭', '체어플라잉'].includes(name)) return '플라잉';
+  return '플라잉';
+}
+
+function renderPrograms() {
+  const box = document.getElementById('cvProgramRows');
+  if (!box) return;
+  box.innerHTML = '';
+  (programs || []).forEach(p => {
+    const row = document.createElement('div');
+    row.className = `cv-prow cv-p-${programFamily(p.name)}`;
+    row.innerHTML = `
+      <div class="cv-prow-label">
+        <div class="cv-prow-name">${esc(p.name)}</div>
+        ${p.level ? `<div class="cv-prow-level">${esc(p.level)}</div>` : ''}
+      </div>
+      <div class="cv-prow-gap"></div>
+      <div class="cv-prow-desc">${esc(p.desc)}</div>`;
+    box.appendChild(row);
+  });
+}
+
+function setView(view) {
+  currentView = view;
+  document.getElementById('tabSchedule').classList.toggle('active', view === 'schedule');
+  document.getElementById('tabProgram').classList.toggle('active', view === 'program');
+  document.getElementById('cvPrograms').style.display = view === 'program' ? '' : 'none';
+  fitCanvas();
+}
+
+/* SVG → PNG 굽기.
+   html-to-image 의 toPng() 는 내부적으로 requestAnimationFrame 안에서 결과를
+   내주는데, 탭이 백그라운드로 가면 rAF 가 아예 안 불려서 영원히 멈춘다.
+   (실측 확인: document.hidden=true 이면 4초가 지나도 rAF 미발화)
+   그래서 여기서는 toSvg() 까지만 라이브러리를 쓰고, 래스터화는 직접 한다. */
+async function svgToPng(node, { width, height, pixelRatio, backgroundColor }) {
+  const svgUrl = await htmlToImage.toSvg(node, { width, height, cacheBust: true });
+
+  const img = new Image();
+  img.decoding = 'async';
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error('이미지 변환 실패'));
+    img.src = svgUrl;
+  });
+  if (img.decode) { try { await img.decode(); } catch { /* 일부 브라우저에서만 실패 — 무시 */ } }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(width * pixelRatio);
+  canvas.height = Math.round(height * pixelRatio);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = backgroundColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/png');
+}
+
+/* 캔버스 총 픽셀 수 상한 — 아이폰 사파리는 이 값을 넘으면 조용히 빈 이미지가 나온다 */
+const MAX_EXPORT_PIXELS = 16000000;
+function exportRatio(w, h) {
+  const desired = window.innerWidth < 768 ? 2 : 3;
+  const limit = Math.sqrt(MAX_EXPORT_PIXELS / (w * h));
+  return Math.max(1, Math.min(desired, Math.floor(limit * 10) / 10));
+}
+
+/* 화면에 보이는 그대로 PNG 로 저장 (NAS 원본과 동일한 방식) */
+async function savePng(kind) {
+  const btn = document.getElementById(kind === 'program' ? 'btnSaveProgram' : 'btnSaveSchedule');
+  if (!window.htmlToImage) { toast('저장 기능을 불러오지 못했어요.'); return; }
+  const cv = document.getElementById('canvas');
+  const stage = document.getElementById('canvasStage');
+  const progBox = document.getElementById('cvPrograms');
+
+  /* 저장 대상에 맞춰 프로그램 표를 잠깐 켜고/끄고, 축소는 풀어서 원본 해상도로 캡처 */
+  const prevDisplay = progBox.style.display;
+  const prevTransform = cv.style.transform;
+  const prevStageW = stage.style.width;
+  const prevStageH = stage.style.height;
+
+  btn.disabled = true;
+  const prevLabel = btn.textContent;
+  btn.textContent = '저장 중…';
+
+  try {
+    progBox.style.display = kind === 'program' ? '' : 'none';
+    cv.style.transform = 'none';
+    stage.style.width = CANVAS_W + 'px';
+    stage.style.height = cv.offsetHeight + 'px';
+    /* 레이아웃·웹폰트가 확정될 시간을 준다 */
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    await new Promise(r => setTimeout(r, 250));
+
+    const height = cv.offsetHeight;
+    const dataUrl = await svgToPng(cv, {
+      width: CANVAS_W,
+      height,
+      pixelRatio: exportRatio(CANVAS_W, height),
+      backgroundColor: '#ffffff'
+    });
+
+    const month = timetable ? `${timetable.month}월` : '';
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = kind === 'program'
+      ? `미사제이_스튜디오_프로그램_${month}.png`
+      : `미사제이_스튜디오_시간표_${month}.png`;
+    a.click();
+    toast('이미지로 저장했어요!');
+  } catch (e) {
+    console.error('PNG 저장 실패:', e);
+    toast('저장에 실패했어요. 다시 시도해 주세요.');
+  } finally {
+    progBox.style.display = prevDisplay;
+    cv.style.transform = prevTransform;
+    stage.style.width = prevStageW;
+    stage.style.height = prevStageH;
+    btn.disabled = false;
+    btn.textContent = prevLabel;
+    fitCanvas();
+  }
 }
 
 async function loadMonth() {
@@ -294,6 +448,7 @@ function changeMonth(dir) {
 function showNoData() {
   document.getElementById('noData').style.display = '';
   document.getElementById('canvasViewport').style.display = 'none';
+  document.getElementById('tabBar').style.display = 'none';
   document.getElementById('monthTitle').childNodes[0].nodeValue = '시간표 없음';
 }
 

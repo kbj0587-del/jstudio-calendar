@@ -315,6 +315,112 @@
   text-transform: uppercase;
 }
 
+/* ---------- 프로그램 소개 (원본 수치 그대로) ---------- */
+.cv-programs {
+  width: 100%;
+  margin-top: 32px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, .07);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.cv-programs-bar {
+  padding: 10px;
+  background: #f97316;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cv-programs-bar span {
+  font-size: 18px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: .06em;
+}
+.cv-prow {
+  display: flex;
+  align-items: stretch;
+  height: 58px;
+  overflow: hidden;
+}
+.cv-prow-label {
+  width: 160px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  text-align: center;
+  gap: 3px;
+  box-sizing: border-box;
+}
+.cv-prow-name  { font-size: 17px; font-weight: 900; color: #1e293b; }
+.cv-prow-level { font-size: 14px; font-weight: 700; color: #1e293b; }
+.cv-prow-gap { width: 4px; flex-shrink: 0; opacity: .4; }
+.cv-prow-desc {
+  flex: 1 1 0%;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  color: #0f172a;
+  word-break: keep-all;
+}
+
+/* 프로그램별 배경 = 시간표와 같은 3색, 라벨은 한 단계 진한 색 */
+.cv-p-번지피지오     { background: #ddf1fd; }
+.cv-p-번지피지오 .cv-prow-label,
+.cv-p-번지피지오 .cv-prow-gap { background: #aee0fe; }
+.cv-p-번지피지오 .cv-prow-label { border-bottom: 1.5px solid #ddf1fd; }
+.cv-p-번지피지오 .cv-prow-desc  { border-bottom: 1.5px solid #aee0fe; }
+
+.cv-p-플라잉      { background: #fbf0d0; }
+.cv-p-플라잉 .cv-prow-label,
+.cv-p-플라잉 .cv-prow-gap { background: #fbe4a2; }
+.cv-p-플라잉 .cv-prow-label { border-bottom: 1.5px solid #fbf0d0; }
+.cv-p-플라잉 .cv-prow-desc  { border-bottom: 1.5px solid #fbe4a2; }
+
+.cv-p-스텝박스     { background: #ffd9cc; }
+.cv-p-스텝박스 .cv-prow-label,
+.cv-p-스텝박스 .cv-prow-gap { background: #ffb79e; }
+.cv-p-스텝박스 .cv-prow-label { border-bottom: 1.5px solid #ffd9cc; }
+.cv-p-스텝박스 .cv-prow-desc  { border-bottom: 1.5px solid #ffb79e; }
+
+/* ---------- 탭 / 저장 버튼 줄 ---------- */
+.sch-tabbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 18px;
+}
+.sch-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--tr), color var(--tr), border-color var(--tr);
+}
+.sch-tab:hover { border-color: var(--accent); }
+.sch-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.sch-tab[disabled] { opacity: .55; cursor: progress; }
+.sch-tabbar .spacer { flex: 1 1 24px; min-width: 0; }
+
 /* ---------- 관리자 진입 (눈에 띄지 않게) ---------- */
 .sch-admin-entry {
   text-align: center;
@@ -337,7 +443,7 @@
 
 /* ---------- 인쇄 ---------- */
 @media print {
-  .sch-header, .month-nav, #toast, .sch-admin-entry { display: none !important; }
+  .sch-header, .month-nav, #toast, .sch-admin-entry, .sch-tabbar { display: none !important; }
   .canvas-viewport { padding: 0; }
   .canvas-stage { width: auto !important; height: auto !important; overflow: visible; }
   .sch-canvas {

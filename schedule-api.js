@@ -81,6 +81,30 @@ const INITIAL_JUNE_DATA = {
   ]
 };
 
+/* 프로그램 소개 초기값 — NAS 원본(jstudio.ipdisk.co.kr)의 문구 그대로 */
+const INITIAL_PROGRAMS = {
+  items: [
+    { name: '번지피지오', level: '베이직',
+      desc: '기초 근력과 심폐 지구력을 한 번에! 번지 코드의 탄성으로 운동 기본기를 확실히 다지는 첫걸음!' },
+    { name: '번지피지오', level: '워크아웃',
+      desc: '관절 부하 없이 체력과 근력을 안전하게 강화! 탄성 코드가 선사하는 고강도 고효율 워크아웃!' },
+    { name: '번지피지오', level: '안무베이직',
+      desc: '신나는 음악 속 근력+유산소 복합 동작으로! 신체 전반을 균형 있게 발달시키는 다이내믹 복합운동!' },
+    { name: '플라잉요가', level: 'Lv.0',
+      desc: '해먹의 기본 원리부터 차근차근! 기본 가동 범위를 넓혀주어 플라잉요가에 쉽고 안전하게 입문합니다.' },
+    { name: '플라잉요가', level: 'Lv.0~1',
+      desc: '기본기 위에 중급 동작을 배우는 스텝업 과정! 플라잉요가의 다채로운 재미를 경험하고 숙련도를 높이세요!' },
+    { name: '플라잉요가', level: 'Lv.1',
+      desc: '숙련자를 위한 중/고급 심화반! 해먹을 이용한 다양한 동작을 마스터하며 완성도를 극대화합니다!' },
+    { name: '체어플라잉', level: '스트레칭/근력',
+      desc: '해먹과 의자의 만남! 코어 밸런스 훈련과 가동 범위 확장을 통합한 차원이 다른 전신 움직임!' },
+    { name: '플라잉스트레칭', level: '아로마/로우',
+      desc: '해먹을 통한 깊은 근막 이완과 스트레칭! 아로마의 도움으로 몸과 마음을 회복하고 최상의 릴랙스를 경험하세요.' },
+    { name: '스텝박스', level: '유산소/근력',
+      desc: '하체 근력 & 지방 연소 최적화! 스텝박스로 계단오르기 2배효과, 건강한 몸매 변화를 시작할 이유!' }
+  ]
+};
+
 function registerScheduleRoutes(app, deps) {
   const { getPool, isAdmin } = deps;
 
@@ -116,6 +140,59 @@ function registerScheduleRoutes(app, deps) {
       console.log('📅 6월 시간표 초기 데이터 삽입 완료');
     }
   }
+
+  async function ensureProgramTable() {
+    await q(`
+      CREATE TABLE IF NOT EXISTS js_program_info (
+        id INT PRIMARY KEY DEFAULT 1,
+        data JSONB NOT NULL DEFAULT '{"items":[]}'::jsonb,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT js_program_info_single_row CHECK (id = 1)
+      )
+    `);
+    await q(
+      `INSERT INTO js_program_info (id, data) VALUES (1, $1)
+       ON CONFLICT (id) DO NOTHING`,
+      [JSON.stringify(INITIAL_PROGRAMS)]
+    );
+  }
+
+  // GET /api/schedule/programs — 프로그램 소개 (공개)
+  app.get('/api/schedule/programs', async (req, res) => {
+    try {
+      const r = await q('SELECT data, updated_at FROM js_program_info WHERE id = 1', []);
+      res.json({ programs: r.rows[0]?.data || INITIAL_PROGRAMS });
+    } catch (e) {
+      console.error('program get error:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // PUT /api/schedule/programs — 프로그램 소개 저장 (관리자)
+  app.put('/api/schedule/programs', async (req, res) => {
+    if (!isAdmin(req)) return res.status(403).json({ error: 'forbidden' });
+    try {
+      const items = Array.isArray(req.body?.items) ? req.body.items : null;
+      if (!items) return res.status(400).json({ error: 'items 배열 필수' });
+      const clean = items
+        .filter(it => (it?.name || '').trim())
+        .map(it => ({
+          name: String(it.name || '').trim(),
+          level: String(it.level || '').trim(),
+          desc: String(it.desc || '').trim()
+        }));
+      const r = await q(
+        `INSERT INTO js_program_info (id, data, updated_at) VALUES (1, $1, NOW())
+         ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW()
+         RETURNING data`,
+        [JSON.stringify({ items: clean })]
+      );
+      res.json({ programs: r.rows[0].data });
+    } catch (e) {
+      console.error('program save error:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   // GET /api/schedule/list
   app.get('/api/schedule/list', async (req, res) => {
@@ -360,6 +437,7 @@ function registerScheduleRoutes(app, deps) {
   });
 
   ensureTable().catch(e => console.error('시간표 테이블 초기화 실패:', e));
+  ensureProgramTable().catch(e => console.error('프로그램 소개 테이블 초기화 실패:', e));
   console.log('📅 J.Studio 시간표 라우트 등록 완료 (/api/schedule/*)');
 }
 
