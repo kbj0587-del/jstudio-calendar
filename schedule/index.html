@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수업 시간표 · 미사 제이스튜디오</title>
+<meta name="description" content="미사 제이스튜디오 수업 시간표 — 번지피지오, 플라잉요가, 스텝박스">
+<meta property="og:title" content="수업 시간표 · 미사 제이스튜디오">
+<meta property="og:description" content="이번 달 수업 시간표를 확인하세요.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="schedule.css">
+</head>
+<body>
+
+<!-- Header -->
+<header class="sch-header">
+  <div class="sch-header-inner">
+    <div class="sch-logo">
+      <span>⭐</span>
+      <span>미사 제이스튜디오<span class="dot">.</span></span>
+    </div>
+    <nav class="sch-nav">
+      <button class="sch-btn ghost" onclick="shareUrl()" title="공유">🔗 공유</button>
+    </nav>
+  </div>
+</header>
+
+<!-- Month navigator -->
+<div class="month-nav">
+  <button class="btn-month-arrow" id="btnPrev" onclick="changeMonth(-1)" title="이전 달">‹</button>
+  <h1 id="monthTitle">—<small id="monthSub"></small></h1>
+  <button class="btn-month-arrow" id="btnNext" onclick="changeMonth(1)" title="다음 달">›</button>
+</div>
+
+<!-- Note bar -->
+<div class="sch-note" id="noteBar" style="display:none">
+  <div class="sch-note-inner">
+    <span>💬</span>
+    <span id="noteText"></span>
+  </div>
+</div>
+
+<!-- Desktop table -->
+<div class="sch-table-wrap">
+  <table class="sch-table" id="schTable">
+    <thead>
+      <tr>
+        <th>시간</th>
+        <th>월</th><th>화</th><th>수</th><th>목</th><th>금</th>
+        <th class="col-sat">토</th>
+      </tr>
+    </thead>
+    <tbody id="schBody"></tbody>
+  </table>
+</div>
+
+<!-- Mobile tabs -->
+<div class="mobile-tabs" id="mobileTabs">
+  <div class="day-tab-btns" id="dayTabBtns"></div>
+  <div id="dayPanels"></div>
+</div>
+
+<!-- No data -->
+<div id="noData" style="display:none;text-align:center;padding:60px 20px;color:var(--text-muted)">
+  <div style="font-size:2rem;margin-bottom:12px">📋</div>
+  <div style="font-weight:700;font-size:1.1rem">이번 달 시간표가 없어요</div>
+  <div style="font-size:0.85rem;margin-top:6px">다른 달을 선택하거나 나중에 다시 확인해 주세요.</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const DAYS = ['월','화','수','목','금','토'];
+const CLASS_COLORS = {
+  '번지피지오': 'cls-번지피지오', '플라잉요가': 'cls-플라잉요가',
+  '스텝박스': 'cls-스텝박스', '체어플라잉': 'cls-체어플라잉',
+  '플라잉스트레칭': 'cls-플라잉스트레칭'
+};
+const DOT_COLORS = {
+  '번지피지오': '#f97316', '플라잉요가': '#8b5cf6',
+  '스텝박스': '#3b82f6', '체어플라잉': '#14b8a6',
+  '플라잉스트레칭': '#ec4899'
+};
+
+let availableMonths = [];
+let currentIdx = 0;
+let timetable = null;
+
+// Dark mode
+if (matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.setAttribute('data-theme', 'dark');
+
+async function init() {
+  // Parse ?m=YYYY-MM from URL
+  const urlM = new URLSearchParams(location.search).get('m');
+  await loadList();
+  if (availableMonths.length === 0) { showNoData(); return; }
+
+  if (urlM) {
+    const [y, m] = urlM.split('-').map(Number);
+    const idx = availableMonths.findIndex(a => a.year === y && a.month === m);
+    currentIdx = idx >= 0 ? idx : 0;
+  }
+  await loadMonth();
+}
+
+async function loadList() {
+  try {
+    const r = await fetch('/api/schedule/list');
+    const d = await r.json();
+    availableMonths = d.months || [];
+  } catch { availableMonths = []; }
+}
+
+async function loadMonth() {
+  if (!availableMonths.length) return;
+  const { year, month } = availableMonths[currentIdx];
+  try {
+    const r = await fetch(`/api/schedule/${year}/${month}`);
+    if (!r.ok) { showNoData(); return; }
+    const d = await r.json();
+    timetable = d.timetable;
+    render();
+    updateUrl(year, month);
+  } catch { showNoData(); }
+}
+
+function render() {
+  if (!timetable) { showNoData(); return; }
+  document.getElementById('noData').style.display = 'none';
+  document.getElementById('schTable').style.display = '';
+  document.getElementById('mobileTabs').style.display = '';
+
+  const { year, month, data, note } = timetable;
+  document.getElementById('monthTitle').childNodes[0].nodeValue = `${year}년 ${month}월`;
+  document.getElementById('monthSub').textContent = '';
+
+  // Note
+  const noteBar = document.getElementById('noteBar');
+  if (note) {
+    noteBar.style.display = '';
+    document.getElementById('noteText').textContent = note;
+  } else { noteBar.style.display = 'none'; }
+
+  // Nav buttons
+  document.getElementById('btnPrev').disabled = currentIdx >= availableMonths.length - 1;
+  document.getElementById('btnNext').disabled = currentIdx <= 0;
+
+  renderTable(data.slots || []);
+  renderMobile(data.slots || []);
+}
+
+function renderTable(slots) {
+  const tbody = document.getElementById('schBody');
+  tbody.innerHTML = '';
+  slots.forEach(slot => {
+    const tr = document.createElement('tr');
+    // Time cell
+    const altParts = Object.entries(slot.dayTimes || {}).map(([d, t]) => `${d} ${t}`).join(' / ');
+    tr.innerHTML = `
+      <td class="sch-time">
+        <div class="sch-time-main">${esc(slot.label)}</div>
+        ${altParts ? `<div class="sch-time-alt">${esc(altParts)}</div>` : ''}
+      </td>
+    `;
+    DAYS.forEach(day => {
+      const cls = (slot.days || {})[day];
+      const td = document.createElement('td');
+      td.className = 'sch-cell';
+      if (cls && cls.name) {
+        const colorCls = CLASS_COLORS[cls.name] || 'cls-default';
+        td.innerHTML = `
+          <div class="sch-class ${colorCls}">
+            <div class="sch-class-name">${esc(cls.name)}</div>
+            ${cls.level ? `<div class="sch-class-level">${esc(cls.level)}</div>` : ''}
+            ${cls.instructor ? `<div class="sch-class-instructor">👤 ${esc(cls.instructor)}</div>` : ''}
+            ${cls.note ? `<div class="sch-class-note">${esc(cls.note)}</div>` : ''}
+          </div>`;
+      } else {
+        td.innerHTML = '<div class="sch-empty"></div>';
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function renderMobile(slots) {
+  const btns = document.getElementById('dayTabBtns');
+  const panels = document.getElementById('dayPanels');
+  btns.innerHTML = ''; panels.innerHTML = '';
+
+  const today = new Date();
+  const todayDay = ['일','월','화','수','목','금','토'][today.getDay()];
+  let defaultDay = DAYS.includes(todayDay) ? todayDay : '월';
+
+  DAYS.forEach((day, di) => {
+    const hasClass = slots.some(s => (s.days || {})[day]?.name);
+    const btn = document.createElement('button');
+    btn.className = 'day-tab-btn' + (day === defaultDay ? ' active' : '');
+    btn.textContent = day;
+    btn.onclick = () => selectDay(day);
+    btns.appendChild(btn);
+
+    const panel = document.createElement('div');
+    panel.className = 'day-panel' + (day === defaultDay ? ' active' : '');
+    panel.id = `dp-${day}`;
+
+    if (!hasClass) {
+      panel.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.85rem">수업 없음</div>';
+    } else {
+      slots.forEach(slot => {
+        const cls = (slot.days || {})[day];
+        if (!cls?.name) return;
+        const timeLabel = (slot.dayTimes || {})[day] || slot.label;
+        const dotColor = DOT_COLORS[cls.name] || '#64748b';
+        const card = document.createElement('div');
+        card.className = 'day-class-card';
+        card.innerHTML = `
+          <div class="day-dot" style="background:${dotColor}"></div>
+          <div class="day-class-time">${esc(timeLabel)}</div>
+          <div class="day-class-info">
+            <div class="day-class-name">${esc(cls.name)}</div>
+            ${cls.level ? `<div class="day-class-level">${esc(cls.level)}</div>` : ''}
+            ${cls.instructor ? `<div class="day-class-instructor">👤 ${esc(cls.instructor)}</div>` : ''}
+          </div>`;
+        panel.appendChild(card);
+      });
+    }
+    panels.appendChild(panel);
+  });
+}
+
+function selectDay(day) {
+  document.querySelectorAll('.day-tab-btn').forEach(b => b.classList.toggle('active', b.textContent === day));
+  document.querySelectorAll('.day-panel').forEach(p => p.classList.toggle('active', p.id === `dp-${day}`));
+}
+
+function changeMonth(dir) {
+  currentIdx += dir * -1; // list is newest-first, so +1 dir = decrease idx
+  if (currentIdx < 0) currentIdx = 0;
+  if (currentIdx >= availableMonths.length) currentIdx = availableMonths.length - 1;
+  loadMonth();
+}
+
+function showNoData() {
+  document.getElementById('noData').style.display = '';
+  document.getElementById('schTable').style.display = 'none';
+  document.getElementById('mobileTabs').style.display = 'none';
+  document.getElementById('monthTitle').childNodes[0].nodeValue = '시간표 없음';
+}
+
+function updateUrl(y, m) {
+  const url = `${location.pathname}?m=${y}-${String(m).padStart(2,'0')}`;
+  history.replaceState(null, '', url);
+}
+
+function shareUrl() {
+  if (navigator.share) {
+    navigator.share({ title: '수업 시간표 · 미사 제이스튜디오', url: location.href });
+  } else {
+    navigator.clipboard.writeText(location.href).then(() => toast('링크를 복사했어요!'));
+  }
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+init();
+</script>
+</body>
+</html>
