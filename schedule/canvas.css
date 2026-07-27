@@ -315,9 +315,29 @@
   text-transform: uppercase;
 }
 
+/* ---------- 관리자 진입 (눈에 띄지 않게) ---------- */
+.sch-admin-entry {
+  text-align: center;
+  padding: 0 16px 36px;
+}
+.sch-admin-entry a {
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: .6;
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  transition: opacity var(--tr), background var(--tr);
+}
+.sch-admin-entry a:hover,
+.sch-admin-entry a:focus-visible {
+  opacity: 1;
+  background: var(--surface2);
+}
+
 /* ---------- 인쇄 ---------- */
 @media print {
-  .sch-header, .month-nav, #toast { display: none !important; }
+  .sch-header, .month-nav, #toast, .sch-admin-entry { display: none !important; }
   .canvas-viewport { padding: 0; }
   .canvas-stage { width: auto !important; height: auto !important; overflow: visible; }
   .sch-canvas {
