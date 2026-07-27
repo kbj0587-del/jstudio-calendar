@@ -1,0 +1,329 @@
+/* ===========================================================
+   NAS 원본(jstudio.ipdisk.co.kr) 시간표 디자인 1:1 재현
+   - 모든 수치는 원본 DOM의 인라인 스타일에서 그대로 추출함
+   - 원본이 지정한 "더잠실 6 ExtraBold" / "a굴림헤드M" 은 실제로
+     로딩되지 않고 시스템 sans-serif 로 렌더링되고 있어(폭 실측 확인)
+     동일한 폴백 체인을 그대로 사용한다.
+   =========================================================== */
+
+.canvas-viewport {
+  padding: 0 16px 40px;
+}
+
+/* transform 은 레이아웃 폭을 줄이지 않으므로,
+   축소 후의 실제 크기를 갖는 무대(stage)를 두고 그 안에서 캔버스를 축소한다. */
+.canvas-stage {
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+/* 고정폭 캔버스 — 폭이 좁으면 JS가 통째로 scale 축소 */
+.sch-canvas {
+  width: 1274px;
+  box-sizing: border-box;
+  padding: 56px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .25);
+  transform-origin: top left;
+  font-family: "더잠실 6 ExtraBold", sans-serif;
+  color: #0f172a;
+  /* 캔버스는 인쇄물 성격이라 다크모드에서도 항상 밝게 유지 */
+  color-scheme: light;
+}
+
+/* ---------- 상단 배너 ---------- */
+.cv-banner {
+  width: 100%;
+  margin-bottom: 32px;
+  background: #3b82f6;
+  border-radius: 20px;
+  padding: 22px 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-sizing: border-box;
+}
+.cv-banner img {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.cv-banner-title { flex: 1 1 0%; min-width: 0; }
+.cv-banner-sub {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, .75);
+  letter-spacing: .08em;
+  margin-bottom: 6px;
+}
+.cv-banner-name {
+  font-size: 40px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -.02em;
+  line-height: 1;
+}
+.cv-pill {
+  background: rgba(255, 255, 255, .18);
+  border-radius: 14px;
+  padding: 10px 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.cv-pill-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, .7);
+  letter-spacing: .1em;
+  margin-bottom: 2px;
+}
+.cv-pill-month {
+  font-size: 28px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+}
+
+/* ---------- 표 ---------- */
+.cv-table-shell {
+  width: 100%;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .06);
+  background: #fff;
+}
+.cv-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.cv-table thead tr { background: #f97316; color: #fff; }
+.cv-table th {
+  height: 60px;
+  box-sizing: border-box;
+  color: #fff;
+}
+.cv-th-time {
+  width: 151px;
+  border-right: 2px solid rgba(255, 255, 255, .2);
+  padding: 10px 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.cv-th-day {
+  padding: 10px 0;
+  border-left: 2px solid rgba(255, 255, 255, .2);
+  font-size: 33px;
+  font-weight: 900;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, .4);
+}
+
+/* 시간 열 */
+.cv-td-time {
+  background: #f8fafc;
+  border-right: 2px solid #e2e8f0;
+  padding: 10px 8px;
+  text-align: center;
+  vertical-align: middle;
+  height: 148px;
+}
+.cv-time-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.cv-time-tag { font-size: 11px; font-weight: 400; color: #64748b; }
+.cv-time-main { font-size: 26px; font-weight: 900; color: #394456; line-height: 1.1; }
+.cv-time-alt { font-size: 16px; font-weight: 700; color: #94a3b8; line-height: 1; }
+
+/* 수업 칸 */
+.cv-td {
+  padding: 1px;
+  vertical-align: top;
+  text-align: center;
+  height: 148px;
+  box-sizing: border-box;
+  border-left: 1px solid #e2e8f0;
+}
+.cv-card {
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 8px 10px;
+  gap: 5px;
+  box-sizing: border-box;
+  user-select: none;
+  font-family: "a굴림헤드M", sans-serif;
+}
+.cv-card-time {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 11px;
+  color: #94a3b8;
+  opacity: .8;
+  letter-spacing: .02em;
+}
+.cv-card-name {
+  font-size: 24px;
+  color: #1e293b;
+  line-height: 1.25;
+  word-break: keep-all;
+  text-shadow: 1px 1px 6px #fff;
+}
+.cv-card-level {
+  font-size: 16px;
+  color: #475569;
+  opacity: .85;
+  line-height: 1.1;
+  text-shadow: 1px 1px 6px #fff;
+}
+.cv-card-rule {
+  width: 28px;
+  height: 1.5px;
+  border-radius: 9999px;
+  background: #1e293b;
+  opacity: .25;
+  flex-shrink: 0;
+}
+.cv-card-instructor {
+  font-size: 14px;
+  color: #475569;
+  opacity: .9;
+  text-shadow: 1px 1px 6px #fff;
+}
+
+/* 프로그램별 색상 (원본 3색 체계) */
+.cv-c-번지피지오      { background: #ddf1fd; }
+.cv-c-스텝박스        { background: #ffd9cc; }
+.cv-c-플라잉요가      { background: #fbf0d0; }
+.cv-c-플라잉스트레칭  { background: #fbf0d0; }
+.cv-c-체어플라잉      { background: #fbf0d0; }
+.cv-c-default         { background: #f1f5f9; }
+
+/* 표 안 안내문(빈 칸 병합 영역) */
+.cv-td-note { padding: 0; }
+.cv-note {
+  background: #fff7f0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #f97316;
+}
+.cv-note-bell { font-size: 22px; line-height: 1; flex-shrink: 0; opacity: .85; }
+.cv-note-text {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  white-space: pre-line;
+  text-align: center;
+}
+
+/* ---------- 하단 Notice ---------- */
+.cv-footer {
+  width: 100%;
+  margin-top: 20px;
+  height: 80px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 16px;
+  border-top: 2px solid #e2e8f0;
+  padding-top: 12px;
+  box-sizing: border-box;
+}
+.cv-notice {
+  flex: 1 1 0%;
+  background: #004cff;
+  border-radius: 14px;
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+.cv-notice-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 4px 0 0 4px;
+}
+.cv-notice-label {
+  padding-left: 8px;
+  flex-shrink: 0;
+  font-size: 35px;
+  font-weight: 900;
+  font-style: italic;
+  color: #e6af4c;
+}
+.cv-notice-sep {
+  width: 1px;
+  height: 36px;
+  background: rgba(255, 255, 255, .2);
+  flex-shrink: 0;
+}
+.cv-notice-text {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.4;
+  min-width: 0;
+}
+.cv-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  text-align: right;
+  flex-shrink: 0;
+}
+.cv-brand-name {
+  font-size: 42px;
+  font-weight: 900;
+  font-style: italic;
+  color: #0f172a;
+  opacity: .4;
+  letter-spacing: -.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  margin: 0;
+}
+.cv-brand-contact {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-top: 8px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+/* ---------- 인쇄 ---------- */
+@media print {
+  .sch-header, .month-nav, #toast { display: none !important; }
+  .canvas-viewport { padding: 0; }
+  .canvas-stage { width: auto !important; height: auto !important; overflow: visible; }
+  .sch-canvas {
+    transform: none !important;
+    box-shadow: none;
+    border: none;
+    padding: 0;
+  }
+}
