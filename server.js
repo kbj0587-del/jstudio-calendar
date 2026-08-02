@@ -1122,6 +1122,10 @@ registerSmsRoutes(app, {
 const { registerScheduleRoutes } = require('./schedule-api');
 registerScheduleRoutes(app, { getPool: () => pool, isAdmin, isSubAdmin });
 
+// ── NAS 에서 그대로 가져온 시간표 앱의 백엔드 (/api.php) ──
+const { registerScheduleAppRoutes } = require('./schedule-app-api');
+registerScheduleAppRoutes(app, { getPool: () => pool, checkAdminPassword });
+
 app.get('*', (req, res) => {
   // index.html은 절대 stale 캐시를 쓰지 않도록 항상 재검증 (구버전 캐시 문제 근본 차단)
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
