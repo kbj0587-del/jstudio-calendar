@@ -1,0 +1,58 @@
+/* ===========================================================
+   폰트·크기 조절 툴바가 실제로 먹히게 만드는 폰트 정의
+   -----------------------------------------------------------
+   툴바(프로그램 소개 상단 · 관리자 「요일 헤더 & 폰트」 패널 ·
+   텍스트 선택 시 뜨는 미니 툴바)는 이식된 앱 안에 이미 들어 있다.
+   그런데 목록에 있는 11종 중 실제로 불러오는 폰트가 Noto Sans KR
+   하나뿐이라, 나머지를 골라도 화면이 그대로여서 "안 되는 기능"처럼
+   보였다. (원본 NAS 는 폰트가 설치된 윈도우 PC 에서만 쓰던 앱이라
+   웹폰트를 따로 걸어 둘 필요가 없었다.)
+
+   여기서 두 가지를 채운다.
+     1) 구글 폰트로 배포되는 5종은 웹폰트로 불러온다 → 어느 기기에서나 동작
+     2) 나머지(더잠실 3종 · a굴림헤드M · a시나리오 · 맑은 고딕)는
+        배포 가능한 웹폰트가 없어 local() 로 잡아 둔다 → 해당 폰트가
+        설치된 PC(기존 NAS 작업 PC 등)에서는 그대로 적용되고,
+        설치되지 않은 기기에서는 기본 고딕으로 안전하게 떨어진다.
+
+   앱 번들(index.html 안의 스크립트)은 건드리지 않는다.
+   =========================================================== */
+
+/* --- 1) 로컬 설치 폰트 별칭 ------------------------------- */
+/* 앱이 쓰는 이름(예: '더잠실 6 ExtraBold')과 실제 설치 이름
+   (TheJamsil6ExtraBold 등)을 이어 준다. */
+
+@font-face {
+  font-family: '더잠실 3 Regular';
+  src: local('더잠실 3 Regular'), local('TheJamsil3Regular'),
+       local('The Jamsil 3 Regular'), local('THEJamsil3Regular');
+  font-display: swap;
+}
+@font-face {
+  font-family: '더잠실 4 Medium';
+  src: local('더잠실 4 Medium'), local('TheJamsil4Medium'),
+       local('The Jamsil 4 Medium'), local('THEJamsil4Medium');
+  font-display: swap;
+}
+@font-face {
+  font-family: '더잠실 6 ExtraBold';
+  src: local('더잠실 6 ExtraBold'), local('TheJamsil6ExtraBold'),
+       local('The Jamsil 6 ExtraBold'), local('THEJamsil6ExtraBold');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'a굴림헤드M';
+  src: local('a굴림헤드M'), local('aGulimHeadM'), local('AGulimHeadM');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'a시나리오';
+  src: local('a시나리오'), local('aScenario'), local('AScenario');
+  font-display: swap;
+}
+@font-face {
+  font-family: '맑은 고딕';
+  src: local('맑은 고딕'), local('Malgun Gothic'), local('MalgunGothic'),
+       local('Apple SD Gothic Neo'), local('AppleSDGothicNeo-Regular');
+  font-display: swap;
+}
