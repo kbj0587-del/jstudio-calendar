@@ -966,6 +966,61 @@ function registerSmsRoutes(app, deps) {
     }
     next();
   }
+  // ══════════════════════════════════════════════════════════
+  //  외부 사이트 알림 훅 (/api/sms/hook/*)
+  //  미사제이스튜디오 광고 랜딩(mjs.ai.kr/TTC)의 수강신청 접수를
+  //  게이트웨이 폰으로 문자 알림 보내기 위한 좁은 입구.
+  //
+  //  ⚠️ 설계상 중요 — 토큰이 새어도 스팸 중계기가 되지 않게:
+  //   · 수신번호를 요청에서 받지 않는다. 서버가 고정 목록으로만 보낸다.
+  //   · 문자 본문을 요청에서 받지 않는다. 서버가 정해진 양식으로 조립한다.
+  //   · 즉 이 토큰으로 할 수 있는 건 "정해진 두 사람에게 접수 알림 한 통" 뿐이다.
+  // ══════════════════════════════════════════════════════════
+  const TTC_HOOK_TOKEN = process.env.TTC_HOOK_TOKEN || '';
+  const TTC_NOTIFY_PHONES = (process.env.TTC_NOTIFY_PHONES || '010-7635-4416,010-2557-7823')
+    .split(',').map((s) => digits(s)).filter((s) => s.length >= 10);
+
+  function requireTtcHook(req, res, next) {
+    if (!TTC_HOOK_TOKEN) return res.status(503).json({ error: 'hook_disabled', message: 'TTC_HOOK_TOKEN 미설정' });
+    const h = req.headers['authorization'] || '';
+    const t = h.startsWith('Bearer ') ? h.slice(7) : '';
+    const a = Buffer.from(t), b = Buffer.from(TTC_HOOK_TOKEN);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    next();
+  }
+
+  // 토큰이 새더라도 폰 회선이 문자 폭탄을 맞지 않도록 분당 상한을 둔다.
+  // 서버리스라 인스턴스별 카운터지만, 개인 회선 보호용 안전망으로는 충분하다.
+  const ttcHookHits = [];
+  const TTC_HOOK_PER_MIN = 10;
+
+  function ttcHookText(b) {
+    const cut = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, n);
+    const lines = ['[TTC 수강신청]', cut(b.name, 30) + ' / ' + cut(b.phone, 20)];
+    const type = cut(b.type, 40);
+    if (type) lines.push('관심: ' + type);
+    const memo = cut(b.memo, 100);
+    if (memo) lines.push('메모: ' + memo);
+    lines.push('확인: www.mjs.ai.kr/ttc-apply-admin.html');
+    return lines.join('\n');
+  }
+
+  app.post('/api/sms/hook/ttc-apply', requireTtcHook, wrap(async (req, res) => {
+    const now = Date.now();
+    while (ttcHookHits.length && now - ttcHookHits[0] > 60000) ttcHookHits.shift();
+    if (ttcHookHits.length >= TTC_HOOK_PER_MIN) return res.status(429).json({ error: 'rate_limited' });
+    ttcHookHits.push(now);
+
+    const body = req.body || {};
+    if (!String(body.name || '').trim()) return res.status(400).json({ error: 'name' });
+    if (!TTC_NOTIFY_PHONES.length) return res.status(503).json({ error: 'no_recipients' });
+
+    const r = await enqueue(TTC_NOTIFY_PHONES, ttcHookText(body), null);
+    res.json({ ok: true, queued: r.queued, excluded: r.excluded });
+  }));
+
   const GW_STATUSES = ['success', 'failed', 'queued', 'sending', 'received'];
   // 'failed:RADIO_OFF' 처럼 실패 사유가 붙은 상태도 허용한다(v32+ 앱이 보냄).
   // 사유는 폰의 SmsManager resultCode 해석 문자열 — 저장해 두면 이력/그룹상세에서
