@@ -40,9 +40,13 @@
       <label class="sw"><input type="checkbox" id="mc_on" onchange="saveCall()"><span></span></label>
     </div>
     <div id="mc_body" style="margin-top:12px">
-      <label class="lbl">회원·주소록에 있는 분께</label>
-      <textarea id="mc_member" class="inp" rows="2" placeholder="예: 전화를 받지 못했습니다. 확인 후 연락드리겠습니다."></textarea>
-      <label class="lbl" style="margin-top:10px">주소록에 없는 번호에게</label>
+      <label class="lbl">회원·주소록에 있는 분께
+        <span style="font-weight:400;color:var(--muted)">— <b>[*이름*]</b> 을 넣으면 회원 이름으로 바뀝니다</span>
+      </label>
+      <textarea id="mc_member" class="inp" rows="2" placeholder="예: [*이름*]님, 전화를 받지 못했습니다. 확인 후 연락드리겠습니다."></textarea>
+      <label class="lbl" style="margin-top:10px">주소록에 없는 번호에게
+        <span style="font-weight:400;color:var(--muted)">— 이름을 모르므로 [*이름*] 사용 비권장</span>
+      </label>
       <textarea id="mc_guest" class="inp" rows="3" placeholder="예: 안녕하세요, 미사제이스튜디오입니다. 전화를 받지 못해 죄송합니다. 영업시간 09-21시 · 확인 후 연락드릴게요."></textarea>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
         <div style="flex:1;min-width:120px"><label class="lbl">보내는 시간</label>
@@ -181,7 +185,9 @@ function openTpl(t){
   tplImage = t.image_url || '';
   openModal(`<h3>${t.id?'샘플 수정':'새 샘플'}</h3>
     <div><label class="lbl">샘플 이름 *</label><input id="t_name" class="inp" value="${esc(t.name||'')}" placeholder="예: 7월 시간표 안내"></div>
-    <div style="margin-top:10px"><label class="lbl">내용</label>
+    <div style="margin-top:10px"><label class="lbl">내용
+      <span style="font-weight:400;color:var(--muted)">— <b>[*이름*]</b> 사용 가능(주소록에 있으면 이름으로 치환)</span>
+    </label>
       <textarea id="t_content" class="inp" rows="5" oninput="tplBytes()">${esc(t.content||'')}</textarea>
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
         <button class="btn btn-ghost btn-sm" onclick="tplPanel('emoji')">이모티콘</button>

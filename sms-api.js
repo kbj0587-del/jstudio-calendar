@@ -1245,14 +1245,30 @@ function registerSmsRoutes(app, deps) {
 
   // 주소록(js_gateway_contacts) 또는 회원명부(js_members)에 있는 번호인가.
   // 형식 차이(하이픈/숫자만)를 흡수하려고 뒤 8자리로 맞춘다.
-  async function isKnownNumber(p) {
+  // [*이름*] 치환. 이름을 모르면 "[*이름*]님," 같은 호칭까지 통째로 지워
+  // "님, 전화를 받지 못했습니다" 같은 어색한 문장이 나가지 않게 한다.
+  function renderWithName(tpl, name) {
+    if (name) return renderTemplate(tpl, { name });
+    return String(tpl || '')
+      // "[*이름*]님, " / "[*이름*] 회원님." 등을 호칭·뒤따르는 구두점까지 통째로 제거
+      .replace(/\s*\[\*이름\*\]\s*(회원님|님|씨)?\s*[,.!~]*\s*/g, ' ')
+      .replace(/([,.!~])\s*\1+/g, '$1')  // ", ." 처럼 남은 중복 구두점 정리
+      .replace(/\s+([,.!])/g, '$1')      // 구두점 앞 공백 제거
+      .replace(/[ \t]{2,}/g, ' ')        // 이중 공백 정리
+      .replace(/^[ \t]+/gm, '')          // 줄 앞 공백 제거
+      .trim();
+  }
+
+  // 회원/주소록 조회 → { known, name }. 이름은 [*이름*] 치환에 쓴다(회원 명부 우선).
+  async function lookupKnown(p) {
     const last8 = p.slice(-8);
-    if (last8.length < 8) return false;
+    if (last8.length < 8) return { known: false, name: '' };
     const m = await q(
-      "SELECT 1 FROM js_members WHERE regexp_replace(phone,'\\D','','g') LIKE $1 LIMIT 1", ['%' + last8]);
-    if (m.rows.length) return true;
-    const g = await q('SELECT 1 FROM js_gateway_contacts WHERE phone LIKE $1 LIMIT 1', ['%' + last8]);
-    return g.rows.length > 0;
+      "SELECT name FROM js_members WHERE regexp_replace(phone,'\\D','','g') LIKE $1 LIMIT 1", ['%' + last8]);
+    if (m.rows.length) return { known: true, name: m.rows[0].name || '' };
+    const g = await q('SELECT name FROM js_gateway_contacts WHERE phone LIKE $1 LIMIT 1', ['%' + last8]);
+    if (g.rows.length) return { known: true, name: g.rows[0].name || '' };
+    return { known: false, name: '' };
   }
 
   // 수신거부 확인 후 발송 큐에 1건 등록
@@ -1297,7 +1313,9 @@ function registerSmsRoutes(app, deps) {
     if (await todaySentCount() >= cfg.dailyCap)
       return { decision: 'skipped', skip_reason: 'daily_cap' };
 
-    const known = await isKnownNumber(ev.phone);
+    const { known, name: knownName } = await lookupKnown(ev.phone);
+    // 문구 안의 [*이름*] 치환 (이름 없으면 호칭까지 제거 — renderWithName 참고)
+    const render = (t) => renderWithName(t, knownName);
 
     // ① 부재중 자동응답
     if (ev.call_type === 'missed') {
@@ -1310,7 +1328,7 @@ function registerSmsRoutes(app, deps) {
         "AND created_at > now() - ($2 || ' minutes')::interval LIMIT 1", [ev.phone, String(m.cooldownMin)]);
       if (dup.rows.length) return { decision: 'skipped', skip_reason: 'cooldown', is_member: known };
 
-      const text = (known ? m.memberText : m.guestText || m.memberText || '').trim();
+      const text = render((known ? m.memberText : m.guestText || m.memberText || '')).trim();
       if (!text) return { decision: 'skipped', skip_reason: 'no_text', is_member: known };
       const sent = await enqueueOne(ev.phone, text, null);
       if (sent.blocked) return { decision: 'skipped', skip_reason: 'blocked', is_member: known };
@@ -1336,7 +1354,7 @@ function registerSmsRoutes(app, deps) {
         return { decision: 'pending', is_member: known }; // 시간대 밖 → 대기로 돌림
       const tpl = await pickTemplate(p.defaultTemplateId);
       if (!tpl) return { decision: 'skipped', skip_reason: 'no_template', is_member: known };
-      const sent = await enqueueOne(ev.phone, tpl.content, tpl.image_url);
+      const sent = await enqueueOne(ev.phone, render(tpl.content), tpl.image_url);
       if (sent.blocked) return { decision: 'skipped', skip_reason: 'blocked', is_member: known };
       return { decision: 'sent', is_member: known, template_id: tpl.id, message_log_id: sent.id };
     }
@@ -1433,7 +1451,10 @@ function registerSmsRoutes(app, deps) {
     if (!ev.rows.length) return res.status(404).json({ error: '이미 처리된 건입니다' });
     const tpl = await pickTemplate(req.body?.template_id);
     if (!tpl) return res.status(400).json({ error: '보낼 샘플 메시지를 선택하세요' });
-    const sent = await enqueueOne(ev.rows[0].phone, tpl.content, tpl.image_url);
+    // 자동 발송과 동일하게 [*이름*] 치환 적용 (주소록/회원명부에서 이름 조회)
+    const who = await lookupKnown(digits(ev.rows[0].phone));
+    const sent = await enqueueOne(
+      ev.rows[0].phone, renderWithName(tpl.content, who.name), tpl.image_url);
     if (sent.blocked) {
       await q("UPDATE js_call_events SET decision='skipped', skip_reason='blocked' WHERE id=$1", [req.params.id]);
       return res.status(400).json({ error: '수신거부 번호입니다' });
