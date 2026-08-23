@@ -215,9 +215,18 @@ async function boot(){
   renderVarChips(); updateBytes(); updateSummary();
   applyPrefillRecipients();     // 연락처 페이지에서 "발송 대상으로 보내기"로 넘어온 수신자
   document.getElementById('tagInp').addEventListener('blur', ()=>setTimeout(hideSuggest, 200));
-  setInterval(loadThreads, 20000);
-  setInterval(refreshBootstrap, 30000);
-  setInterval(loadCallPending, 30000);
+  // 화면이 보일 때만 폴링한다. 탭을 열어두고 방치하면 하루 수천 번 요청이
+  // 나가므로(2026-08 Egress 한도 초과 사고), 숨겨진 탭에서는 건너뛰고
+  // 다시 보이는 순간 한 번 즉시 갱신한다.
+  function pollWhenVisible(fn, ms) {
+    setInterval(() => { if (!document.hidden) fn(); }, ms);
+  }
+  pollWhenVisible(loadThreads,      30000);
+  pollWhenVisible(loadCallPending,  30000);
+  pollWhenVisible(refreshBootstrap, 120000); // 설정/템플릿류는 자주 안 바뀜
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { loadThreads(); loadCallPending(); }
+  });
 }
 window.onAuthReady = boot;
 

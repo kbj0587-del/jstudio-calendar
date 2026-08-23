@@ -115,10 +115,20 @@ app.use(express.static(__dirname, {
   }
 }));
 
-// 서버리스 환경: 첫 요청 시 DB/store 초기화 (정적파일·health check 제외)
+// store(캘린더 통짜 JSON)를 전혀 참조하지 않는 API 경로들.
+// 이 경로에서 ensureStore()를 부르면 162KB짜리 jstudio_store를 통째로
+// DB에서 끌어오게 되어 Egress만 낭비된다 (2026-08 한도 초과 사고 원인).
+// sms-api.js / schedule-api.js / schedule-app-api.js 는 store 참조 0건이라 제외해도 안전하다.
+const STORE_FREE_PREFIXES = ['/api/sms/', '/api/schedule', '/api.php', '/s/'];
+function needsStore(pathname) {
+  if (pathname === '/api/health') return false;
+  return !STORE_FREE_PREFIXES.some(p => pathname.startsWith(p));
+}
+
+// 서버리스 환경: 첫 요청 시 DB/store 초기화 (정적파일·health check·store 무관 API 제외)
 if (IS_SERVERLESS) {
   app.use(async (req, res, next) => {
-    if (req.path === '/api/health') return next();
+    if (!needsStore(req.path)) return next();
     try { await ensureStore(); next(); }
     catch (err) {
       console.error('Store 초기화 실패:', err.message);
@@ -164,6 +174,9 @@ let store = {
   instructorAllowedCats: null, // null = DEFAULT (INSTRUCTOR_ALLOWED_CATS)
 };
 
+// jstudio_store 테이블 존재 확인 여부 (프로세스당 1회면 충분)
+let tableEnsured = false;
+
 // ── DB 초기화 및 데이터 로드 (서버 시작 시 1회) ─────
 async function initStore() {
   let useDB = USE_DB;
@@ -185,12 +198,17 @@ async function initStore() {
   if (useDB) {
     // ── PostgreSQL 데이터 로드 ──
     try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS jstudio_store (
-          id   INTEGER PRIMARY KEY,
-          data JSONB   NOT NULL
-        )
-      `);
+      // 테이블 생성은 프로세스당 1회만. initStore()는 5초 TTL 때문에 요청마다
+      // 다시 불리므로, 여기에 DDL이 있으면 하루 수천 번 CREATE TABLE이 실행된다.
+      if (!tableEnsured) {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS jstudio_store (
+            id   INTEGER PRIMARY KEY,
+            data JSONB   NOT NULL
+          )
+        `);
+        tableEnsured = true;
+      }
       const result = await pool.query('SELECT data FROM jstudio_store WHERE id = 1');
       if (result.rows.length > 0) {
         const saved = result.rows[0].data;
