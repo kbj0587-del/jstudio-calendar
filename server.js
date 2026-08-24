@@ -177,6 +177,14 @@ let store = {
 // jstudio_store 테이블 존재 확인 여부 (프로세스당 1회면 충분)
 let tableEnsured = false;
 
+// 마지막으로 읽어온 행 버전(xmin). 값이 그대로면 162KB를 다시 받지 않는다.
+let lastXmin = null;
+
+// DB에서 읽어온 직후의 store 사본. 저장할 때 "무엇이 바뀌었는지" 판별하는 기준.
+// 이 기준이 있어야 안 건드린 항목까지 통째로 덮어쓰는 사고를 막을 수 있다.
+let baseStore = null;
+const snapshotStore = () => { baseStore = JSON.parse(JSON.stringify(store)); };
+
 // ── DB 초기화 및 데이터 로드 (서버 시작 시 1회) ─────
 async function initStore() {
   let useDB = USE_DB;
@@ -209,9 +217,18 @@ async function initStore() {
         `);
         tableEnsured = true;
       }
-      const result = await pool.query('SELECT data FROM jstudio_store WHERE id = 1');
+      // 먼저 행 버전(xmin, 몇 바이트)만 물어본다. 지난번과 같으면 내용도 같으므로
+      // 162KB짜리 data는 전송하지 않는다. 5초 TTL의 보호 강도는 그대로 유지하면서
+      // 전송량만 없앤다.
+      const head = await pool.query('SELECT xmin::text AS v FROM jstudio_store WHERE id = 1');
+      if (head.rows.length > 0 && storeReady && head.rows[0].v === lastXmin) {
+        return; // 변경 없음 — 메모리의 store가 이미 최신
+      }
+
+      const result = await pool.query('SELECT data, xmin::text AS v FROM jstudio_store WHERE id = 1');
       if (result.rows.length > 0) {
         const saved = result.rows[0].data;
+        lastXmin = result.rows[0].v;
         store = { ...store, ...saved };
         if (!Array.isArray(store.users))       store.users       = [];
         if (!Array.isArray(store.activityLog)) store.activityLog = [];
@@ -234,9 +251,11 @@ async function initStore() {
         });
         // 마이그레이션 완료 — 비활성화 (2026-06-16)
         // migrateSalesPersonalLesson();
+        snapshotStore();
         console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명 | 카테고리 ${store.categories.length}개`);
       } else {
         await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
+        snapshotStore();
         console.log('✅ DB 최초 초기화 완료 (새 데이터베이스)');
       }
     } catch (dbErr) {
@@ -294,12 +313,37 @@ async function migrateSalesPersonalLesson() {
 }
 
 // ── 저장 (fire-and-forget) ──────────────────────────
+// 이번 요청에서 실제로 값이 달라진 최상위 키만 골라낸다.
+// baseStore(마지막으로 DB에서 읽은 내용)와 비교한다.
+function changedKeys() {
+  if (!baseStore) return Object.keys(store); // 기준이 없으면 안전하게 전체
+  return Object.keys(store).filter(
+    k => JSON.stringify(store[k]) !== JSON.stringify(baseStore[k])
+  );
+}
+
 function saveToFile() {
   if (USE_DB && pool) {
+    // ⚠️ 예전에는 store 전체를 EXCLUDED.data로 통째로 덮어썼다. 그래서 낡은 데이터를
+    // 들고 있던 인스턴스가 저장하면, 자기가 건드리지도 않은 항목까지 옛날 값으로
+    // 되돌려 버렸다 (2026-08-24 일정 24건 소실 사고).
+    // 이제는 바뀐 키만 골라 DB의 현재 값에 병합(||)한다. 병합은 DB 안에서 원자적으로
+    // 일어나므로, 안 건드린 항목은 다른 인스턴스가 방금 저장한 최신 값이 그대로 남는다.
+    const keys = changedKeys();
+    if (keys.length === 0) return Promise.resolve(); // 바뀐 게 없으면 쓰지 않는다
+    const patch = {};
+    keys.forEach(k => { patch[k] = store[k]; });
+
     return pool.query(
-      'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
-      [JSON.stringify(store)]
-    ).catch(e => {
+      `INSERT INTO jstudio_store (id, data) VALUES (1, $2::jsonb)
+       ON CONFLICT (id) DO UPDATE SET data = jstudio_store.data || $1::jsonb`,
+      [JSON.stringify(patch), JSON.stringify(store)]
+    ).then(() => {
+      // 저장에 성공한 키만 기준값을 갱신한다.
+      if (!baseStore) snapshotStore();
+      else keys.forEach(k => { baseStore[k] = JSON.parse(JSON.stringify(store[k])); });
+      lastXmin = null; // 우리가 방금 바꿨으니 다음 요청 때 최신본을 다시 읽게 한다
+    }).catch(e => {
       console.error('❌ DB 저장 실패:', e.message);
       try {
         fs.writeFileSync(DATA_FILE + '.emergency', JSON.stringify(store), 'utf8');
