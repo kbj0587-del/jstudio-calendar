@@ -119,7 +119,7 @@ app.use(express.static(__dirname, {
 // 이 경로에서 ensureStore()를 부르면 162KB짜리 jstudio_store를 통째로
 // DB에서 끌어오게 되어 Egress만 낭비된다 (2026-08 한도 초과 사고 원인).
 // sms-api.js / schedule-api.js / schedule-app-api.js 는 store 참조 0건이라 제외해도 안전하다.
-const STORE_FREE_PREFIXES = ['/api/sms/', '/api/schedule', '/api.php', '/s/'];
+const STORE_FREE_PREFIXES = ['/api/sms/', '/api/schedule', '/api.php', '/s/', '/api/lecture'];
 function needsStore(pathname) {
   if (pathname === '/api/health') return false;
   return !STORE_FREE_PREFIXES.some(p => pathname.startsWith(p));
