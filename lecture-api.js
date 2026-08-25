@@ -65,6 +65,14 @@ function registerLectureRoutes(app, deps) {
     return 'MJS-' + pick(4) + '-' + pick(4);
   }
 
+  // 유튜브 전체 URL 붙여넣어도 11자리 영상 ID만 추출 (watch?v=·youtu.be·embed·shorts·live)
+  function extractYtId(s) {
+    s = String(s || '').trim();
+    if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+    var m = s.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : s;
+  }
+
   function courseOpen(c) {
     const now = Date.now();
     if (!c.active) return false;
@@ -243,14 +251,15 @@ function registerLectureRoutes(app, deps) {
     if (!requireAdmin(req, res)) return;
     const b = req.body || {};
     const id = String(b.id || '').trim();
-    if (!id || !b.title || !b.youtube_id) return res.status(400).json({ error: 'id_title_youtube_required' });
+    const yt = extractYtId(b.youtube_id);   // 전체 URL이면 ID만 추출
+    if (!id || !b.title || !yt) return res.status(400).json({ error: 'id_title_youtube_required' });
     await q(
       `INSERT INTO lecture_courses (id, title, youtube_id, description, open_from, open_to, pass_score, active, sort)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, youtube_id=EXCLUDED.youtube_id,
          description=EXCLUDED.description, open_from=EXCLUDED.open_from, open_to=EXCLUDED.open_to,
          pass_score=EXCLUDED.pass_score, active=EXCLUDED.active, sort=EXCLUDED.sort`,
-      [id, b.title, b.youtube_id, b.description || null, b.open_from || null, b.open_to || null,
+      [id, b.title, yt, b.description || null, b.open_from || null, b.open_to || null,
        Math.max(0, parseInt(b.pass_score, 10) || 0), b.active !== false, parseInt(b.sort, 10) || 0]
     );
     if (Array.isArray(b.quiz)) {
