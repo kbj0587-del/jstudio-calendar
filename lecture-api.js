@@ -99,32 +99,50 @@ function registerLectureRoutes(app, deps) {
       id: c.id, title: c.title, youtube_id: c.youtube_id, description: c.description,
       progress: pmap[c.id] ? {
         watched_pct: pmap[c.id].watched_pct, passed: pmap[c.id].passed,
-        completed: !!pmap[c.id].completed_at
-      } : { watched_pct: 0, passed: false, completed: false }
+        completed: !!pmap[c.id].completed_at,
+        marks: Array.isArray(pmap[c.id].marks) ? pmap[c.id].marks : [],
+        bucket: pmap[c.id].bucket || 2,
+        last_pos: pmap[c.id].last_pos || 0
+      } : { watched_pct: 0, passed: false, completed: false, marks: [], bucket: 2, last_pos: 0 }
     }));
     res.json({ ok: true, token, student: { name: s.name }, courses });
   }));
 
-  // 진도 저장 — 클라가 계산한 "누적 시청 초"를 보냄. 서버는 max 로만 갱신(되감기·새로고침 안전).
+  // 진도 저장 — 클라가 "본 구간(버킷 인덱스) 목록"을 보냄. 서버는 기존 기록과 합집합(union)으로만
+  // 누적한다. 같은 구간 반복 시청은 합집합이 안 늘어 100% 안 되고(중복 방지), 서로 다른 구간을
+  // 여러 번에 나눠 봐도 정당하게 누적된다. 되감기·새로고침·세션 재접속 모두 안전.
   app.post('/api/lecture/progress', wrap(async (req, res) => {
     const p = authStudent(req); if (!p) return res.status(401).json({ error: 'auth' });
-    const { courseId } = req.body || {};
-    let watched = Math.max(0, Math.floor(Number(req.body && req.body.watched) || 0));
-    let duration = Math.max(1, Math.floor(Number(req.body && req.body.duration) || 0));
+    const b = req.body || {};
+    const courseId = b.courseId;
+    const duration = Math.max(1, Math.floor(Number(b.duration) || 0));
+    const bucket = Math.min(30, Math.max(1, Math.floor(Number(b.bucket) || 2)));
+    const pos = Math.max(0, Math.min(duration, Math.floor(Number(b.pos) || 0)));   // 이어보기용 마지막 위치
     if (!courseId) return res.status(400).json({ error: 'course_required' });
     const c = (await q('SELECT * FROM lecture_courses WHERE id = $1', [courseId])).rows[0];
     if (!c || !courseOpen(c)) return res.status(404).json({ error: 'course' });
-    watched = Math.min(watched, duration);
-    const pct = Math.min(100, Math.round((watched / duration) * 100));
+
+    const maxIdx = Math.ceil(duration / bucket) + 2;   // 조작 방지: duration 범위 밖 인덱스 무시
+    const set = {};
+    const prev = (await q('SELECT marks FROM lecture_progress WHERE student_id=$1 AND course_id=$2', [p.sid, courseId])).rows[0];
+    if (prev && Array.isArray(prev.marks)) prev.marks.forEach(function (n) { if (n >= 0 && n < maxIdx) set[n] = 1; });
+    if (Array.isArray(b.marks)) b.marks.forEach(function (m) { const n = Math.floor(Number(m)); if (n >= 0 && n < maxIdx) set[n] = 1; });
+    const union = Object.keys(set).map(Number);
+    const seconds = Math.min(duration, union.length * bucket);
+    const pct = Math.min(100, Math.round((seconds / duration) * 100));
+
     await q(
-      `INSERT INTO lecture_progress (student_id, course_id, watched_pct, seconds_watched, duration, updated_at)
-       VALUES ($1,$2,$3,$4,$5, now())
+      `INSERT INTO lecture_progress (student_id, course_id, watched_pct, seconds_watched, duration, marks, bucket, last_pos, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
        ON CONFLICT (student_id, course_id) DO UPDATE SET
-         seconds_watched = GREATEST(lecture_progress.seconds_watched, EXCLUDED.seconds_watched),
+         marks = EXCLUDED.marks,
+         seconds_watched = EXCLUDED.seconds_watched,
          duration = EXCLUDED.duration,
          watched_pct = GREATEST(lecture_progress.watched_pct, EXCLUDED.watched_pct),
+         bucket = EXCLUDED.bucket,
+         last_pos = EXCLUDED.last_pos,
          updated_at = now()`,
-      [p.sid, courseId, pct, watched, duration]
+      [p.sid, courseId, pct, seconds, duration, JSON.stringify(union), bucket, pos]
     );
     res.json({ ok: true, watched_pct: pct });
   }));
