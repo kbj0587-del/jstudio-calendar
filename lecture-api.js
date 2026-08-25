@@ -188,9 +188,14 @@ function registerLectureRoutes(app, deps) {
     if (!pr || pr.watched_pct < WATCH_DONE_PCT) return res.status(403).json({ error: 'not_completed' });
     const c = (await q('SELECT pass_score FROM lecture_courses WHERE id=$1', [courseId])).rows[0];
     if (!c) return res.status(404).json({ error: 'course' });
-    const qs = (await q('SELECT id, answer_index FROM lecture_quiz WHERE course_id=$1', [courseId])).rows;
+    const qs = (await q('SELECT id, answer_index, explanation FROM lecture_quiz WHERE course_id=$1 ORDER BY ord, id', [courseId])).rows;
     let score = 0;
-    qs.forEach(qq => { if (Number(answers[qq.id]) === qq.answer_index) score++; });
+    const results = qs.map(function (qq) {
+      const your = Number(answers[qq.id]);
+      const ok = your === qq.answer_index;
+      if (ok) score++;
+      return { id: qq.id, correct_index: qq.answer_index, your_index: isNaN(your) ? null : your, correct: ok, explanation: qq.explanation || '' };
+    });
     const total = qs.length;
     const passScore = c.pass_score || total;
     const passed = score >= passScore;
@@ -201,7 +206,7 @@ function registerLectureRoutes(app, deps) {
        WHERE student_id=$1 AND course_id=$2`,
       [p.sid, courseId, score, total, passed, completedAt]
     );
-    res.json({ ok: true, score, total, pass_score: passScore, passed, completed: passed });
+    res.json({ ok: true, score, total, pass_score: passScore, passed, completed: passed, results: results });
   }));
 
   // ════════ 관리자 ════════
@@ -252,8 +257,8 @@ function registerLectureRoutes(app, deps) {
       await q('DELETE FROM lecture_quiz WHERE course_id=$1', [id]);
       for (let i = 0; i < b.quiz.length; i++) {
         const qq = b.quiz[i];
-        await q('INSERT INTO lecture_quiz (course_id, ord, question, options, answer_index) VALUES ($1,$2,$3,$4,$5)',
-          [id, i + 1, String(qq.question || ''), JSON.stringify(qq.options || []), parseInt(qq.answer_index, 10) || 0]);
+        await q('INSERT INTO lecture_quiz (course_id, ord, question, options, answer_index, explanation) VALUES ($1,$2,$3,$4,$5,$6)',
+          [id, i + 1, String(qq.question || ''), JSON.stringify(qq.options || []), parseInt(qq.answer_index, 10) || 0, String(qq.explanation || '') || null]);
       }
     }
     res.json({ ok: true });
