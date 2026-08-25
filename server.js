@@ -1188,6 +1188,10 @@ registerScheduleRoutes(app, { getPool: () => pool, isAdmin, isSubAdmin });
 const { registerScheduleAppRoutes } = require('./schedule-app-api');
 registerScheduleAppRoutes(app, { getPool: () => pool, checkAdminPassword });
 
+// ── 미사제이스튜디오 강의보기 백엔드 (/api/lecture/*) ──
+const { registerLectureRoutes } = require('./lecture-api');
+registerLectureRoutes(app, { getPool: () => pool, checkAdminPassword });
+
 app.get('*', (req, res) => {
   // index.html은 절대 stale 캐시를 쓰지 않도록 항상 재검증 (구버전 캐시 문제 근본 차단)
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
