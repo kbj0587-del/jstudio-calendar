@@ -122,6 +122,10 @@ app.use(express.static(__dirname, {
 const STORE_FREE_PREFIXES = ['/api/sms/', '/api/schedule', '/api.php', '/s/', '/api/lecture'];
 function needsStore(pathname) {
   if (pathname === '/api/health') return false;
+  // 강의 관리자 인증은 store.adminPasswordHash(캘린더 앱 관리자 비번)를 참조한다.
+  // store를 안 불러오면 인스턴스마다 ENV 비번/앱 비번이 달라져 로그인이 됐다 안 됐다 한다.
+  // 관리자 경로만 store 로드(호출 빈도 낮아 egress 영향 미미), 방문자 경로는 그대로 절감.
+  if (pathname.startsWith('/api/lecture/admin')) return true;
   return !STORE_FREE_PREFIXES.some(p => pathname.startsWith(p));
 }
 
