@@ -108,6 +108,26 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, token, student: { name: s.name }, courses });
   }));
 
+  // 세션 복원(새로고침 대비) — 토큰만으로 학생·강의목록 재조회(코드 재입력 불필요)
+  app.get('/api/lecture/session', wrap(async (req, res) => {
+    const p = authStudent(req); if (!p) return res.status(401).json({ error: 'auth' });
+    const s = (await q('SELECT id, name, active FROM lecture_students WHERE id=$1', [p.sid])).rows[0];
+    if (!s || !s.active) return res.status(401).json({ error: 'auth' });
+    const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
+    const pr = (await q('SELECT * FROM lecture_progress WHERE student_id=$1', [s.id])).rows;
+    const pmap = {}; pr.forEach(function (x) { pmap[x.course_id] = x; });
+    const courses = cs.map(function (c) {
+      return {
+        id: c.id, title: c.title, youtube_id: c.youtube_id, description: c.description,
+        progress: pmap[c.id] ? {
+          watched_pct: pmap[c.id].watched_pct, passed: pmap[c.id].passed, completed: !!pmap[c.id].completed_at,
+          marks: Array.isArray(pmap[c.id].marks) ? pmap[c.id].marks : [], bucket: pmap[c.id].bucket || 2, last_pos: pmap[c.id].last_pos || 0
+        } : { watched_pct: 0, passed: false, completed: false, marks: [], bucket: 2, last_pos: 0 }
+      };
+    });
+    res.json({ ok: true, student: { name: s.name }, courses: courses });
+  }));
+
   // 진도 저장 — 클라가 "본 구간(버킷 인덱스) 목록"을 보냄. 서버는 기존 기록과 합집합(union)으로만
   // 누적한다. 같은 구간 반복 시청은 합집합이 안 늘어 100% 안 되고(중복 방지), 서로 다른 구간을
   // 여러 번에 나눠 봐도 정당하게 누적된다. 되감기·새로고침·세션 재접속 모두 안전.
