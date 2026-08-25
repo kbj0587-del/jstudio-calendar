@@ -273,6 +273,14 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true });
   }));
 
+  app.post('/api/lecture/admin/course-delete', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = String((req.body && req.body.id) || '').trim();
+    if (!id) return res.status(400).json({ error: 'id_required' });
+    await q('DELETE FROM lecture_courses WHERE id=$1', [id]);  // 퀴즈·수강기록은 FK ON DELETE CASCADE로 함께 삭제
+    res.json({ ok: true });
+  }));
+
   app.get('/api/lecture/admin/courses', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const rows = (await q(`SELECT c.*, (SELECT count(*) FROM lecture_quiz z WHERE z.course_id=c.id) AS quiz_count
