@@ -271,6 +271,15 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, courses: rows });
   }));
 
+  // 강의 수정 시 기존 퀴즈(정답·해설 포함) 불러오기
+  app.get('/api/lecture/admin/quiz', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const courseId = req.query.courseId;
+    if (!courseId) return res.status(400).json({ error: 'course_required' });
+    const rows = (await q('SELECT id, ord, question, options, answer_index, explanation FROM lecture_quiz WHERE course_id=$1 ORDER BY ord, id', [courseId])).rows;
+    res.json({ ok: true, quiz: rows });
+  }));
+
   app.get('/api/lecture/admin/report', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const courseId = req.query.courseId;
