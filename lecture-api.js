@@ -191,9 +191,10 @@ function registerLectureRoutes(app, deps) {
     if (!courseId) return res.status(400).json({ error: 'course_required' });
     const pr = (await q('SELECT watched_pct FROM lecture_progress WHERE student_id=$1 AND course_id=$2', [p.sid, courseId])).rows[0];
     if (!pr || pr.watched_pct < WATCH_DONE_PCT) return res.status(403).json({ error: 'not_completed', message: '영상을 끝까지 시청해야 퀴즈가 열립니다.' });
-    const rows = (await q('SELECT id, ord, question, options FROM lecture_quiz WHERE course_id=$1 ORDER BY ord, id', [courseId])).rows;
+    const rows = (await q('SELECT id, ord, question, options, explanation FROM lecture_quiz WHERE course_id=$1 ORDER BY ord, id', [courseId])).rows;
     const c = (await q('SELECT pass_score FROM lecture_courses WHERE id=$1', [courseId])).rows[0] || {};
-    res.json({ ok: true, pass_score: c.pass_score || rows.length, questions: rows.map(r => ({ id: r.id, question: r.question, options: r.options })) });
+    // explanation은 응시 중 "힌트"로 노출(정답 인덱스는 여전히 미포함). 정답 대조는 제출 시 서버에서만.
+    res.json({ ok: true, pass_score: c.pass_score || rows.length, questions: rows.map(r => ({ id: r.id, question: r.question, options: r.options, explanation: r.explanation || '' })) });
   }));
 
   // 퀴즈 제출 → 서버 채점 → 수료 판정
