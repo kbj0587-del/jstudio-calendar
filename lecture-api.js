@@ -89,15 +89,24 @@ function registerLectureRoutes(app, deps) {
 
   // ════════ 수강생(방문자) ════════
 
-  // 코드 인증 → 토큰 + 수강 가능한 강의 목록(+개인 진도)
+  // 인증(이름 + 연락처 뒤 4자리) → 토큰 + 수강 가능한 강의 목록(+개인 진도)
+  //  관리자가 등록해 둔 수강생의 이름·전화번호와 대조. 코드 입력 방식은 폐지.
   app.post('/api/lecture/verify', wrap(async (req, res) => {
-    const code = String((req.body && req.body.code) || '').trim().toUpperCase();
-    if (!code) return res.status(400).json({ error: 'code_required' });
-    const { rows } = await q('SELECT * FROM lecture_students WHERE code = $1', [code]);
+    const name = String((req.body && req.body.name) || '').trim();
+    const phone4 = String((req.body && req.body.phone4) || '').replace(/\D/g, '');
+    if (!name || phone4.length !== 4) return res.status(400).json({ error: 'name_phone_required', message: '이름과 연락처 뒤 4자리를 입력해 주세요.' });
+    // 이름 일치 + 전화번호에서 숫자만 남긴 뒤 마지막 4자리 대조
+    const { rows } = await q(
+      `SELECT * FROM lecture_students
+        WHERE lower(btrim(name)) = lower($1)
+          AND right(regexp_replace(phone, '\\D', '', 'g'), 4) = $2
+        ORDER BY active DESC, created_at DESC`,
+      [name, phone4]
+    );
     const s = rows[0];
-    if (!s || !s.active) return res.status(401).json({ error: 'invalid_code', message: '유효하지 않은 코드입니다.' });
+    if (!s || !s.active) return res.status(401).json({ error: 'invalid', message: '등록된 정보와 일치하지 않습니다. 이름과 연락처를 확인해 주세요.' });
     if (s.expires_at && new Date(s.expires_at).getTime() < Date.now())
-      return res.status(401).json({ error: 'expired', message: '코드 사용 기간이 지났습니다.' });
+      return res.status(401).json({ error: 'expired', message: '수강 가능 기간이 지났습니다.' });
 
     const token = sign({ sid: s.id, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC });
     const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
