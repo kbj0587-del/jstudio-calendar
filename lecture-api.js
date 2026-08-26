@@ -350,6 +350,33 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, rows });
   }));
 
+  // 전체 강의 기준 수강 현황 — 학생별 (전체 강의 평균 진도율 · 수료 강의 수)
+  app.get('/api/lecture/admin/report-overall', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const courseCount = Number((await q('SELECT count(*)::int AS n FROM lecture_courses')).rows[0].n) || 0;
+    const rows = (await q(
+      `SELECT s.name, s.phone, s.code,
+              COALESCE(SUM(p.watched_pct), 0)::int      AS sum_pct,
+              COUNT(p.completed_at)::int                AS completed_count,
+              COUNT(p.course_id)::int                   AS started_count
+         FROM lecture_students s
+         LEFT JOIN lecture_progress p ON p.student_id = s.id
+        GROUP BY s.id, s.name, s.phone, s.code
+        ORDER BY sum_pct DESC, s.created_at DESC`
+    )).rows;
+    const out = rows.map(function (r) {
+      return {
+        name: r.name, phone: r.phone, code: r.code,
+        // 전체 강의 기준: 진도 없는 강의는 0%로 간주 → 합계 / 전체 강의 수
+        overall_pct: courseCount ? Math.round(r.sum_pct / courseCount) : 0,
+        completed_count: r.completed_count,
+        started_count: r.started_count,
+        course_count: courseCount
+      };
+    });
+    res.json({ ok: true, course_count: courseCount, rows: out });
+  }));
+
   console.log('✅ lecture-api 라우트 등록 (/api/lecture/*)');
 }
 
