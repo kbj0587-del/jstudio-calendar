@@ -256,6 +256,37 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, students: rows });
   }));
 
+  // 수강생 정보 수정 (이름·연락처·메모·만료일·활성)
+  app.post('/api/lecture/admin/student-update', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const b = req.body || {};
+    const id = String(b.id || '').trim();
+    const name = String(b.name || '').trim();
+    const phone = String(b.phone || '').trim();
+    const memo = String(b.memo || '').trim() || null;
+    const expires_at = b.expires_at || null;
+    const active = b.active !== false;
+    if (!id) return res.status(400).json({ error: 'id_required' });
+    if (!name || !phone) return res.status(400).json({ error: 'name_phone_required' });
+    const saved = (await q(
+      `UPDATE lecture_students SET name=$2, phone=$3, memo=$4, expires_at=$5, active=$6
+        WHERE id=$1 RETURNING id, name, phone, code, active, expires_at, memo`,
+      [id, name, phone, memo, expires_at, active]
+    )).rows[0];
+    if (!saved) return res.status(404).json({ error: 'not_found' });
+    res.json({ ok: true, student: saved });
+  }));
+
+  // 수강생 삭제 (수강기록 함께 삭제)
+  app.post('/api/lecture/admin/student-delete', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const id = String((req.body && req.body.id) || '').trim();
+    if (!id) return res.status(400).json({ error: 'id_required' });
+    await q('DELETE FROM lecture_progress WHERE student_id=$1', [id]);
+    await q('DELETE FROM lecture_students WHERE id=$1', [id]);
+    res.json({ ok: true });
+  }));
+
   app.post('/api/lecture/admin/course', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const b = req.body || {};
