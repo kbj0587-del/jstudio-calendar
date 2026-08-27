@@ -256,6 +256,7 @@ async function initStore() {
         // 마이그레이션 완료 — 비활성화 (2026-06-16)
         // migrateSalesPersonalLesson();
         snapshotStore();
+        maybeDailyBackup(); // ③ 하루 1회 DB 내부 스냅샷 (egress 0)
         console.log(`✅ DB 로드 완료: 일정 ${store.events.length}건 | 사용자 ${store.users.length}명 | 카테고리 ${store.categories.length}개`);
       } else {
         await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
@@ -326,13 +327,46 @@ function changedKeys() {
   );
 }
 
-function saveToFile() {
+// ② 롤백 방지 안전장치: events가 DB 현재값보다 이 개수 이상 급감하면
+//    낡은 인스턴스의 통째 덮어쓰기로 보고 저장을 막고 DB와 병합한다.
+//    정상 단건 삭제(-1)는 통과, 대량 유실(-24 등)만 차단한다.
+const SAFETY_DROP_THRESHOLD = 5;
+
+async function saveToFile() {
   if (USE_DB && pool) {
     // ⚠️ 예전에는 store 전체를 EXCLUDED.data로 통째로 덮어썼다. 그래서 낡은 데이터를
     // 들고 있던 인스턴스가 저장하면, 자기가 건드리지도 않은 항목까지 옛날 값으로
     // 되돌려 버렸다 (2026-08-24 일정 24건 소실 사고).
     // 이제는 바뀐 키만 골라 DB의 현재 값에 병합(||)한다. 병합은 DB 안에서 원자적으로
     // 일어나므로, 안 건드린 항목은 다른 인스턴스가 방금 저장한 최신 값이 그대로 남는다.
+
+    // ── ② events 통째 덮어쓰기 방어 ──
+    // events는 하나의 배열 키라, 병합(||)을 써도 낡은 배열이 최신 배열을 통째로
+    // 대체할 수 있다. 저장 직전 DB의 events '개수만'(수 바이트, egress 무시가능)
+    // 물어보고, 우리가 쓰려는 개수가 크게 적으면 통째 저장을 막고 id 기준으로 병합한다.
+    // (삭제는 무시 → 유실 방지 쪽으로 안전하게 치우침)
+    if (changedKeys().includes('events')) {
+      try {
+        const r = await pool.query("SELECT jsonb_array_length(data->'events') AS n FROM jstudio_store WHERE id = 1");
+        const dbCount  = r.rows[0]?.n ?? 0;
+        const newCount = Array.isArray(store.events) ? store.events.length : 0;
+        if (dbCount - newCount > SAFETY_DROP_THRESHOLD) {
+          console.warn(`🛡️ 롤백 방지 발동: DB ${dbCount}건 > 저장시도 ${newCount}건 — 통째 덮어쓰기 차단 후 병합`);
+          const full = await pool.query("SELECT data->'events' AS events, xmin::text AS v FROM jstudio_store WHERE id = 1");
+          const dbEvents = Array.isArray(full.rows[0]?.events) ? full.rows[0].events : [];
+          const byId = new Map();
+          dbEvents.forEach(ev => { if (ev && ev.id) byId.set(ev.id, ev); });
+          // 우리 메모리의 변경분(수정·추가)을 위에 얹는다.
+          (store.events || []).forEach(ev => { if (ev && ev.id) byId.set(ev.id, ev); });
+          store.events = Array.from(byId.values());
+          lastXmin = full.rows[0]?.v || null;
+          if (baseStore) baseStore.events = JSON.parse(JSON.stringify(dbEvents));
+        }
+      } catch (e) {
+        console.error('안전장치 검사 실패(무시하고 진행):', e.message);
+      }
+    }
+
     const keys = changedKeys();
     if (keys.length === 0) return Promise.resolve(); // 바뀐 게 없으면 쓰지 않는다
     const patch = {};
@@ -347,6 +381,7 @@ function saveToFile() {
       if (!baseStore) snapshotStore();
       else keys.forEach(k => { baseStore[k] = JSON.parse(JSON.stringify(store[k])); });
       lastXmin = null; // 우리가 방금 바꿨으니 다음 요청 때 최신본을 다시 읽게 한다
+      maybeDailyBackup(); // ③ 하루 1회 DB 내부 스냅샷 (egress 0)
     }).catch(e => {
       console.error('❌ DB 저장 실패:', e.message);
       try {
@@ -358,6 +393,41 @@ function saveToFile() {
     try { fs.writeFileSync(DATA_FILE, JSON.stringify(store), 'utf8'); }
     catch (e) { console.error('파일 저장 실패:', e.message); }
     return Promise.resolve();
+  }
+}
+
+// ── ③ 하루 1회 DB 내부 자동 스냅샷 백업 ──────────────
+// 데이터를 앱으로 끌어오지 않고 DB 안에서 INSERT ... SELECT 로 복사하므로
+// egress가 0이다. 최근 14일치만 보관(자동 삭제)해 용량도 제한한다.
+// 프로세스당 하루 1회만 실제 쿼리하도록 메모리 플래그로 게이트한다.
+let _lastSnapDay = null;
+let _snapTableReady = false;
+async function maybeDailyBackup() {
+  if (!(USE_DB && pool)) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (_lastSnapDay === today) return;
+  _lastSnapDay = today; // 실패해도 이번 프로세스에선 재시도 안 함(스팸 방지)
+  try {
+    if (!_snapTableReady) {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS jstudio_store_snapshots (
+          snap_date  date PRIMARY KEY,
+          data       jsonb NOT NULL,
+          created_at timestamptz DEFAULT now()
+        )`);
+      await pool.query(`ALTER TABLE jstudio_store_snapshots ENABLE ROW LEVEL SECURITY`);
+      _snapTableReady = true;
+    }
+    // 오늘 스냅샷이 없고 events가 비어있지 않을 때만 DB 내부 복사
+    await pool.query(`
+      INSERT INTO jstudio_store_snapshots (snap_date, data)
+      SELECT CURRENT_DATE, data FROM jstudio_store
+       WHERE id = 1 AND jsonb_array_length(data->'events') > 0
+      ON CONFLICT (snap_date) DO NOTHING`);
+    // 14일 초과분 정리
+    await pool.query(`DELETE FROM jstudio_store_snapshots WHERE snap_date < CURRENT_DATE - INTERVAL '14 days'`);
+  } catch (e) {
+    console.error('일일 백업 스킵:', e.message);
   }
 }
 
@@ -1054,19 +1124,26 @@ app.post('/api/db-reconnect', requireAdmin, async (req, res) => {
     attachPoolErrorHandler();
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     console.log('✅ DB 재연결 성공 (관리자 요청)');
-    // 재연결 후 데이터 동기화
+    // ① 재연결 후 데이터 동기화 — DB를 진실로 취급한다.
+    //    예전엔 "메모리가 더 최신"이라 가정하고 DB를 통째로 덮어써서, 낡은 데이터를
+    //    들고 있던 인스턴스가 재연결되면 최신 DB를 롤백시켰다(2026-08 대량 유실 원인).
+    //    이제는 덮어쓰지 않고 DB 최신본을 메모리로 다시 읽어온다.
     try {
-      const result = await pool.query('SELECT data FROM jstudio_store WHERE id = 1');
+      const result = await pool.query("SELECT data, xmin::text AS v FROM jstudio_store WHERE id = 1");
       if (result.rows.length > 0) {
         const saved = result.rows[0].data;
-        // 현재 메모리 데이터가 더 최신이므로 DB에 덮어씀
-        await pool.query(
-          'INSERT INTO jstudio_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
-          [JSON.stringify(store)]
-        );
-        console.log('✅ 현재 데이터 DB에 동기화 완료');
+        store = { ...store, ...saved };
+        if (!Array.isArray(store.users))       store.users       = [];
+        if (!Array.isArray(store.activityLog)) store.activityLog = [];
+        if (!Array.isArray(store.invites))     store.invites     = [];
+        if (!Array.isArray(store.events))      store.events      = [];
+        if (!Array.isArray(store.categories))  store.categories  = DEFAULT_CATS;
+        lastXmin = result.rows[0].v;
+        snapshotStore();
+        console.log(`✅ 재연결: DB 최신본 로드 (일정 ${store.events.length}건) — 덮어쓰기 안 함`);
       } else {
         await pool.query('INSERT INTO jstudio_store (id, data) VALUES (1, $1)', [JSON.stringify(store)]);
+        snapshotStore();
         console.log('✅ DB 최초 초기화 완료');
       }
     } catch (syncErr) {
@@ -1099,6 +1176,32 @@ app.get('/api/admin/backup', requireAdmin, (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="jstudio-backup-${dateStr}.json"`);
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.json(backup);
+});
+
+// ④ 데이터 상태·자동백업 모니터링 — 관리자 전용 (집계값만, egress 무시가능)
+app.get('/api/admin/data-status', requireAdmin, async (req, res) => {
+  const info = {
+    events:  Array.isArray(store.events) ? store.events.length : 0,
+    users:   Array.isArray(store.users) ? store.users.length : 0,
+    storage: (USE_DB && pool) ? 'postgresql' : 'file(/tmp)',
+    lastSnapshotDay: _lastSnapDay,
+    snapshots: [],
+  };
+  if (USE_DB && pool) {
+    try {
+      // 스냅샷 목록: 날짜별 일정 개수만 뽑는다(전체 데이터는 전송하지 않음)
+      const r = await pool.query(`
+        SELECT snap_date::text AS date,
+               jsonb_array_length(data->'events') AS events,
+               created_at
+          FROM jstudio_store_snapshots
+         ORDER BY snap_date DESC LIMIT 14`);
+      info.snapshots = r.rows;
+    } catch (e) {
+      info.snapshotError = e.message; // 아직 스냅샷 테이블이 없으면 다음 저장 때 생성됨
+    }
+  }
+  res.json(info);
 });
 
 // 데이터 복원 (JSON 업로드) — 관리자 전용
