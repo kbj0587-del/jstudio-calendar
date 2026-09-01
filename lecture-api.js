@@ -378,6 +378,70 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, course_count: courseCount, rows: out });
   }));
 
+  // ════════ 센터영상 (영상보기 페이지 mjs.ai.kr/videos) ════════
+  //  강의와 별개. 테이블은 최초 호출 시 자동 생성.
+  let videoTableReady = false;
+  async function ensureVideoTable() {
+    if (videoTableReady) return;
+    await q(`CREATE TABLE IF NOT EXISTS center_videos (
+      id serial PRIMARY KEY,
+      youtube_id text NOT NULL,
+      title text NOT NULL DEFAULT '',
+      sort int NOT NULL DEFAULT 0,
+      active boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`);
+    videoTableReady = true;
+  }
+
+  // 방문자용: 노출(active) 영상 목록
+  app.get('/api/lecture/videos', wrap(async (req, res) => {
+    await ensureVideoTable();
+    const rows = (await q('SELECT id, youtube_id, title FROM center_videos WHERE active = true ORDER BY sort, created_at')).rows;
+    res.json({ ok: true, videos: rows });
+  }));
+
+  // 관리자: 전체 목록
+  app.get('/api/lecture/admin/videos', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureVideoTable();
+    const rows = (await q('SELECT id, youtube_id, title, sort, active, created_at FROM center_videos ORDER BY sort, created_at')).rows;
+    res.json({ ok: true, videos: rows });
+  }));
+
+  // 관리자: 추가/수정 (id 있으면 수정, 없으면 신규)
+  app.post('/api/lecture/admin/video', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureVideoTable();
+    const b = req.body || {};
+    const yt = extractYtId(b.youtube_id);   // 전체 URL 붙여넣어도 ID만 추출
+    const title = String(b.title || '').trim();
+    const sort = parseInt(b.sort, 10) || 0;
+    const active = b.active !== false;
+    if (!yt) return res.status(400).json({ error: 'youtube_required' });
+    const id = parseInt(b.id, 10);
+    let saved;
+    if (id) {
+      saved = (await q('UPDATE center_videos SET youtube_id=$2, title=$3, sort=$4, active=$5 WHERE id=$1 RETURNING id, youtube_id, title, sort, active',
+        [id, yt, title, sort, active])).rows[0];
+      if (!saved) return res.status(404).json({ error: 'not_found' });
+    } else {
+      saved = (await q('INSERT INTO center_videos (youtube_id, title, sort, active) VALUES ($1,$2,$3,$4) RETURNING id, youtube_id, title, sort, active',
+        [yt, title, sort, active])).rows[0];
+    }
+    res.json({ ok: true, video: saved });
+  }));
+
+  // 관리자: 삭제
+  app.post('/api/lecture/admin/video-delete', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureVideoTable();
+    const id = parseInt((req.body && req.body.id), 10);
+    if (!id) return res.status(400).json({ error: 'id_required' });
+    await q('DELETE FROM center_videos WHERE id=$1', [id]);
+    res.json({ ok: true });
+  }));
+
   console.log('✅ lecture-api 라우트 등록 (/api/lecture/*)');
 }
 
