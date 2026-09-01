@@ -432,6 +432,19 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, video: saved });
   }));
 
+  // 관리자: 순서 일괄 저장 (드래그앤드롭) — ids 배열 순서대로 sort 0,1,2...
+  app.post('/api/lecture/admin/video-reorder', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureVideoTable();
+    const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids : null;
+    if (!ids) return res.status(400).json({ error: 'ids_required' });
+    for (let i = 0; i < ids.length; i++) {
+      const vid = parseInt(ids[i], 10);
+      if (vid) await q('UPDATE center_videos SET sort=$2 WHERE id=$1', [vid, i]);
+    }
+    res.json({ ok: true });
+  }));
+
   // 관리자: 삭제
   app.post('/api/lecture/admin/video-delete', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
