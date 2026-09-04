@@ -184,6 +184,55 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, watched_pct: pct });
   }));
 
+  // ── 유튜브 챕터(타임라인) — 영상 설명의 타임스탬프를 파싱 ──
+  const YT_KEY = process.env.YOUTUBE_API_KEY || '';
+  const _chapCache = {};   // youtubeId -> { at, chapters }
+  const CHAP_TTL = 6 * 60 * 60 * 1000;
+  function parseChapters(desc) {
+    const out = [];
+    String(desc || '').split(/\r?\n/).forEach(function (line) {
+      // 줄 안의 타임스탬프(h:mm:ss 또는 m:ss) + 뒤에 오는 제목
+      const m = line.match(/(?:^|\s)(\d{1,2}:)?(\d{1,2}):(\d{2})\s+(.+?)\s*$/);
+      if (!m) return;
+      const h = m[1] ? parseInt(m[1], 10) : 0;
+      const t = h * 3600 + parseInt(m[2], 10) * 60 + parseInt(m[3], 10);
+      const label = m[4].replace(/^[-–—·|:]\s*/, '').trim();
+      if (label) out.push({ t: t, label: label });
+    });
+    out.sort(function (a, b) { return a.t - b.t; });
+    // 유튜브 챕터 인정 규칙에 가깝게: 3개 이상 + 첫 챕터 0초일 때만 유효 처리
+    if (out.length < 3 || out[0].t !== 0) return [];
+    return out;
+  }
+  async function fetchChapters(youtubeId) {
+    if (!YT_KEY || !youtubeId) return [];
+    const c = _chapCache[youtubeId];
+    if (c && Date.now() - c.at < CHAP_TTL) return c.chapters;
+    try {
+      const url = 'https://www.googleapis.com/youtube/v3/videos?part=snippet&id=' +
+        encodeURIComponent(youtubeId) + '&key=' + encodeURIComponent(YT_KEY);
+      const r = await fetch(url);
+      const j = await r.json();
+      const desc = j && j.items && j.items[0] && j.items[0].snippet && j.items[0].snippet.description;
+      const chapters = parseChapters(desc);
+      _chapCache[youtubeId] = { at: Date.now(), chapters: chapters };
+      return chapters;
+    } catch (e) {
+      console.error('[lecture] chapters', String((e && e.message) || e));
+      return [];
+    }
+  }
+  // 수강생: 강의의 챕터 목록
+  app.get('/api/lecture/chapters', wrap(async (req, res) => {
+    const p = authStudent(req); if (!p) return res.status(401).json({ error: 'auth' });
+    const courseId = req.query.courseId;
+    if (!courseId) return res.status(400).json({ error: 'course_required' });
+    const c = (await q('SELECT youtube_id FROM lecture_courses WHERE id=$1', [courseId])).rows[0];
+    if (!c) return res.status(404).json({ error: 'course' });
+    const chapters = await fetchChapters(c.youtube_id);
+    res.json({ ok: true, chapters: chapters, source: YT_KEY ? 'youtube' : 'no_key' });
+  }));
+
   // 퀴즈 문제 (정답 제외) — 완주(98%+) 후에만
   app.get('/api/lecture/quiz', wrap(async (req, res) => {
     const p = authStudent(req); if (!p) return res.status(401).json({ error: 'auth' });
