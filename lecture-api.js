@@ -440,43 +440,70 @@ function registerLectureRoutes(app, deps) {
       active boolean NOT NULL DEFAULT true,
       created_at timestamptz NOT NULL DEFAULT now()
     )`);
+    // 멀티 매체 지원 컬럼(유튜브/틱톡/인스타). 기존 행은 유튜브로 백필.
+    await q(`ALTER TABLE center_videos ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'youtube'`);
+    await q(`ALTER TABLE center_videos ADD COLUMN IF NOT EXISTS embed_id text`);
+    await q(`ALTER TABLE center_videos ADD COLUMN IF NOT EXISTS url text`);
+    await q(`UPDATE center_videos SET embed_id = youtube_id WHERE embed_id IS NULL`);
     videoTableReady = true;
+  }
+
+  // 입력(URL 또는 ID)에서 매체·임베드ID 판별
+  function parseVideoSource(input) {
+    const s = String(input || '').trim();
+    if (!s) return null;
+    // 틱톡: .../video/<숫자>
+    if (/tiktok\.com/i.test(s)) {
+      const m = s.match(/\/video\/(\d+)/) || s.match(/\/(\d{8,})/);
+      return { provider: 'tiktok', embed_id: m ? m[1] : '', url: s };
+    }
+    // 인스타: /reel|reels|p|tv/<코드>
+    if (/instagram\.com/i.test(s)) {
+      const m = s.match(/instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+      return { provider: 'instagram', embed_id: m ? m[1] : '', url: s };
+    }
+    // 유튜브(전체 URL 또는 11자리 ID)
+    const yt = extractYtId(s);
+    if (/^[A-Za-z0-9_-]{11}$/.test(yt)) return { provider: 'youtube', embed_id: yt, url: s };
+    return null;
   }
 
   // 방문자용: 노출(active) 영상 목록
   app.get('/api/lecture/videos', wrap(async (req, res) => {
     await ensureVideoTable();
-    const rows = (await q('SELECT id, youtube_id, title FROM center_videos WHERE active = true ORDER BY sort, created_at')).rows;
-    res.json({ ok: true, videos: rows });
+    const rows = (await q("SELECT id, provider, embed_id, youtube_id, url, title FROM center_videos WHERE active = true ORDER BY sort, created_at")).rows;
+    res.json({ ok: true, videos: rows.map(function (r) { return { id: r.id, provider: r.provider || 'youtube', embed_id: r.embed_id || r.youtube_id, url: r.url, title: r.title }; }) });
   }));
 
   // 관리자: 전체 목록
   app.get('/api/lecture/admin/videos', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     await ensureVideoTable();
-    const rows = (await q('SELECT id, youtube_id, title, sort, active, created_at FROM center_videos ORDER BY sort, created_at')).rows;
-    res.json({ ok: true, videos: rows });
+    const rows = (await q("SELECT id, provider, embed_id, youtube_id, url, title, sort, active, created_at FROM center_videos ORDER BY sort, created_at")).rows;
+    res.json({ ok: true, videos: rows.map(function (r) { return { id: r.id, provider: r.provider || 'youtube', embed_id: r.embed_id || r.youtube_id, url: r.url, title: r.title, sort: r.sort, active: r.active }; }) });
   }));
 
-  // 관리자: 추가/수정 (id 있으면 수정, 없으면 신규)
+  // 관리자: 추가/수정 (id 있으면 수정, 없으면 신규) — 유튜브/틱톡/인스타 URL 자동 판별
   app.post('/api/lecture/admin/video', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     await ensureVideoTable();
     const b = req.body || {};
-    const yt = extractYtId(b.youtube_id);   // 전체 URL 붙여넣어도 ID만 추출
+    const parsed = parseVideoSource(b.url || b.youtube_id);   // url 우선, 하위호환 youtube_id
+    if (!parsed || !parsed.embed_id) return res.status(400).json({ error: 'bad_source', message: '지원하지 않는 주소입니다. 유튜브·틱톡·인스타그램 영상 주소를 확인해 주세요.' });
     const title = String(b.title || '').trim();
     const sort = parseInt(b.sort, 10) || 0;
     const active = b.active !== false;
-    if (!yt) return res.status(400).json({ error: 'youtube_required' });
+    // youtube_id 컬럼은 NOT NULL이라 유튜브가 아니어도 embed_id로 채운다(하위호환)
+    const ytCol = parsed.provider === 'youtube' ? parsed.embed_id : parsed.embed_id;
     const id = parseInt(b.id, 10);
     let saved;
     if (id) {
-      saved = (await q('UPDATE center_videos SET youtube_id=$2, title=$3, sort=$4, active=$5 WHERE id=$1 RETURNING id, youtube_id, title, sort, active',
-        [id, yt, title, sort, active])).rows[0];
+      saved = (await q('UPDATE center_videos SET provider=$2, embed_id=$3, url=$4, youtube_id=$5, title=$6, sort=$7, active=$8 WHERE id=$1 RETURNING id, provider, embed_id, url, title, sort, active',
+        [id, parsed.provider, parsed.embed_id, parsed.url, ytCol, title, sort, active])).rows[0];
       if (!saved) return res.status(404).json({ error: 'not_found' });
     } else {
-      saved = (await q('INSERT INTO center_videos (youtube_id, title, sort, active) VALUES ($1,$2,$3,$4) RETURNING id, youtube_id, title, sort, active',
-        [yt, title, sort, active])).rows[0];
+      saved = (await q('INSERT INTO center_videos (provider, embed_id, url, youtube_id, title, sort, active) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, provider, embed_id, url, title, sort, active',
+        [parsed.provider, parsed.embed_id, parsed.url, ytCol, title, sort, active])).rows[0];
     }
     res.json({ ok: true, video: saved });
   }));
