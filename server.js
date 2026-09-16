@@ -635,6 +635,19 @@ app.post('/api/contract/pin/change', async (req, res) => {
   res.json({ ok: true });
 });
 
+// PIN 분실 시 초기화 — 캘린더 관리자 비밀번호로만 가능하다.
+// 키를 지우지 않고 null 로 둔다: saveToFile 은 바뀐 키를 병합(||)하는 방식이라
+// 키 삭제는 DB 에 반영되지 않기 때문이다. null 이면 기본 PIN(1234)으로 되돌아간다.
+app.post('/api/contract/pin/reset', async (req, res) => {
+  const { adminPassword } = req.body || {};
+  if (!checkAdminPassword(adminPassword)) {
+    return res.status(403).json({ error: 'forbidden', message: '관리자 비밀번호가 맞지 않습니다.' });
+  }
+  store.contractPinHash = null;
+  await saveToFile();
+  res.json({ ok: true, pin: CONTRACT_PIN_DEFAULT });
+});
+
 // 관리자 비밀번호 변경 (현재 비밀번호는 이미 x-admin-password 헤더로 검증됨 — requireAdmin)
 app.post('/api/admin/change-password', requireAdmin, async (req, res) => {
   const { newPassword } = req.body || {};

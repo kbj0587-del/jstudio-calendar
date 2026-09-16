@@ -37,6 +37,34 @@
     });
     setTimeout(function () { $('#gpw').focus(); }, 100);
   }
+  /* PIN 분실 — 캘린더 관리자 비밀번호로 초기 PIN(1234)으로 되돌린다 */
+  var forgotBtn = $('#gforgot');
+  if (forgotBtn) {
+    forgotBtn.addEventListener('click', function () {
+      var pw = prompt('PIN을 초기값(1234)으로 되돌립니다.\n\n캘린더 관리자 비밀번호를 입력하세요.');
+      if (pw === null) return;
+      var err = $('#gerr');
+      err.textContent = '초기화 중…';
+      fetch('/api/contract/pin/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminPassword: String(pw).trim() })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) {
+            err.textContent = '';
+            alert('PIN을 1234로 되돌렸습니다.');
+            $('#gpw').value = '';
+            $('#gpw').focus();
+          } else {
+            err.textContent = (d && d.message) || '초기화하지 못했습니다';
+          }
+        })
+        .catch(function () { err.textContent = '서버에 연결할 수 없습니다'; });
+    });
+  }
+
   function submitPin() {
     var pin = $('#gpw').value.trim();
     var err = $('#gerr');
