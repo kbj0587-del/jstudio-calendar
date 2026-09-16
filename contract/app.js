@@ -257,23 +257,29 @@
       put('stdItem', esc(val('stdItem')));
       put('stdPrice', comma(val('stdPrice')) || esc(val('stdPrice')));
 
-      /* 조항별 동의 표시 — 화면 서명이면 체크 결과를, 종이 자필·빈 양식이면
-         빈 칸(□)을 찍어 회원이 펜으로 직접 체크하도록 한다. */
-      var penMode = blankMode || sigMode() === 'paper';
-      var marks = $$('#sheet [data-consent] > .cmark');
-      marks.forEach(function (el, i) {
+      /* 조항별 동의 표시 — 전자서명일 때만 계약서에 남긴다.
+         종이 자필은 회원이 종이에 직접 서명하므로 표시를 아예 빼고,
+         빈 양식은 손으로 체크할 수 있도록 빈 칸(□)으로 찍는다. */
+      var paperMode = sigMode() === 'paper';
+      var penMode = blankMode || paperMode;
+      $$('#sheet [data-consent] > .cmark').forEach(function (el, i) {
+        el.style.display = paperMode ? 'none' : '';
         el.textContent = '약관동의 ' + ((!penMode && consentState[i]) ? '☑' : '□');
       });
 
-      var sumMarks = CLAUSES.map(function (c, i) {
-        return '<span class="ck">' + ((!penMode && consentState[i]) ? '☑' : '□') + c.short + '</span>';
-      }).join('');
-      var head = penMode
-        ? '<span class="t">중요 조항 동의 (각 항목에 직접 체크해 주세요)</span> '
-        : (agreed && agreedAt
-          ? '<span class="t">전자 동의 확인 ' + agreedAt + '</span> '
-          : '<span class="t">중요 조항 동의</span> ');
-      put('agSum', head + sumMarks);
+      var agEl = sheet.querySelector('.agsum');
+      if (agEl) agEl.style.display = paperMode ? 'none' : '';
+      if (!paperMode) {
+        var sumMarks = CLAUSES.map(function (c, i) {
+          return '<span class="ck">' + ((!penMode && consentState[i]) ? '☑' : '□') + c.short + '</span>';
+        }).join('');
+        var head = blankMode
+          ? '<span class="t">중요 조항 동의 (각 항목에 직접 체크해 주세요)</span> '
+          : (agreed && agreedAt
+            ? '<span class="t">전자 동의 확인 ' + agreedAt + '</span> '
+            : '<span class="t">중요 조항 동의</span> ');
+        put('agSum', head + sumMarks);
+      }
 
       put('agreeMark', '동의함 ' + ((!blankMode && agreed) ? '☑' : '□'));
       put('signDate', korDate(dval("signDate"), '20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일'));
