@@ -105,7 +105,11 @@
     /* 조항별 동의 상태. 서버에 남기지 않으므로 출력물이 유일한 근거가 된다.
        계약서 본문 각 조항 옆과 하단 요약 줄에 그대로 찍는다. */
     var CLAUSES = $$("#sheet [data-consent]").map(function (el) {
-      return { label: el.dataset.consent, short: el.dataset.short || el.dataset.consent };
+      return {
+        label: el.dataset.consent,
+        short: el.dataset.short || el.dataset.consent,
+        mark: el.dataset.mark || '약관동의'
+      };
     });
     var consentState = CLAUSES.map(function () { return false; });
     var agreedAt = "";
@@ -264,7 +268,7 @@
       var penMode = blankMode || paperMode;
       $$('#sheet [data-consent] > .cmark').forEach(function (el, i) {
         el.style.display = paperMode ? 'none' : '';
-        el.textContent = '약관동의 ' + ((!penMode && consentState[i]) ? '☑' : '□');
+        el.textContent = CLAUSES[i].mark + ' ' + ((!penMode && consentState[i]) ? '☑' : '□');
       });
 
       var agEl = sheet.querySelector('.agsum');
@@ -718,8 +722,10 @@
       $$('#mbTerms [data-consent]').forEach(function (el, i) {
         var lab = document.createElement('label');
         lab.className = 'mb-ck';
+        /* '수업참여 약관동의'에서 끝의 '동의'를 떼어 문장으로 잇는다 */
+        var cat = String(el.dataset.mark || '약관').replace(/\s*동의$/, '');
         lab.innerHTML = '<input type="checkbox" data-ck="' + i + '" autocomplete="off" />' +
-          '<span><b>' + el.dataset.consent + '</b> — 위 내용을 확인하고 동의합니다.</span>';
+          '<span><b>' + cat + '</b> — 위 내용을 모두 확인하였으며, 이에 동의합니다.</span>';
         el.parentNode.insertBefore(lab, el.nextSibling);
       });
       $$('#mbTerms input[data-ck]').forEach(function (c) {
