@@ -248,7 +248,8 @@
       sgCtx.strokeStyle = '#111';
       sgCtx.clearRect(0, 0, r.width, r.height);
       sgDrawn = false;
-      $('#sgSave').disabled = true;
+      $("#sgSave").disabled = true;
+      $("#sgWm").style.display = "";
     }
     function sgPos(e) {
       var r = sgCanvas.getBoundingClientRect();
@@ -257,7 +258,8 @@
     sgCanvas.addEventListener('pointerdown', function (e) {
       e.preventDefault();
       sgDrawing = true; sgDrawn = true;
-      $('#sgSave').disabled = false;
+      $("#sgSave").disabled = false;
+      $("#sgWm").style.display = "none";   /* 쓰기 시작하면 안내 문구를 지운다 */
       try { sgCanvas.setPointerCapture(e.pointerId); } catch (err) { /* 미지원 환경 */ }
       var p = sgPos(e);
       sgCtx.beginPath(); sgCtx.moveTo(p.x, p.y); sgCtx.lineTo(p.x + 0.1, p.y); sgCtx.stroke();
@@ -278,8 +280,11 @@
         which === "A" ? "가입자 서명"
           : which === "S" ? ("담당자 서명 등록 — " + pendingStaffName)
             : "담당자 서명";
+      var who = which === "A" ? "가입자" : "담당자";
+      $("#sgSub").innerHTML = "성명을 <b>정자로</b> 또박또박 써 주세요 (손가락 또는 펜)";
+      $("#sgWm").textContent = who + " 성명을 정자로 써 주세요";
       sgModal.hidden = false;
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = "hidden";
       /* 화면에 붙은 뒤에 크기를 재야 캔버스 해상도가 맞는다 */
       requestAnimationFrame(sgSetup);
     }

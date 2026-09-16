@@ -99,7 +99,8 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .sg-head h2{margin:0;font-size:18px}
 .sg-sub{font-size:13px;color:#8a8880}
 .sg-pad{position:relative;margin:12px 0;border:1px solid #d5d3cc;border-radius:12px;background:#fdfdfc;overflow:hidden}
-.sg-pad canvas{display:block;width:100%;height:min(46vh,300px);height:min(46dvh,300px);touch-action:none}
+.sg-wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#dedbd4;font-size:clamp(18px,5vw,34px);font-weight:600;letter-spacing:2px;pointer-events:none;user-select:none}
+.sg-pad canvas{position:relative;z-index:1;background:transparent;display:block;width:100%;height:min(46vh,300px);height:min(46dvh,300px);touch-action:none}
 .sg-line{position:absolute;left:8%;right:8%;bottom:34px;border-bottom:1px dashed #cfcdc6;pointer-events:none}
 .sg-foot{display:flex;gap:8px;align-items:center}
 .sg-foot button{height:44px;padding:0 18px;border:1px solid #d5d3cc;border-radius:10px;background:#fff;font-size:14px;cursor:pointer}
@@ -427,9 +428,9 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
   <div class="sg-box" role="dialog" aria-modal="true" aria-labelledby="sgTitle">
     <div class="sg-head">
       <h2 id="sgTitle">가입자 서명</h2>
-      <span class="sg-sub">손가락 또는 펜으로 아래 칸에 서명해 주세요</span>
+      <span class="sg-sub" id="sgSub">성명을 <b>정자로</b> 또박또박 써 주세요 (손가락 또는 펜)</span>
     </div>
-    <div class="sg-pad"><canvas id="sgCanvas"></canvas><span class="sg-line"></span></div>
+    <div class="sg-pad"><span class="sg-wm" id="sgWm">성명을 정자로 써 주세요</span><canvas id="sgCanvas"></canvas><span class="sg-line"></span></div>
     <div class="sg-foot">
       <button type="button" id="sgClear">지우기</button>
       <span style="flex:1"></span>
