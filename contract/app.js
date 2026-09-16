@@ -861,9 +861,7 @@
       $('#mbProg').classList.toggle('done', ok);
       $('#mbAll').disabled = !readToEnd;
       $('#mbAll').classList.toggle('done', ok);
-      $('#mbAll').textContent = ok
-        ? '✓ 전체 동의 완료'
-        : (readToEnd ? '약관 전체 동의' : '약관을 끝까지 읽어 주세요');
+      $('#mbAll').textContent = ok ? '✓ 전체 동의 완료' : '약관 모두 동의';
 
       consentState = all.map(function (c) { return c.checked; });
       if (ok && !agreed) agreedAt = stamp();

@@ -122,7 +122,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .mb-dl dd{margin:0;font-weight:600;text-align:right}
 .mb-note{font-size:13px;color:#8a8880;margin:14px 0 0}
 .mb-terms{max-height:46vh;max-height:46dvh;overflow:auto;border:1px solid #e2e0da;border-radius:10px;padding:14px 16px;-webkit-overflow-scrolling:touch}
-.mb-scrollhint{font-size:13px;color:#b98a1a;margin:10px 0 0;font-weight:600}
+.mb-scrollhint{font-size:13px;color:#b98a1a;margin:-6px 0 10px;font-weight:600}
 .mb-scrollhint.done{color:#1a7a4f}
 .mb-foot{margin-top:14px}
 .mb-prog{font-size:13px;font-weight:600;color:#8a8880}
@@ -509,11 +509,11 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 
     <section class="mb-card">
       <h3>2. 약관을 읽고 동의해 주세요</h3>
+      <p class="mb-scrollhint" id="mbScrollHint">⬇ 약관을 끝까지 내려서 읽어 주세요</p>
       <div class="mb-terms" id="mbTerms"></div>
       <div class="mb-foot">
         <div class="mb-prog" id="mbProg">동의 0 / 0</div>
-        <p class="mb-scrollhint" id="mbScrollHint">⬇ 약관을 끝까지 내려서 읽어 주세요</p>
-        <button type="button" id="mbAll" class="mb-allbtn" disabled>약관 전체 동의</button>
+        <button type="button" id="mbAll" class="mb-allbtn" disabled>약관 모두 동의</button>
       </div>
 
     </section>
