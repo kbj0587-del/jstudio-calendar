@@ -16,7 +16,7 @@
 .sheet .copytag{position:absolute;right:0;top:0;border:.6pt solid #000;border-radius:1mm;padding:.3mm 2mm;font-size:7.5pt;font-weight:700;letter-spacing:0}
 .sheet .terms li.calc{background:#efefef;padding:.8mm 2mm;font-weight:700;margin:.8mm 0}
 .sheet table{width:100%;border-collapse:collapse;table-layout:fixed}
-.sheet td{border:.6pt solid #000;padding:1.4mm 2mm;vertical-align:middle;height:7mm}
+.sheet td{border:.6pt solid #000;padding:1.1mm 2mm;vertical-align:middle;height:6.6mm}
 .sheet .band td{
   background:#000;color:#fff;text-align:center;font-weight:700;
   font-size:10pt;letter-spacing:3px;height:6.2mm;padding:.8mm
@@ -30,7 +30,7 @@
 .sheet .val.c{text-align:center}
 .sheet .val.r{text-align:right}
 .sheet .ph{color:#9a9a9a;font-weight:400}
-.sheet .memo{height:12mm;vertical-align:top;padding-top:2mm;white-space:pre-wrap}
+.sheet .memo{height:10mm;vertical-align:top;padding-top:2mm;white-space:pre-wrap}
 .sheet .opt{display:inline-block;margin-right:2.4mm;white-space:nowrap}
 .sheet .val.tight{white-space:nowrap}
 .sheet .val.tight .opt{margin-right:1.1mm;font-size:7.8pt}
@@ -42,25 +42,29 @@
   margin:0;font-size:8.3pt;font-weight:800;background:#e3e3e3;
   border-top:.6pt solid #000;padding:.6mm 2mm;letter-spacing:.2px
 }
-.sheet .terms ul{margin:0;padding:.7mm 2mm .8mm 0;list-style:none}
-.sheet .terms li{position:relative;padding-left:4mm;margin:.2mm 0;font-size:7.3pt;line-height:1.38}
+.sheet .terms ul{margin:0;padding:.5mm 2mm .6mm 0;list-style:none}
+.sheet .terms li{position:relative;padding-left:4mm;margin:.1mm 0;font-size:7.2pt;line-height:1.34}
 .sheet .terms li:before{content:"▤";position:absolute;left:.6mm;top:0;font-size:6pt}
 .sheet .terms li.sub{padding-left:7mm}
 .sheet .terms li.sub:before{content:"•";left:4.4mm;top:-.3mm;font-size:8pt}
 .sheet .terms li.plain{padding-left:2mm}
 .sheet .terms li.plain:before{content:""}
 .sheet .terms .em{font-weight:800}
+.sheet .cmark{display:inline-block;min-width:3.4mm;margin-right:.8mm;font-weight:800}
+.sheet .agsum{border:.6pt solid #000;border-bottom:none;padding:.8mm 2mm;font-size:6.8pt;font-weight:700;text-align:center;letter-spacing:-.1px}
+.sheet .agsum .ck{display:inline-block;margin:0 1mm}
+.sheet .agsum .t{color:#555;font-weight:400}
 .sheet .terms .red{font-weight:800;text-decoration:underline}
 .sheet .terms .gray{color:#555}
 .sheet .exempt{border:1pt solid #000;padding:.6mm 1mm 1.4mm}
-.sheet .consent{border:none;padding:1.4mm 2mm 1mm;text-align:justify;font-size:7pt;line-height:1.45;font-weight:700}
+.sheet .consent{border:none;padding:1mm 2mm .8mm;text-align:justify;font-size:6.9pt;line-height:1.4;font-weight:700}
 .sheet .consent .agree{float:right;margin-left:3mm}
 
 .sheet .sign{width:100%;border-collapse:collapse;margin-top:0}
-.sheet .sign td{height:10mm;border:.6pt solid #000}
+.sheet .sign td{height:9.4mm;border:.6pt solid #000}
 .sheet .sign .date{text-align:center;font-weight:600;font-size:9pt}
 .sheet .sign .who{width:34%;padding:0}
-.sheet .sign .who div{display:flex;align-items:center;justify-content:flex-end;gap:2mm;height:10mm;padding-right:3mm}
+.sheet .sign .who div{display:flex;align-items:center;justify-content:flex-end;gap:2mm;height:9.4mm;padding-right:3mm}
 .sheet .sign .who .nm{font-weight:700;font-size:9pt}
 .sheet .sign .slot{width:32mm;height:9mm;border-bottom:.6pt solid #666;display:flex;align-items:flex-end;justify-content:center}
 .sheet .sign .slot img{max-width:100%;max-height:9mm}

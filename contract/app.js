@@ -102,6 +102,13 @@
     var totalTouched = false;   /* 총 결제금액을 손으로 고쳤는가 */
     var toTouched = false;      /* 강습 종료일을 손으로 고쳤는가 */
     var agreed = false;         /* 약관 동의 여부(전자서명 전제) */
+    /* 조항별 동의 상태. 서버에 남기지 않으므로 출력물이 유일한 근거가 된다.
+       계약서 본문 각 조항 옆과 하단 요약 줄에 그대로 찍는다. */
+    var CLAUSES = $$("#sheet [data-consent]").map(function (el) {
+      return { label: el.dataset.consent, short: el.dataset.short || el.dataset.consent };
+    });
+    var consentState = CLAUSES.map(function () { return false; });
+    var agreedAt = "";
 
     /* 값 포맷 도우미 */
     function digits(v) { return String(v || '').replace(/[^0-9]/g, ''); }
@@ -248,6 +255,24 @@
       put('stdItem', esc(val('stdItem')));
       put('stdPrice', comma(val('stdPrice')) || esc(val('stdPrice')));
 
+      /* 조항별 동의 표시 — 화면 서명이면 체크 결과를, 종이 자필·빈 양식이면
+         빈 칸(□)을 찍어 회원이 펜으로 직접 체크하도록 한다. */
+      var penMode = blankMode || sigMode() === 'paper';
+      var marks = $$('#sheet [data-consent] > .cmark');
+      marks.forEach(function (el, i) {
+        el.textContent = (!penMode && consentState[i]) ? '☑' : '□';
+      });
+
+      var sumMarks = CLAUSES.map(function (c, i) {
+        return '<span class="ck">' + ((!penMode && consentState[i]) ? '☑' : '□') + c.short + '</span>';
+      }).join('');
+      var head = penMode
+        ? '<span class="t">중요 조항 동의 (각 항목에 직접 체크해 주세요)</span> '
+        : (agreed && agreedAt
+          ? '<span class="t">전자 동의 확인 ' + agreedAt + '</span> '
+          : '<span class="t">중요 조항 동의</span> ');
+      put('agSum', head + sumMarks);
+
       put('agreeMark', '동의함 ' + ((!blankMode && agreed) ? '☑' : '□'));
       put('signDate', korDate(dval("signDate"), '20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일'));
 
@@ -263,6 +288,14 @@
 
       renderSigns();
       saveDraft();
+    }
+
+    /* 동의 시각 — 출력물에 남겨 언제 동의했는지 확인할 수 있게 한다 */
+    function stamp() {
+      var d = new Date();
+      var p = function (n) { return String(n).padStart(2, "0"); };
+      return d.getFullYear() + "." + p(d.getMonth() + 1) + "." + p(d.getDate()) +
+        " " + p(d.getHours()) + ":" + p(d.getMinutes());
     }
 
     function esc(s) {
@@ -653,7 +686,7 @@
       buildMemberTerms();
       $('#mbInfo').innerHTML = memberInfoRows();
       /* 이미 동의를 받아 둔 계약서라면 상태를 복원하고, 아니면 처음부터 받는다 */
-      cks().forEach(function (c) { c.checked = agreed; });
+      cks().forEach(function (c, i) { c.checked = !!consentState[i]; });
       readToEnd = agreed;
       $('#mbScrollHint').textContent = agreed ? '✅ 약관을 확인했습니다' : '⬇ 약관을 끝까지 내려서 읽어 주세요';
       $('#mbScrollHint').classList.toggle('done', agreed);
@@ -775,9 +808,12 @@
         ? '✓ 전체 동의 완료 — 아래에서 서명해 주세요'
         : (readToEnd ? '✓ 약관을 모두 읽었으며 전체 동의합니다' : '약관을 끝까지 읽으면 열립니다');
 
+      consentState = all.map(function (c) { return c.checked; });
+      if (ok && !agreed) agreedAt = stamp();
+      if (!ok) agreedAt = "";
       agreed = ok;
-      $('#mbSign').disabled = !agreed;
-      if (!agreed) $('#mbDone').hidden = true;
+      $("#mbSign").disabled = !agreed;
+      if (!agreed) $("#mbDone").hidden = true;
       applyAgree();
       render();
       saveDraft();
@@ -982,6 +1018,8 @@
           d.g[g] = pickedList(g);   /* 여러 개 고를 수 있는 항목(종목)까지 담는다 */
         });
         d.agreed = agreed;
+        d.consent = consentState;
+        d.agreedAt = agreedAt;
         d.sig.a = sig.A;
         d.sig.b = sig.B;
         localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
@@ -1003,6 +1041,8 @@
         });
       });
       agreed = !!d.agreed;
+      if (Array.isArray(d.consent) && d.consent.length === CLAUSES.length) consentState = d.consent;
+      agreedAt = d.agreedAt || "";
       if (d.sig) { sig.A = d.sig.a || ""; sig.B = d.sig.b || ""; }
     }
 
