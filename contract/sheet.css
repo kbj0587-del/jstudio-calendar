@@ -51,11 +51,11 @@
 .sheet .terms .red{font-weight:800;text-decoration:underline}
 .sheet .terms .gray{color:#555}
 .sheet .exempt{border:1pt solid #000;padding:.6mm 1mm 1.4mm}
-.sheet .consent{border:.6pt solid #000;border-top:none;padding:1.6mm 2mm;text-align:center;font-size:7.4pt;line-height:1.6;font-weight:700}
+.sheet .consent{border:none;padding:2.2mm 2mm 1.6mm;text-align:center;font-size:7.4pt;line-height:1.6;font-weight:700}
 .sheet .consent .agree{display:block;text-align:right;margin-top:.6mm}
 
 .sheet .sign{width:100%;border-collapse:collapse;margin-top:0}
-.sheet .sign td{height:11mm;border:.6pt solid #000;border-top:none}
+.sheet .sign td{height:11mm;border:.6pt solid #000}
 .sheet .sign .date{text-align:center;font-weight:600;font-size:9pt}
 .sheet .sign .who{width:34%;padding:0}
 .sheet .sign .who div{display:flex;align-items:center;justify-content:flex-end;gap:2mm;height:11mm;padding-right:3mm}
@@ -65,6 +65,3 @@
 .sheet .sign .slot span{font-size:7.5pt;color:#999;padding-bottom:1mm}
 
 /* 잉크 절약(배경 없이) 모드 — 검정 띠를 외곽선으로 대체 */
-.sheet.ink .band td{background:#fff;color:#000;border:1.2pt solid #000}
-.sheet.ink .lbl{background:#fff}
-.sheet.ink .terms h2{background:#fff;border-bottom:.4pt solid #000}

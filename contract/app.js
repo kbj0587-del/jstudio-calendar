@@ -101,7 +101,8 @@
     /* 체크 상태를 계약서 표기(□신규 ☑재등록 …)로.
        종목은 여러 개를 고를 수 있어 선택값을 배열로 다룬다. */
     function pickedList(name) {
-      return $$('input[name="' + name + '"]:checked').map(function (el) { return el.value; });
+      if (blankMode) return [];
+      return $$("input[name=\"" + name + "\"]:checked").map(function (el) { return el.value; });
     }
     function optLine(name, opts, etcVal) {
       var on = pickedList(name);
@@ -130,6 +131,7 @@
       return y + '-' + String(m).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
     }
     function dval(k) {
+      if (blankMode) return '';
       var el = $('[data-f="' + k + '"]');
       if (!el) return '';
       return normDate(el.value);
@@ -139,7 +141,14 @@
       if (el) el.value = iso || '';
     }
 
-    function val(k) { var el = $('[data-f="' + k + '"]'); return el ? el.value.trim() : ''; }
+    /* 빈 양식 출력 중에는 입력값을 모두 비어 있는 것으로 취급한다.
+       입력칸 자체는 건드리지 않으므로 작성 중이던 내용은 사라지지 않는다. */
+    var blankMode = false;
+    function val(k) {
+      if (blankMode) return '';
+      var el = $('[data-f="' + k + '"]');
+      return el ? el.value.trim() : '';
+    }
     function put(k, html) {
       var el = sheet.querySelector('[data-v="' + k + '"]');
       if (el) el.innerHTML = html;
@@ -208,6 +217,7 @@
       put('stdItem', esc(val('stdItem')));
       put('stdPrice', comma(val('stdPrice')) || esc(val('stdPrice')));
 
+      put('agreeMark', '동의함 ' + ((!blankMode && agreed) ? '☑' : '□'));
       put('signDate', korDate(dval("signDate"), '20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일'));
 
       /* 회원권 사용기준일 안내 */
@@ -325,7 +335,7 @@
       return el ? el.value : 'screen';
     }
     function renderSigns() {
-      var paper = sigMode() === 'paper';
+      var paper = blankMode || sigMode() === 'paper';
       fillSlot('#slotA', paper ? '' : sig.A);
       fillSlot('#slotB', paper ? '' : sig.B, val('staff'));
       ['A', 'B'].forEach(function (k) {
@@ -564,12 +574,17 @@
       }
       buildMemberTerms();
       $('#mbInfo').innerHTML = memberInfoRows();
+      /* 이미 동의를 받아 둔 계약서라면 상태를 복원하고, 아니면 처음부터 받는다 */
+      $$('#mbKeys input[data-key]').forEach(function (c) {
+        c.checked = agreed;
+        c.disabled = !agreed;
+      });
+      $('#mbKeys').classList.toggle('off', !agreed);
+      $('#mbAll').disabled = !agreed;
       $('#mbChk').checked = agreed;
-      $('#mbChk').disabled = !agreed;
-      $('#mbAgreeLabel').classList.toggle('off', !agreed);
       $('#mbScrollHint').textContent = agreed ? '✅ 약관을 확인했습니다' : '⬇ 약관을 끝까지 내려서 읽어 주세요';
       $('#mbScrollHint').classList.toggle('done', agreed);
-      $('#mbSign').disabled = !agreed;
+      syncConsent();
       $('#mbFin').hidden = true;
       memberSigned();
       memberOn = true;
@@ -587,33 +602,95 @@
     }
 
     /* 회원이 임의로 빠져나가 입력값을 건드리지 못하도록 관리자 비밀번호로만 복귀 */
-    function exitMember() {
-      var pin = prompt("직원 확인 — PIN을 입력하세요");
-      if (pin === null) return;
-      verifyPin(String(pin).trim())
-        .then(function (d) {
-          if (d && d.ok) closeMember();
-          else alert("PIN이 맞지 않습니다.");
-        })
-        .catch(function () { alert("서버에 연결할 수 없습니다."); });
+    /* 회원 기기에서는 키보드 대신 화면 숫자패드로 PIN을 받는다.
+       (아이폰 기본 키보드가 문자로 열리는 것을 막고, 입력도 빠르다) */
+    var ppBuf = '';
+    function ppDraw() {
+      $('#ppDots').innerHTML = new Array(ppBuf.length + 1).join('<span></span>');
     }
+    function openPinPad() {
+      ppBuf = ''; ppDraw();
+      $('#ppErr').textContent = '';
+      $('#pinPad').hidden = false;
+    }
+    function closePinPad() { $('#pinPad').hidden = true; }
+    function ppSubmit() {
+      if (!/^\d{4,6}$/.test(ppBuf)) { $('#ppErr').textContent = 'PIN은 숫자 4~6자리입니다'; return; }
+      $('#ppErr').textContent = '확인 중…';
+      verifyPin(ppBuf)
+        .then(function (d) {
+          if (d && d.ok) { closePinPad(); closeMember(); }
+          else { $('#ppErr').textContent = 'PIN이 맞지 않습니다'; ppBuf = ''; ppDraw(); }
+        })
+        .catch(function () { $('#ppErr').textContent = '서버에 연결할 수 없습니다'; });
+    }
+    $$('#pinPad [data-k]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var k = b.dataset.k;
+        if (k === 'ok') return ppSubmit();
+        if (k === 'back') { ppBuf = ppBuf.slice(0, -1); ppDraw(); return; }
+        if (ppBuf.length >= 6) return;
+        ppBuf += k; ppDraw();
+        $('#ppErr').textContent = '';
+      });
+    });
+    $('#ppCancel').addEventListener('click', closePinPad);
+
+    function exitMember() { openPinPad(); }
+
+    /* 서명 전이라도 직원이 창을 닫을 수 있어야 한다(회원이 나중에 하겠다고 할 때 등).
+       닫기도 PIN을 거치지만, 서명이 없으면 그 사실을 먼저 알려 준다. */
+    $('#mbClose').addEventListener('click', function () {
+      if (!sig.A && !confirm('아직 서명을 받지 않았습니다. 그래도 회원 화면을 닫을까요?\n\n작성한 내용은 그대로 남습니다.')) return;
+      openPinPad();
+    });
 
     /* 약관을 끝까지 내려야 동의 체크가 열린다 */
-    $('#mbTerms').addEventListener('scroll', function () {
-      var el = this;
-      if (el.scrollTop + el.clientHeight < el.scrollHeight - 24) return;
-      if (!$('#mbChk').disabled) return;
-      $('#mbChk').disabled = false;
-      $('#mbAgreeLabel').classList.remove('off');
+    /* 약관을 끝까지 내려야 중요 조항 동의가 열린다 */
+    function unlockConsent() {
+      if (!$('#mbKeys').classList.contains('off')) return;
+      $('#mbKeys').classList.remove('off');
+      $$('#mbKeys input[data-key]').forEach(function (c) { c.disabled = false; });
+      $('#mbAll').disabled = false;
       $('#mbScrollHint').textContent = '✅ 약관을 끝까지 확인했습니다';
       $('#mbScrollHint').classList.add('done');
+    }
+    $('#mbTerms').addEventListener('scroll', function () {
+      if (this.scrollTop + this.clientHeight < this.scrollHeight - 24) return;
+      unlockConsent();
     });
-    $('#mbChk').addEventListener('change', function () {
-      agreed = this.checked;
+
+    /* 중요 조항을 모두 체크해야 전체 동의가 열리고, 전체 동의를 해야 서명이 열린다 */
+    function keysAllChecked() {
+      var all = $$('#mbKeys input[data-key]');
+      return all.length > 0 && all.every(function (c) { return c.checked; });
+    }
+    function syncConsent() {
+      var ok = keysAllChecked();
+      $('#mbAll').classList.toggle('done', ok);
+      $('#mbAll').textContent = ok ? '✓ 중요 조항 전체 동의 완료' : '✓ 위 항목 전체 동의';
+      var chk = $('#mbChk');
+      chk.disabled = !ok;
+      $('#mbAgreeLabel').classList.toggle('off', !ok);
+      if (!ok && chk.checked) chk.checked = false;
+      $('#mbAgreeLabel').classList.toggle('done', chk.checked);
+      agreed = ok && chk.checked;
       $('#mbSign').disabled = !agreed;
-      if (!agreed) { $('#mbDone').hidden = true; }
-      applyAgree(); saveDraft();
+      if (!agreed) $('#mbDone').hidden = true;
+      applyAgree();
+      render();
+      saveDraft();
+    }
+    $$('#mbKeys input[data-key]').forEach(function (c) {
+      c.addEventListener('change', syncConsent);
     });
+    $('#mbAll').addEventListener('click', function () {
+      var turnOn = !keysAllChecked();
+      $$('#mbKeys input[data-key]').forEach(function (c) { c.checked = turnOn; });
+      syncConsent();
+    });
+    $('#mbChk').addEventListener('change', syncConsent);
+
     $('#mbSign').addEventListener('click', function () { openSign('A'); });
     $('#mbDone').addEventListener('click', function () {
       $('#mbFin').hidden = false;
@@ -716,6 +793,7 @@
       if (msg) $('#busyMsg').textContent = msg;
     }
     function fileName() {
+      if (blankMode) return '제이스튜디오_회원가입계약서_빈양식.pdf';
       var n = val('name') || '회원';
       var d = dval('signDate') || new Date().toISOString().slice(0, 10);
       return '제이스튜디오_회원가입계약서_' + n + '_' + d + '.pdf';
@@ -743,7 +821,7 @@
 
     function sharePdf() {
       busy(true, 'PDF를 만드는 중…');
-      buildPdf().then(function (pdf) {
+      return buildPdf().then(function (pdf) {
         var name = fileName();
         var blob = pdf.output('blob');
         var file = new File([blob], name, { type: 'application/pdf' });
@@ -809,21 +887,9 @@
       location.reload();
     });
 
-    /* ── 잉크 절약 · 인쇄 ────────────────────────────────── */
-    var ink = localStorage.getItem('jstudio_contract_ink') === '1';
-    function applyInk() {
-      sheet.classList.toggle('ink', ink);
-      $('#btnInk').textContent = '잉크 절약: ' + (ink ? '켬' : '끔');
-    }
-    $('#btnInk').addEventListener('click', function () {
-      ink = !ink;
-      try { localStorage.setItem('jstudio_contract_ink', ink ? '1' : '0'); } catch (e) {}
-      applyInk();
-    });
-    applyInk();
-
-    /* iOS·설치형 앱에서는 window.print() 가 조용히 무시되는 경우가 있다.
-       그럴 땐 PDF 로 떠서 공유시트(인쇄 포함)로 넘긴다. */
+    /* ── 인쇄 ─────────────────────────────────────────────
+       iOS·설치형 앱에서는 window.print() 가 조용히 무시되는 경우가 있어
+       PDF 로 떠서 공유시트(인쇄 포함)로 넘긴다. */
     var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
@@ -838,6 +904,19 @@
         return;
       }
       window.print();
+    });
+
+    /* 빈 양식 출력 — 작성 중인 내용은 그대로 두고 계약서만 비운 채로 출력한다. */
+    $('#btnBlank').addEventListener('click', function () {
+      blankMode = true;
+      render();
+      var restore = function () { blankMode = false; render(); };
+      if (isIOS || isStandalone || typeof window.print !== 'function') {
+        sharePdf().then(restore, restore);
+      } else {
+        window.print();
+        setTimeout(restore, 600);
+      }
     });
 
     /* 기본값: 계약일 = 오늘, 회원번호 = 연도-임의4자리 */
