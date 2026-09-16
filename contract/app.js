@@ -429,17 +429,26 @@
       else el.innerHTML = '<span>서명</span>';
     }
 
+    /* 서명 방식에 따라 안내와 상단 표시를 함께 맞춘다.
+       종이 자필이면 약관 동의란이 인쇄되지 않으므로 그 사실을 분명히 알린다. */
+    function applySigModeUI() {
+      var paper = sigMode() === 'paper';
+      $('#sigHint').textContent = paper
+        ? '⚠️ 서명란이 빈 줄로 나가고, 약관 동의란도 인쇄되지 않습니다. 출력 후 종이에 직접 받으세요.'
+        : '화면에서 손가락이나 펜으로 서명을 받습니다. 서명과 약관 동의란이 그대로 인쇄됩니다.';
+      var b = $('#modeBadge');
+      b.textContent = paper ? '종이 자필 서명' : '화면 서명';
+      b.classList.toggle('paper', paper);
+    }
+
     $$('input[name="sigmode"]').forEach(function (r) {
       r.addEventListener('change', function () {
-        var paper = sigMode() === 'paper';
-        $('#sigHint').textContent = paper
-          ? '서명란을 빈 줄로 출력합니다. 출력 후 종이에 직접 서명받으세요.'
-          : '화면에서 손가락이나 펜으로 서명을 받습니다. 서명한 그대로 인쇄됩니다.';
+        applySigModeUI();
         applyAgree();
         renderSigns(); saveDraft();
       });
     });
-    $('#sigHint').textContent = '화면에서 손가락이나 펜으로 서명을 받습니다. 서명한 그대로 인쇄됩니다.';
+    applySigModeUI();
 
     /* ── 약관 보기 → 동의 → 서명 흐름 ────────────────────
        전자서명(화면 서명)일 때만 동의를 요구한다.
@@ -1243,6 +1252,7 @@
     }
 
     loadDraft();
+    applySigModeUI();   /* 임시 저장에서 복원된 서명 방식을 화면에 반영 */
     /* 회원번호는 임시 저장을 불러온 뒤에 만든다.
        먼저 만들면 새로고침할 때마다 번호가 하나씩 날아간다. */
     if (!val("code")) $("[data-f=\"code\"]").value = makeCode();

@@ -24,6 +24,8 @@ body{margin:0;background:#eceae5;color:#1d1d1b;
 #app{display:none}
 header{position:sticky;top:0;z-index:20;background:#1d1d1b;color:#fff;display:flex;align-items:center;gap:8px;padding:10px 14px;flex-wrap:wrap}
 header h1{font-size:15px;margin:0;font-weight:600;flex:1;min-width:140px}
+.modebadge{font-size:12px;padding:5px 10px;border-radius:20px;background:#2e2e2b;color:#b9b6ae;border:1px solid #55534e}
+.modebadge.paper{background:#6b4f14;color:#ffe9b8;border-color:#8a6a1f}
 header button{height:34px;padding:0 14px;border:1px solid #666;border-radius:8px;background:#2e2e2b;color:#fff;font-size:13px;cursor:pointer}
 header button.go{background:#fff;color:#1d1d1b;border-color:#fff;font-weight:600}
 .wrap{display:flex;gap:16px;align-items:flex-start;padding:16px;max-width:1500px;margin:0 auto}
@@ -235,6 +237,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
   <button id="btnBack" title="캘린더로 돌아가기">← 캘린더</button>
   <h1>회원가입(PT) 계약서</h1>
   <button id="btnPin">PIN 변경</button>
+  <span id="modeBadge" class="modebadge">화면 서명</span>
   <button id="btnBlank">빈 양식 출력</button>
   <button id="btnReset">새 계약서</button>
   <button id="btnHandoff">📱 회원에게 전달</button>
