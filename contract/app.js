@@ -764,6 +764,24 @@
       render();
     });
 
+    /* ── 2부 출력 (회원 보관용 · 센터 보관용) ────────────────
+       계약서 사본 1부를 회원에게 교부하기 위해 항상 2장을 낸다.
+       우측 상단 색인만 다르고 내용은 같다. */
+    var COPY_LABELS = ['회원 보관용', '센터 보관용'];
+    function buildCopies() {
+      var pa = $('#printArea');
+      pa.innerHTML = '';
+      COPY_LABELS.forEach(function (label) {
+        var c = sheet.cloneNode(true);
+        c.removeAttribute('id');
+        var tag = c.querySelector('[data-copy]');
+        if (tag) tag.textContent = label;
+        pa.appendChild(c);
+      });
+      return $$('#printArea .sheet');
+    }
+    function clearCopies() { $('#printArea').innerHTML = ''; }
+
     /* ── PDF 만들기 · 공유 ─────────────────────────────────
        아이폰(특히 홈화면에 설치한 앱)에서는 window.print() 가 아무 반응도
        없는 경우가 있다. 그래서 계약서를 그대로 A4 PDF 로 떠서
@@ -800,20 +818,30 @@
     }
     function buildPdf() {
       return ensureLibs().then(function () {
-        /* 미리보기 축소(transform)가 캡처에 섞이지 않도록 잠시 원래 크기로 되돌린다 */
-        var keep = holder.style.transform;
-        holder.style.transform = 'none';
-        return window.html2canvas(sheet, {
-          scale: 2, backgroundColor: '#ffffff', logging: false,
-          windowWidth: sheet.offsetWidth, windowHeight: sheet.offsetHeight
-        }).then(function (canvas) {
-          holder.style.transform = keep;
-          var img = canvas.toDataURL('image/jpeg', 0.94);
-          var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-          pdf.addImage(img, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-          return pdf;
+        /* 화면 밖에 원래 크기로 2부를 그려 두고 한 장씩 캡처한다.
+           미리보기는 축소돼 있어 그대로 찍으면 흐려진다. */
+        var pa = $('#printArea');
+        var nodes = buildCopies();
+        pa.style.cssText = 'display:block;position:absolute;left:-10000px;top:0';
+        var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+        var step = function (i) {
+          if (i >= nodes.length) return pdf;
+          return window.html2canvas(nodes[i], {
+            scale: 2, backgroundColor: '#ffffff', logging: false,
+            windowWidth: nodes[i].offsetWidth, windowHeight: nodes[i].offsetHeight
+          }).then(function (canvas) {
+            if (i > 0) pdf.addPage();
+            pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+            return step(i + 1);
+          });
+        };
+
+        return step(0).then(function (out) {
+          pa.style.cssText = ''; clearCopies();
+          return out;
         }).catch(function (e) {
-          holder.style.transform = keep;
+          pa.style.cssText = ''; clearCopies();
           throw e;
         });
       });
@@ -895,6 +923,13 @@
     var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
       window.navigator.standalone === true;
 
+    /* 브라우저 인쇄도 2부(회원 보관용·센터 보관용)를 낸다 */
+    function browserPrint() {
+      buildCopies();
+      window.print();
+      setTimeout(clearCopies, 800);
+    }
+
     $('#btnPrint').addEventListener('click', function () {
       if (!val('name')) {
         if (!confirm('회원명이 비어 있습니다. 빈 양식으로 인쇄할까요?')) return;
@@ -903,7 +938,7 @@
         sharePdf();
         return;
       }
-      window.print();
+      browserPrint();
     });
 
     /* 빈 양식 출력 — 작성 중인 내용은 그대로 두고 계약서만 비운 채로 출력한다. */
@@ -914,8 +949,8 @@
       if (isIOS || isStandalone || typeof window.print !== 'function') {
         sharePdf().then(restore, restore);
       } else {
-        window.print();
-        setTimeout(restore, 600);
+        browserPrint();
+        setTimeout(restore, 900);
       }
     });
 

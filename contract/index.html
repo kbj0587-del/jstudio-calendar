@@ -188,7 +188,12 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
   header button{font-size:14px;height:38px}
   .tm-agree{font-size:15px}
 }
+#printArea{display:none}
 @media print{
+  .stage{display:none!important}
+  #printArea{display:block}
+  #printArea .sheet{page-break-after:always;box-shadow:none}
+  #printArea .sheet:last-child{page-break-after:auto}
   body{background:#fff}
   header,.panel,#gate,.tip,#tmodal,#sigModal,#member,#busy,#pinPad{display:none!important}
   .wrap{display:block;padding:0;margin:0}
@@ -348,9 +353,11 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
     </fieldset>
   </div>
 
+  <div id="printArea"></div>
+
   <div class="stage"><div class="holder" id="holder">
     <div class="sheet" id="sheet">
-      <p class="code">MEMBERSHIP CODE NO&nbsp;&nbsp;<span data-v="code"></span></p>
+      <p class="code">MEMBERSHIP CODE NO&nbsp;&nbsp;<span data-v="code"></span><span class="copytag" data-copy>회원 보관용</span></p>
       <table>
         <tr class="title-row"><td colspan="4">
           <div class="title-box"><h1>회원가입(PT) 계약서</h1><span class="brand">제이스튜디오</span></div>
@@ -395,7 +402,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
       <div class="terms">
         <h2>수업참여 | CLASS PARTICIPATION</h2>
         <ul>
-          <li>본원 출입 시 반듯이 <span class="em">출석체크(연속수강 포함)</span>를 해야 합니다.</li>
+          <li>본원 출입 시 반드시 <span class="em">출석체크(연속수강 포함)</span>를 해야 합니다.</li>
           <li>개인적인 사정으로 인해 <span class="em">수업에 불참을 하는 경우 1회 수강권은 차감</span>됩니다.</li>
           <li>약속된 시간보다 <span class="em">늦게 도착하는 경우</span> 약속된 시간 중 남은 잔여 시간에 대한 수강을 지원 합니다.</li>
           <li>회원권의 사용기준일은 1회당 일주일로 합니다.(10회 등록시 10주)</li>
@@ -403,34 +410,35 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
         </ul>
         <h2>휴회 | RECESS</h2>
         <ul>
-          <li>휴회(홀딩)는 정확한 서류(의사의 진료소견 서 및 진단서, 출장확인서 등)를 첨부 하시는 경우에 한해 1회를 사용이 가능 합니다.</li>
+          <li>휴회(홀딩)는 정확한 서류(의사의 진료소견서 및 진단서, 출장확인서 등)를 첨부 하시는 경우에 한해 1회를 사용이 가능 합니다.</li>
           <li>휴회 신청은 최소 1주일 전에 미리 담당 강사 또는 센터에 말씀을 해 주셔야 합니다.</li>
+          <li><span class="em">질병 · 임신 · 출산 · 장기 출장 등 부득이한 사유</span>는 증빙 제출 시 추가로 인정합니다.</li>
         </ul>
-        <h2>환불 및 양도 | REFUND AND TRANSFER</h2>
+        <h2>환불 · 해지 및 양도 | REFUND AND TRANSFER</h2>
         <ul>
-          <li>가입 후 환불은 다음 규정에 의해 환불됩니다. 개시일 이전의 경우 총 이용금액에 대한 위약금 10% 공제, 개시 이후에는 총 이용금액에 대한 위약금 10% + 부가세 + 수료료 + 사은품/쿠폰(상품의 가치에 해당하는 금액)이 공제됩니다.</li>
-          <li class="plain">표준금액 : ◆종목(&nbsp;<span data-v="stdItem"></span>&nbsp;) ◆정상가(1 SESSON <span data-v="stdPrice"></span>원)=수업료</li>
-          <li class="sub">회원권을 <span class="red">이벤트 및 할인 가격으로 등록한 경우와 쿠폰제는 환불이 불가합니다.</span></li>
-          <li class="sub">약정한 기한내 회원의 사정으로 운동을 개시하지 않더라도 자동으로 회원권의 효력이 발생됩니다. <span class="gray">(개시전 최대15일 한정 1회 연장가능)</span></li>
+          <li>가입 후 환불은 다음 규정에 의해 환불됩니다. 개시일 이전의 경우 총 이용금액에 대한 위약금 10% 공제, 개시 이후에는 총 이용금액에 대한 위약금 10% + 부가세 + 수수료 + 사은품/쿠폰(상품의 가치에 해당하는 금액)이 공제됩니다.</li>
+          <li class="plain">표준금액 : ◆종목(&nbsp;<span data-v="stdItem"></span>&nbsp;) ◆정상가(1 SESSION <span data-v="stdPrice"></span>원)=수업료</li>
+          <li class="plain calc">환불액 = 총 결제금액 − (이용한 횟수 × 정상가) − 위약금(총 이용금액의 10%) − 부가세 − 사은품·쿠폰 상당액</li>
+          <li class="sub">회원권을 <span class="em">이벤트 및 할인가로 등록한 경우</span>, 이미 이용한 횟수분은 할인가가 아닌 <span class="red">정상가 기준으로 공제</span>합니다.</li>
+          <li class="sub">사은품·쿠폰은 <span class="em">제공 당시 통상 판매가</span>를 기준으로 공제합니다.</li>
+          <li class="sub">약정한 기한내 회원의 사정으로 운동을 개시하지 않더라도 <span class="em">강습 시작일로부터 회원권의 효력이 발생</span>합니다. <span class="gray">(개시전 최대15일 한정 1회 연장가능)</span></li>
           <li class="sub">환불요청시 잔여 기간 주단위 사용 가능 횟수를 기준으로 환불 금액을 계산합니다.</li>
+          <li class="sub">해지 신청은 <span class="em">센터 방문 또는 유선</span>으로 하며, 환불은 신청한 날로부터 <span class="em">영업일 기준 30일 이내</span>에 처리합니다.</li>
           <li>회원은 최초 등록한 본인만의 이용을 원칙으로 하나, 부득이한 경우 <span class="em">사전 승인을 받아</span> 양도할 수 있고, <span class="em">양도 수수료</span>(3만원 VAT별도)를 본원에 지급해야 합니다. 양도받은 재양도 및 환불이 불가합니다.</li>
-          <li>가입시 제공받은 서비스 항목(기간, 사은품, 회수)등은 양도가 불가합니다.</li>
+          <li>가입시 제공받은 서비스 항목(기간, 사은품, 횟수)등은 양도가 불가합니다.</li>
         </ul>
         <div class="exempt">
           <h2 style="border-top:none">면책규정 | EXEMPTION PROVISIONS</h2>
           <ul>
-            <li>센터 이용시 <span class="em">귀중품은 반드시 안내데스크 또는 별도 보관</span>해야 합니다. <span class="gray">(별도 보관을 요청하지 않은 물품에 대한 도난,분실은 본원에서 책임지지 않습니다)</span></li>
-            <li><span class="em">주의 의무를 따라야 하며</span>, 강사의 지도 내용과 다른 동작으로 인한 부상 및 이를 따르지 않음으로 발생한 모든 책임은 스스로에게 있습니다.</li>
+            <li>센터 이용시 <span class="em">귀중품은 반드시 안내데스크 또는 별도 보관</span>해야 합니다. <span class="gray">(별도 보관을 요청하지 않은 물품에 대한 도난, 분실은 본원에서 책임지지 않습니다)</span> <span class="red">다만 본원의 관리 소홀이 인정되는 경우는 그러하지 아니합니다.</span></li>
+            <li><span class="em">주의 의무를 따라야 하며</span>, 강사의 지도 내용과 다른 동작으로 인한 부상 및 이를 따르지 않음으로 발생한 모든 책임은 스스로에게 있습니다. <span class="red">다만 본원의 고의 및 과실이 명백한 경우는 예외로 합니다.</span></li>
             <li>건강상의 특이사항이 있을시에는 <span class="em">강사및 센터 관리자에게 전달</span>하여야 하며, 강습 중 나에게 일어날 수 있는 상해로는 <span class="em">타박상, 염좌, 근육통, 근경련, 현기증, 골절, 메스꺼움 및 울렁거림 등이 포함되며 고혈압 · 녹내장 · 임신 · 6개월이내 수술환자 · 미주신경 실신증과 기타 건강상의 특이사항이 있을 경우 수업참여 할 수가 없음을 안내를 받았으며, 건강상의 특이사항을 스스로 관리 할 수 있기에 본 강습에 스스로 참여 하는 것입니다.</span></li>
           </ul>
         </div>
       </div>
 
       <div class="consent">
-        ※ 본 계약서에 서명함으로써 회원권의 효력이 즉시 개시되고, 본 계약에 규정된 모든 권리와 의무는 서명 즉시 효력이 발생합니다.<br />
-        서명과 함께 모든 약관에 동의함을 의미 하며, 약관을 충분히 읽고 전달받았기에 이의가 없음으로 가입에 동의합니다.<br />
-        약관의 동의는 구두상으로 전달받지 않았더라도 위 약관에 대한 포괄적인 동의를 의미합니다.
-        <span class="agree" data-v="agreeMark">동의함 □</span>
+        ※ 본 계약서에 서명함으로써 회원권의 효력이 즉시 개시되고, 본 계약에 규정된 모든 권리와 의무는 서명 즉시 효력이 발생합니다. 서명과 함께 모든 약관에 동의함을 의미 하며, 약관을 충분히 읽고 전달받았기에 이의가 없음으로 가입에 동의합니다. ※ <span class="em">개인정보 수집·이용 동의</span> — 수집항목: 성명·생년월일·연락처·주소 / 목적: 회원 관리 및 계약 이행 / 보유기간: 계약 종료 후 관계 법령에 따른 기간. 동의를 거부할 수 있으나 이 경우 회원 가입이 제한됩니다. ※ 본 계약서는 <span class="em">2부를 작성하여 회원과 본원이 각 1부씩 보관</span>합니다.<span class="agree" data-v="agreeMark">동의함 □</span>
       </div>
 
       <table class="sign">
