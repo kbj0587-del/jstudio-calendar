@@ -22,7 +22,7 @@
   font-size:10pt;letter-spacing:3px;height:6.2mm;padding:.8mm
 }
 .sheet .title-row td{border:none;padding:0 0 1mm}
-.sheet .title-box{border:.6pt solid #000;border-bottom:none;padding:2.5mm 3mm 2mm;position:relative}
+.sheet .title-box{padding:1mm 3mm 2.5mm;position:relative}
 .sheet .title-box h1{margin:0;text-align:center;font-size:19pt;font-weight:800;letter-spacing:1px}
 .sheet .title-box .brand{position:absolute;right:3mm;bottom:2.4mm;font-size:8pt}
 .sheet .lbl{background:#efefef;text-align:center;font-weight:700;width:22%}
@@ -50,11 +50,12 @@
 .sheet .terms li.plain{padding-left:2mm}
 .sheet .terms li.plain:before{content:""}
 .sheet .terms .em{font-weight:800}
-.sheet .cmark{display:inline-block;min-width:3.4mm;margin-right:.8mm;font-weight:800}
+.sheet .cmark{display:inline-block;margin-left:1.5mm;padding:0 1.2mm;border:.5pt solid #000;border-radius:.8mm;font-size:6.6pt;font-weight:800;white-space:nowrap}
 .sheet .agsum{border:.6pt solid #000;border-bottom:none;padding:.8mm 2mm;font-size:6.8pt;font-weight:700;text-align:center;letter-spacing:-.1px}
 .sheet .agsum .ck{display:inline-block;margin:0 1mm}
 .sheet .agsum .t{color:#555;font-weight:400}
 .sheet .terms .red{font-weight:800;text-decoration:underline}
+.sheet .exempt .red{text-decoration:none}
 .sheet .terms .gray{color:#555}
 .sheet .exempt{border:1pt solid #000;padding:.6mm 1mm 1.4mm}
 .sheet .consent{border:none;padding:1mm 2mm .8mm;text-align:justify;font-size:6.9pt;line-height:1.4;font-weight:700}

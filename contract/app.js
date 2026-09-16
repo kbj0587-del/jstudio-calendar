@@ -202,7 +202,7 @@
       put('joinOpts', optLine('join', ['신규', '재등록', '휴면', '양도']));
       put('itemOpts', optLine('item', ['매트요가', '플라잉요가', '번지피지오', '기타'], val('itemEtc')));
       put('regOpts', optLine('reg', ['1:1', '2:1', '3:1', '4:1', '기타'], val('regEtc')));
-      put('payOpts', optLine('pay', ['카드', '현금', 'Npay', 'ZPay']));
+      put('payOpts', optLine('pay', ['카드', '현금', 'Pay']));
 
       var cnt = digits(val('cnt'));
       put('cnt', (cnt ? cnt + ' ' : '') + '회');
@@ -227,8 +227,8 @@
       var std = Number(digits(val('stdPrice'))) || 0;
       var regPick = (document.querySelector('input[name="reg"]:checked') || {}).value || '';
       var rate = DISCOUNT[regPick] || 0;
-      if (!unitTouched && std) $('[data-f="unit"]').value = std.toLocaleString('ko-KR');
-      $('#unitBadge').textContent = unitTouched ? '' : (std ? '· 표준금액에서 가져옴' : '');
+      /* 1회 금액은 관리자가 직접 입력한다(자동으로 채우지 않는다) */
+      $('#unitBadge').textContent = '';
 
       put('unit', won(val('unit')));
       var paid = comma(val('paid')), due = comma(val('due'));
@@ -262,7 +262,7 @@
       var penMode = blankMode || sigMode() === 'paper';
       var marks = $$('#sheet [data-consent] > .cmark');
       marks.forEach(function (el, i) {
-        el.textContent = (!penMode && consentState[i]) ? '☑' : '□';
+        el.textContent = '약관동의 ' + ((!penMode && consentState[i]) ? '☑' : '□');
       });
 
       var sumMarks = CLAUSES.map(function (c, i) {
@@ -536,6 +536,61 @@
       staffList.splice(sel.value, 1);
       saveStaff(); renderStaff();
     });
+
+    /* ── 담당자 직인·서명 이미지 첨부 ─────────────────────
+       미리 스캔해 둔 직인이나 서명 이미지를 올려 담당자 칸에 넣는다.
+       배경이 흰 이미지는 흰 부분을 투명하게 만들어 계약서에 겹쳐도 자연스럽다.
+       파일은 서버로 보내지 않고 이 브라우저 안에서만 처리한다. */
+    $('#btnStamp').addEventListener('click', function () { $('#stampFile').click(); });
+    $('#stampFile').addEventListener('change', function () {
+      var f = this.files && this.files[0];
+      this.value = '';
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { alert('이미지 파일만 올릴 수 있습니다.'); return; }
+      if (f.size > 8 * 1024 * 1024) { alert('이미지가 너무 큽니다(8MB 이하).'); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          sig.B = whiteToAlpha(img);
+          renderSigns(); saveDraft();
+          if (confirm('담당자 서명에 넣었습니다.\n\n이 이미지를 담당자 목록에 저장해 둘까요?')) {
+            var nm = prompt('저장할 담당자 이름을 입력하세요', val('staff') || '');
+            if (nm && String(nm).trim()) {
+              staffList.push({ name: String(nm).trim(), sig: sig.B });
+              saveStaff(); renderStaff();
+              $('#staffSel').value = String(staffList.length - 1);
+              $('[data-f="staff"]').value = String(nm).trim();
+              render();
+            }
+          }
+        };
+        img.onerror = function () { alert('이미지를 읽지 못했습니다.'); };
+        img.src = reader.result;
+      };
+      reader.onerror = function () { alert('파일을 읽지 못했습니다.'); };
+      reader.readAsDataURL(f);
+    });
+
+    /* 흰 배경을 투명하게 — 스캔한 직인이 네모 박스로 찍히는 것을 막는다 */
+    function whiteToAlpha(img) {
+      var max = 600;
+      var w = img.width, h = img.height;
+      if (w > max) { h = Math.round(h * max / w); w = max; }
+      var cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      var ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      try {
+        var d = ctx.getImageData(0, 0, w, h);
+        var p = d.data;
+        for (var i = 0; i < p.length; i += 4) {
+          if (p[i] > 235 && p[i + 1] > 235 && p[i + 2] > 235) p[i + 3] = 0;
+        }
+        ctx.putImageData(d, 0, 0);
+      } catch (e) { /* 보안 제한 등으로 실패하면 원본 그대로 쓴다 */ }
+      return cv.toDataURL('image/png');
+    }
 
     loadStaff();
     renderStaff();
@@ -872,6 +927,21 @@
       $$('input[name="' + g + '"]').forEach(function (r) { r.addEventListener('change', render); });
     });
 
+    /* '기타'를 고른 경우에만 직접 입력칸을 보여 준다 */
+    function syncEtc() {
+      [['item', 'itemEtc'], ['reg', 'regEtc']].forEach(function (p) {
+        var on = pickedList(p[0]).indexOf('기타') > -1;
+        var el = $('[data-f="' + p[1] + '"]');
+        if (!el) return;
+        el.hidden = !on;
+        if (!on && el.value) { el.value = ''; }
+      });
+    }
+    $$('input[name="item"], input[name="reg"]').forEach(function (r) {
+      r.addEventListener('change', function () { syncEtc(); render(); });
+    });
+    syncEtc();
+
     /* ── 미리보기 배율 (화면에서만, 인쇄는 원본 크기) ────── */
     var holder = $('#holder');
     function fit() {
@@ -1083,6 +1153,7 @@
       if (Array.isArray(d.consent) && d.consent.length === CLAUSES.length) consentState = d.consent;
       agreedAt = d.agreedAt || "";
       if (d.sig) { sig.A = d.sig.a || ""; sig.B = d.sig.b || ""; }
+      syncEtc();
     }
 
     $("#btnBack").addEventListener("click", function () { location.href = "/"; });
