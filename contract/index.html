@@ -173,6 +173,14 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .pp-grid button:active{background:#f1efe8}
 .pp-grid .pp-alt{font-size:15px;color:#8a8880}
 .pp-cancel{margin-top:10px;width:100%;height:42px;border:0;background:none;color:#8a8880;font-size:13px;cursor:pointer}
+#shBox{position:fixed;inset:0;background:rgba(20,20,18,.65);z-index:115;display:flex;align-items:center;justify-content:center;padding:16px}
+#shBox[hidden]{display:none}
+.sh-inner{background:#fff;border-radius:16px;padding:22px 20px 16px;width:min(360px,100%);text-align:center}
+.sh-inner h2{margin:0 0 8px;font-size:17px}
+.sh-msg{font-size:13px;color:#55534e;line-height:1.7;margin:0 0 10px}
+.sh-file{font-size:11px;color:#8a8880;word-break:break-all;margin:0 0 16px}
+.sh-go{width:100%;height:50px;border:0;border-radius:11px;background:#1d1d1b;color:#fff;font-size:16px;font-weight:600;cursor:pointer}
+.sh-save{width:100%;height:42px;margin-top:8px;border:1px solid #d5d3cc;border-radius:10px;background:#fff;color:#55534e;font-size:13px;cursor:pointer}
 #busy{position:fixed;inset:0;background:rgba(20,20,18,.55);z-index:120;display:flex;align-items:center;justify-content:center}
 #busy[hidden]{display:none}
 .busy-box{background:#fff;border-radius:12px;padding:20px 26px;display:flex;align-items:center;gap:12px;font-size:14px}
@@ -196,7 +204,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
   #printArea .sheet{page-break-after:always;box-shadow:none}
   #printArea .sheet:last-child{page-break-after:auto}
   body{background:#fff}
-  header,.panel,#gate,.tip,#tmodal,#sigModal,#member,#busy,#pinPad{display:none!important}
+  header,.panel,#gate,.tip,#tmodal,#sigModal,#member,#busy,#pinPad,#shBox{display:none!important}
   .wrap{display:block;padding:0;margin:0}
   .stage{display:block;overflow:visible}
   .stage .holder{transform:none!important}
@@ -551,6 +559,16 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
       <button type="button" data-k="back" class="pp-alt">⌫</button><button type="button" data-k="0">0</button><button type="button" data-k="ok" class="pp-alt">확인</button>
     </div>
     <button type="button" id="ppCancel" class="pp-cancel">취소</button>
+  </div>
+</div>
+
+<div id="shBox" hidden>
+  <div class="sh-inner" role="dialog" aria-modal="true" aria-labelledby="shTitle">
+    <h2 id="shTitle">준비되었습니다</h2>
+    <p class="sh-msg" id="shMsg"></p>
+    <p class="sh-file" id="shFile"></p>
+    <button type="button" id="shGo" class="sh-go">📤 공유하기</button>
+    <button type="button" id="shSave" class="sh-save">파일로 저장 / 닫기</button>
   </div>
 </div>
 

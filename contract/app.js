@@ -905,10 +905,10 @@
        계약서 사본 1부를 회원에게 교부하기 위해 항상 2장을 낸다.
        우측 상단 색인만 다르고 내용은 같다. */
     var COPY_LABELS = ['회원 보관용', '센터 보관용'];
-    function buildCopies() {
-      var pa = $('#printArea');
-      pa.innerHTML = '';
-      COPY_LABELS.forEach(function (label) {
+    function buildCopies(labels) {
+      var pa = $("#printArea");
+      pa.innerHTML = "";
+      (labels || COPY_LABELS).forEach(function (label) {
         var c = sheet.cloneNode(true);
         c.removeAttribute('id');
         var tag = c.querySelector('[data-copy]');
@@ -947,18 +947,20 @@
       $('#busy').hidden = !on;
       if (msg) $('#busyMsg').textContent = msg;
     }
-    function fileName() {
+    function fileName(opts) {
+      var tag = (opts && opts.tag) ? '_' + opts.tag : '';
       if (blankMode) return '제이스튜디오_회원가입계약서_빈양식.pdf';
       var n = val('name') || '회원';
       var d = dval('signDate') || new Date().toISOString().slice(0, 10);
-      return '제이스튜디오_회원가입계약서_' + n + '_' + d + '.pdf';
+      return '제이스튜디오_회원가입계약서_' + n + '_' + d + tag + '.pdf';
     }
-    function buildPdf() {
+
+    function buildPdf(labels) {
       return ensureLibs().then(function () {
-        /* 화면 밖에 원래 크기로 2부를 그려 두고 한 장씩 캡처한다.
+        /* 화면 밖에 원래 크기로 그려 두고 한 장씩 캡처한다.
            미리보기는 축소돼 있어 그대로 찍으면 흐려진다. */
-        var pa = $('#printArea');
-        var nodes = buildCopies();
+        var pa = $("#printArea");
+        var nodes = buildCopies(labels);
         pa.style.cssText = 'display:block;position:absolute;left:-10000px;top:0';
         var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
@@ -984,31 +986,66 @@
       });
     }
 
-    function sharePdf() {
+    /* PDF 를 만든 뒤 전달한다.
+       안드로이드·윈도우에서 곧장 다운로드로 빠지던 원인이 두 가지였다.
+        ① PDF 를 만드는 동안(수 초) 브라우저의 '사용자 조작' 권한이 만료돼
+           navigator.share() 가 거부된다 → 만든 뒤 버튼을 한 번 더 누르게 한다.
+        ② 윈도우 데스크톱 크롬은 파일 공유 자체를 지원하지 않는다 → 저장으로 안내. */
+    function sharePdf(opts) {
+      opts = opts || {};
       busy(true, 'PDF를 만드는 중…');
-      return buildPdf().then(function (pdf) {
-        var name = fileName();
-        var blob = pdf.output('blob');
-        var file = new File([blob], name, { type: 'application/pdf' });
+      return buildPdf(opts.labels).then(function (pdf) {
         busy(false);
+        var name = fileName({ tag: opts.tag });
+        var file = new File([pdf.output('blob')], name, { type: 'application/pdf' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          return navigator.share({ files: [file], title: '회원가입 계약서' })
-            .catch(function (e) {
-              /* 사용자가 공유시트를 닫은 경우는 오류가 아니다 */
-              if (e && e.name === 'AbortError') return;
-              pdf.save(name);
-            });
+          openShareBox(file, name, pdf, opts.note);
+        } else {
+          pdf.save(name);
+          openSavedBox(name);
         }
-        pdf.save(name);
       }).catch(function () {
         busy(false);
         alert('PDF를 만들지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.');
       });
     }
 
+    function openShareBox(file, name, pdf, note) {
+      $('#shTitle').textContent = '준비되었습니다';
+      $('#shMsg').textContent = note || '카카오톡·메시지·메일로 보내거나 파일로 저장할 수 있습니다.';
+      $('#shFile').textContent = name;
+      $('#shGo').hidden = false;
+      $('#shBox').hidden = false;
+      $('#shGo').onclick = function () {
+        /* 이 클릭이 새 사용자 조작이 되어 공유창이 확실히 열린다 */
+        navigator.share({ files: [file], title: '회원가입 계약서' })
+          .then(function () { $('#shBox').hidden = true; })
+          .catch(function (e) {
+            if (e && e.name === 'AbortError') { $('#shBox').hidden = true; return; }
+            pdf.save(name);
+            $('#shBox').hidden = true;
+          });
+      };
+      $('#shSave').onclick = function () { pdf.save(name); $('#shBox').hidden = true; };
+    }
+
+    function openSavedBox(name) {
+      $('#shTitle').textContent = '파일로 저장했습니다';
+      $('#shMsg').textContent = '이 기기의 브라우저는 앱으로 바로 보내기를 지원하지 않습니다. 다운로드 폴더에서 카카오톡으로 첨부해 주세요.';
+      $('#shFile').textContent = name;
+      $('#shGo').hidden = true;
+      $('#shBox').hidden = false;
+      $('#shSave').onclick = function () { $('#shBox').hidden = true; };
+    }
+
     $('#btnShare').addEventListener('click', function () {
       if (!val('name') && !confirm('회원명이 비어 있습니다. 그대로 만들까요?')) return;
-      sharePdf();
+      /* 회원에게 보내는 사본은 회원 보관용 1장만 보낸다 */
+      sharePdf({
+        labels: ['회원 보관용'],
+        tag: '회원용',
+        note: '회원 보관용 1장입니다. 카카오톡·메시지·메일로 보내세요.'
+      });
     });
 
     /* ── 임시 저장 (이 브라우저에만) ─────────────────────── */
@@ -1057,26 +1094,29 @@
     });
 
     /* ── 인쇄 ─────────────────────────────────────────────
-       iOS·설치형 앱에서는 window.print() 가 조용히 무시되는 경우가 있어
-       PDF 로 떠서 공유시트(인쇄 포함)로 넘긴다. */
+       iOS(사파리·설치형)에서만 window.print() 가 조용히 무시된다.
+       데스크톱은 설치형 앱이어도 인쇄가 정상 동작하므로 그대로 인쇄한다. */
     var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
 
-    /* 브라우저 인쇄도 2부(회원 보관용·센터 보관용)를 낸다 */
+    /* 인쇄는 2부(회원 보관용·센터 보관용)를 낸다 */
     function browserPrint() {
       buildCopies();
-      window.print();
-      setTimeout(clearCopies, 800);
+      /* 복제본이 레이아웃에 반영된 뒤에 인쇄창을 띄운다.
+         requestAnimationFrame 은 탭이 가려져 있으면 멈추므로 쓰지 않는다. */
+      $("#printArea").offsetHeight;   /* 강제 레이아웃 */
+      setTimeout(function () {
+        window.print();
+        setTimeout(clearCopies, 1200);
+      }, 50);
     }
 
     $('#btnPrint').addEventListener('click', function () {
       if (!val('name')) {
         if (!confirm('회원명이 비어 있습니다. 빈 양식으로 인쇄할까요?')) return;
       }
-      if (isIOS || isStandalone || typeof window.print !== 'function') {
-        sharePdf();
+      if (isIOS || typeof window.print !== 'function') {
+        sharePdf({ labels: COPY_LABELS });   /* iOS 는 PDF 공유창으로 인쇄 */
         return;
       }
       browserPrint();
@@ -1087,11 +1127,11 @@
       blankMode = true;
       render();
       var restore = function () { blankMode = false; render(); };
-      if (isIOS || isStandalone || typeof window.print !== 'function') {
-        sharePdf().then(restore, restore);
+      if (isIOS || typeof window.print !== 'function') {
+        sharePdf({ labels: COPY_LABELS }).then(restore, restore);
       } else {
         browserPrint();
-        setTimeout(restore, 900);
+        setTimeout(restore, 1500);
       }
     });
 
