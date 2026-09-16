@@ -66,6 +66,8 @@
     var sheet = $('#sheet');
     var fields = $$('[data-f]');
     var groups = ["join", "item", "reg", "pay"];
+    var DISCOUNT = { "2:1": 0.2, "3:1": 0.3 };   /* 등록구분별 할인율 */
+    var unitTouched = false;    /* 1회 금액을 손으로 고쳤는가 */
     var totalTouched = false;   /* 총 결제금액을 손으로 고쳤는가 */
     var toTouched = false;      /* 강습 종료일을 손으로 고쳤는가 */
     var agreed = false;         /* 약관 동의 여부(전자서명 전제) */
@@ -96,13 +98,18 @@
     }
 
     /* 체크박스 묶음을 계약서 표기(□신규 ☑재등록 …)로 */
+    /* 체크 상태를 계약서 표기(□신규 ☑재등록 …)로.
+       종목은 여러 개를 고를 수 있어 선택값을 배열로 다룬다. */
+    function pickedList(name) {
+      return $$('input[name="' + name + '"]:checked').map(function (el) { return el.value; });
+    }
     function optLine(name, opts, etcVal) {
-      var picked = (document.querySelector('input[name="' + name + '"]:checked') || {}).value || '';
+      var on = pickedList(name);
       return opts.map(function (o) {
-        var on = o === picked;
+        var hit = on.indexOf(o) > -1;
         var label = o;
-        if (o === '기타') label = '기타(' + (on && etcVal ? ' ' + etcVal + ' ' : '     ') + ')';
-        return '<span class="opt' + (on ? ' on' : '') + '"><b>' + (on ? '☑' : '□') + '</b>' + label + '</span>';
+        if (o === '기타') label = '기타(' + (hit && etcVal ? ' ' + etcVal + ' ' : '     ') + ')';
+        return '<span class="opt' + (hit ? ' on' : '') + '"><b>' + (hit ? '☑' : '□') + '</b>' + label + '</span>';
       }).join('');
     }
 
@@ -111,6 +118,7 @@
       var d = digits(raw);
       var y, m, dd;
       if (d.length === 8) { y = +d.slice(0, 4); m = +d.slice(4, 6); dd = +d.slice(6, 8); }
+      else if (d.length === 4) { y = new Date().getFullYear(); m = +d.slice(0, 2); dd = +d.slice(2, 4); }
       else if (d.length === 6) {
         var yy = +d.slice(0, 2);
         y = yy <= 30 ? 2000 + yy : 1900 + yy;
@@ -146,7 +154,7 @@
 
       put('joinOpts', optLine('join', ['신규', '재등록', '휴면', '양도']));
       put('itemOpts', optLine('item', ['매트요가', '플라잉요가', '번지피지오', '기타'], val('itemEtc')));
-      put('regOpts', optLine('reg', ['1:1', '2:1', '4:1', '기타'], val('regEtc')));
+      put('regOpts', optLine('reg', ['1:1', '2:1', '3:1', '4:1', '기타'], val('regEtc')));
       put('payOpts', optLine('pay', ['카드', '현금', 'Npay', 'ZPay']));
 
       var cnt = digits(val('cnt'));
@@ -161,13 +169,23 @@
           '-' + String(e.getDate()).padStart(2, '0'));
       }
       var t = dval("to");
-      $('#toBadge').textContent = (f && cnt)
-        ? (toTouched ? '· 직접 입력됨' : '· 자동계산됨 (' + cnt + '주)')
-        : '';
+      $("#toBadge").textContent = "";
       var blankFrom = '20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일';
       put('period', (korDate(f, blankFrom)) + '&nbsp;&nbsp;~&nbsp;&nbsp;' + (korDate(t, blankFrom)));
 
       put('bonus', esc(val('bonus')));
+
+      /* 1회 금액 — 등록구분별 할인율을 정상가에 적용해 채운다.
+         2:1 은 20%, 3:1 은 30% 할인. 직접 고치면(unitTouched) 건드리지 않는다. */
+      var std = Number(digits(val('stdPrice'))) || 0;
+      var regPick = (document.querySelector('input[name="reg"]:checked') || {}).value || '';
+      var rate = DISCOUNT[regPick] || 0;
+      var autoUnit = std ? Math.round(std * (1 - rate) / 10) * 10 : 0;
+      if (!unitTouched && autoUnit) $('[data-f="unit"]').value = autoUnit.toLocaleString('ko-KR');
+      $('#unitBadge').textContent = !std ? ''
+        : unitTouched ? '· 직접 입력됨 (자동값 ' + autoUnit.toLocaleString('ko-KR') + '원)'
+          : rate ? '· ' + regPick + ' 할인 ' + (rate * 100) + '% 적용'
+            : '· 정상가 적용';
 
       put('unit', won(val('unit')));
       var paid = comma(val('paid')), due = comma(val('due'));
@@ -478,7 +496,7 @@
       if (!val('name')) miss.push('회원명');
       if (!dval('birth')) miss.push('생년월일');
       if (!val('tel')) miss.push('연락처');
-      if (!document.querySelector('input[name="item"]:checked')) miss.push('종목');
+      if (!pickedList("item").length) miss.push("종목");
       if (!digits(val('cnt'))) miss.push('등록 횟수');
       if (!dval('from')) miss.push('강습 시작일');
       if (!digits(val('total'))) miss.push('총 결제금액');
@@ -490,8 +508,9 @@
         var el = document.querySelector('input[name="' + n + '"]:checked');
         return el ? el.value : '';
       };
-      var item = picked('item');
-      if (item === '기타') item = val('itemEtc') || '기타';
+      var item = pickedList("item").map(function (v) {
+        return v === "기타" ? (val("itemEtc") || "기타") : v;
+      }).join(", ");
       var reg = picked('reg');
       if (reg === '기타') reg = val('regEtc') || '기타';
       var f = dval('from'), t = dval('to');
@@ -606,11 +625,14 @@
         if (['unit', 'paid', 'due', 'total', 'stdPrice'].indexOf(k) > -1) el.value = comma(el.value);
         /* 자동계산 칸을 손으로 고치면 그때부터 수동 값을 존중한다.
            칸을 비우면 다시 자동계산으로 돌아간다. */
-        if (k === 'total') totalTouched = el.value.trim() !== '';
+        if (k === "unit") unitTouched = el.value.trim() !== "";
+        if (k === "total") totalTouched = el.value.trim() !== "";
         if (k === 'to') toTouched = el.value.trim() !== '';
         /* 숫자만 8자리(또는 6자리) 채워지면 즉시 YYYY-MM-DD 로 정리 */
         if (el.hasAttribute('data-date')) {
           var n = digits(el.value);
+          /* 4자리(MMDD)는 타이핑 중 변환하지 않는다 — 6자리 입력(101013)을 가로채기 때문.
+             4자리는 칸을 벗어날 때 blur 에서 처리한다. */
           if (n.length === 6 || n.length === 8) {
             var iso = normDate(el.value);
             if (iso) el.value = iso;
@@ -640,16 +662,114 @@
       holder.style.transform = 'scale(' + s + ')';
       holder.style.height = (sheet.offsetHeight * s) + 'px';
     }
-    window.addEventListener('resize', fit);
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", function () { setTimeout(fit, 250); });
+    /* iOS 에서 확대/축소나 주소창 변화로 보이는 영역이 바뀌면 다시 맞춘다 */
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", fit);
+
+    /* ── MEMBERSHIP CODE NO 자동 생성 ──────────────────────
+       해당 연도 + 임의 4자리. 서버에 목록을 두지 않으므로 중복을 완전히
+       막지는 못하지만(1만분의 1), 손으로 적는 수고를 덜기 위한 번호다. */
+    function makeCode() {
+      var y = new Date().getFullYear();
+      var n = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+      return y + '-' + n;
+    }
+    $('#btnCode').addEventListener('click', function () {
+      var el = $('[data-f="code"]');
+      if (el.value.trim() && !confirm('현재 번호를 새 번호로 바꿀까요?\n\n' + el.value)) return;
+      el.value = makeCode();
+      render();
+    });
+
+    /* ── PDF 만들기 · 공유 ─────────────────────────────────
+       아이폰(특히 홈화면에 설치한 앱)에서는 window.print() 가 아무 반응도
+       없는 경우가 있다. 그래서 계약서를 그대로 A4 PDF 로 떠서
+       · 기기 공유시트(카카오톡·메일·파일 저장)로 보내거나
+       · 내려받게 한다.
+       라이브러리는 처음 눌렀을 때만 내려받는다. */
+    var CDN = 'https://cdnjs.cloudflare.com/ajax/libs/';
+    var libsReady = null;
+
+    function loadScript(src) {
+      return new Promise(function (ok, no) {
+        var s = document.createElement('script');
+        s.src = src; s.onload = ok; s.onerror = function () { no(new Error(src)); };
+        document.head.appendChild(s);
+      });
+    }
+    function ensureLibs() {
+      if (libsReady) return libsReady;
+      libsReady = Promise.all([
+        window.html2canvas ? Promise.resolve() : loadScript(CDN + 'html2canvas/1.4.1/html2canvas.min.js'),
+        (window.jspdf && window.jspdf.jsPDF) ? Promise.resolve() : loadScript(CDN + 'jspdf/2.5.1/jspdf.umd.min.js')
+      ]);
+      return libsReady;
+    }
+    function busy(on, msg) {
+      $('#busy').hidden = !on;
+      if (msg) $('#busyMsg').textContent = msg;
+    }
+    function fileName() {
+      var n = val('name') || '회원';
+      var d = dval('signDate') || new Date().toISOString().slice(0, 10);
+      return '제이스튜디오_회원가입계약서_' + n + '_' + d + '.pdf';
+    }
+    function buildPdf() {
+      return ensureLibs().then(function () {
+        /* 미리보기 축소(transform)가 캡처에 섞이지 않도록 잠시 원래 크기로 되돌린다 */
+        var keep = holder.style.transform;
+        holder.style.transform = 'none';
+        return window.html2canvas(sheet, {
+          scale: 2, backgroundColor: '#ffffff', logging: false,
+          windowWidth: sheet.offsetWidth, windowHeight: sheet.offsetHeight
+        }).then(function (canvas) {
+          holder.style.transform = keep;
+          var img = canvas.toDataURL('image/jpeg', 0.94);
+          var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+          pdf.addImage(img, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+          return pdf;
+        }).catch(function (e) {
+          holder.style.transform = keep;
+          throw e;
+        });
+      });
+    }
+
+    function sharePdf() {
+      busy(true, 'PDF를 만드는 중…');
+      buildPdf().then(function (pdf) {
+        var name = fileName();
+        var blob = pdf.output('blob');
+        var file = new File([blob], name, { type: 'application/pdf' });
+        busy(false);
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          return navigator.share({ files: [file], title: '회원가입 계약서' })
+            .catch(function (e) {
+              /* 사용자가 공유시트를 닫은 경우는 오류가 아니다 */
+              if (e && e.name === 'AbortError') return;
+              pdf.save(name);
+            });
+        }
+        pdf.save(name);
+      }).catch(function () {
+        busy(false);
+        alert('PDF를 만들지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.');
+      });
+    }
+
+    $('#btnShare').addEventListener('click', function () {
+      if (!val('name') && !confirm('회원명이 비어 있습니다. 그대로 만들까요?')) return;
+      sharePdf();
+    });
 
     /* ── 임시 저장 (이 브라우저에만) ─────────────────────── */
     function saveDraft() {
       try {
         var d = { f: {}, g: {}, sig: {} };
         fields.forEach(function (el) { d.f[el.dataset.f] = el.value; });
-        groups.concat(['sigmode']).forEach(function (g) {
-          var c = document.querySelector('input[name="' + g + '"]:checked');
-          d.g[g] = c ? c.value : '';
+        groups.concat(["sigmode"]).forEach(function (g) {
+          d.g[g] = pickedList(g);   /* 여러 개 고를 수 있는 항목(종목)까지 담는다 */
         });
         d.agreed = agreed;
         d.sig.a = sig.A;
@@ -665,9 +785,12 @@
       try { d = JSON.parse(raw); } catch (e) { return; }
       fields.forEach(function (el) { if (d.f && d.f[el.dataset.f] != null) el.value = d.f[el.dataset.f]; });
       Object.keys(d.g || {}).forEach(function (g) {
-        if (!d.g[g]) return;
-        var r = document.querySelector('input[name="' + g + '"][value="' + d.g[g] + '"]');
-        if (r) r.checked = true;
+        /* 예전 저장본은 문자열 하나, 지금은 배열 — 둘 다 받아 준다 */
+        var vals = Array.isArray(d.g[g]) ? d.g[g] : (d.g[g] ? [d.g[g]] : []);
+        vals.forEach(function (v) {
+          var r = document.querySelector('input[name="' + g + '"][value="' + v + '"]');
+          if (r) r.checked = true;
+        });
       });
       agreed = !!d.agreed;
       if (d.sig) { sig.A = d.sig.a || ""; sig.B = d.sig.b || ""; }
@@ -694,14 +817,26 @@
     });
     applyInk();
 
+    /* iOS·설치형 앱에서는 window.print() 가 조용히 무시되는 경우가 있다.
+       그럴 땐 PDF 로 떠서 공유시트(인쇄 포함)로 넘긴다. */
+    var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+
     $('#btnPrint').addEventListener('click', function () {
       if (!val('name')) {
         if (!confirm('회원명이 비어 있습니다. 빈 양식으로 인쇄할까요?')) return;
       }
+      if (isIOS || isStandalone || typeof window.print !== 'function') {
+        sharePdf();
+        return;
+      }
       window.print();
     });
 
-    /* 기본값: 계약일 = 오늘 */
+    /* 기본값: 계약일 = 오늘, 회원번호 = 연도-임의4자리 */
+    if (!val("code")) $("[data-f=\"code\"]").value = makeCode();
     if (!val('signDate')) {
       var n = new Date();
       $('[data-f="signDate"]').value = n.getFullYear() + '-' +

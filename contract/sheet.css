@@ -9,6 +9,9 @@
   font-size:8.4pt; line-height:1.35; letter-spacing:-.2px;
 }
 .sheet *{box-sizing:border-box}
+/* 브라우저 인쇄 설정에서 "배경 그래픽"을 켜지 않아도 검정 제목 띠가 찍히도록
+   색상 보정을 강제한다(크롬·사파리·엣지 지원). */
+.sheet,.sheet *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .sheet .code{font-size:8pt;letter-spacing:.5px;margin:0 0 2mm}
 .sheet table{width:100%;border-collapse:collapse;table-layout:fixed}
 .sheet td{border:.6pt solid #000;padding:1.4mm 2mm;vertical-align:middle;height:7mm}
@@ -27,6 +30,8 @@
 .sheet .ph{color:#9a9a9a;font-weight:400}
 .sheet .memo{height:14mm;vertical-align:top;padding-top:2mm;white-space:pre-wrap}
 .sheet .opt{display:inline-block;margin-right:2.4mm;white-space:nowrap}
+.sheet .val.tight{white-space:nowrap}
+.sheet .val.tight .opt{margin-right:1.1mm;font-size:7.8pt}
 .sheet .opt b{font-weight:700}
 .sheet .on{font-weight:800}
 

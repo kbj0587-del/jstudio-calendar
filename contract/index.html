@@ -58,7 +58,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 #sigArea.locked{opacity:.35;pointer-events:none}
 #tmodal{position:fixed;inset:0;background:rgba(20,20,18,.6);z-index:60;display:flex;align-items:center;justify-content:center;padding:16px}
 #tmodal[hidden]{display:none}
-.tm-box{background:#fff;border-radius:14px;width:min(720px,100%);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.tm-box{background:#fff;border-radius:14px;width:min(720px,100%);max-height:92vh;max-height:92dvh;display:flex;flex-direction:column;overflow:hidden}
 .tm-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid #eae8e2}
 .tm-head h2{margin:0;font-size:16px;flex:1}
 .tm-x{border:0;background:none;font-size:18px;color:#8a8880;cursor:pointer;padding:4px 8px}
@@ -99,7 +99,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .sg-head h2{margin:0;font-size:18px}
 .sg-sub{font-size:13px;color:#8a8880}
 .sg-pad{position:relative;margin:12px 0;border:1px solid #d5d3cc;border-radius:12px;background:#fdfdfc;overflow:hidden}
-.sg-pad canvas{display:block;width:100%;height:min(46vh,300px);touch-action:none}
+.sg-pad canvas{display:block;width:100%;height:min(46vh,300px);height:min(46dvh,300px);touch-action:none}
 .sg-line{position:absolute;left:8%;right:8%;bottom:34px;border-bottom:1px dashed #cfcdc6;pointer-events:none}
 .sg-foot{display:flex;gap:8px;align-items:center}
 .sg-foot button{height:44px;padding:0 18px;border:1px solid #d5d3cc;border-radius:10px;background:#fff;font-size:14px;cursor:pointer}
@@ -118,7 +118,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .mb-dl dt{color:#8a8880;white-space:nowrap}
 .mb-dl dd{margin:0;font-weight:600;text-align:right}
 .mb-note{font-size:13px;color:#8a8880;margin:14px 0 0}
-.mb-terms{max-height:46vh;overflow:auto;border:1px solid #e2e0da;border-radius:10px;padding:14px 16px;-webkit-overflow-scrolling:touch}
+.mb-terms{max-height:46vh;max-height:46dvh;overflow:auto;border:1px solid #e2e0da;border-radius:10px;padding:14px 16px;-webkit-overflow-scrolling:touch}
 .mb-scrollhint{font-size:13px;color:#b98a1a;margin:10px 0 0;font-weight:600}
 .mb-scrollhint.done{color:#1a7a4f}
 .mb-agree{display:flex;gap:12px;align-items:center;margin-top:14px;padding:14px;border:1px solid #e2e0da;border-radius:10px;font-size:15px;cursor:pointer}
@@ -148,10 +148,25 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .mb-terms .terms .exempt{border:0;padding:0}
 .mb-terms .terms .red{color:#c0392b;font-weight:700}
 .mb-terms .terms .gray{color:#777}
+#busy{position:fixed;inset:0;background:rgba(20,20,18,.55);z-index:120;display:flex;align-items:center;justify-content:center}
+#busy[hidden]{display:none}
+.busy-box{background:#fff;border-radius:12px;padding:20px 26px;display:flex;align-items:center;gap:12px;font-size:14px}
+.busy-spin{width:20px;height:20px;border:2px solid #e2e0da;border-top-color:#1d1d1b;border-radius:50%;animation:bsp .8s linear infinite}
+@keyframes bsp{to{transform:rotate(360deg)}}
 @media(max-width:1080px){.wrap{flex-direction:column;align-items:stretch}.panel{flex:none}.stage{order:2}}
+/* 터치 기기: 글자가 16px 보다 작은 입력칸을 누르면 iOS 가 화면을 확대하고
+   그대로 머무른다. 확대가 일어나지 않도록 입력 계열을 16px 로 올린다. */
+@media(max-width:520px){.tm-foot{flex-direction:column;align-items:stretch}.tm-ok{width:100%;height:48px}.tm-agree{min-width:0}}
+@media (pointer:coarse){
+  input[type=text],input[type=tel],input[type=number],input[type=password],textarea,select{font-size:16px}
+  .chips label{font-size:15px;padding:8px 15px}
+  .sg-foot button,.sigbtn,.sigdel,.staffrow select{font-size:14px}
+  header button{font-size:14px;height:38px}
+  .tm-agree{font-size:15px}
+}
 @media print{
   body{background:#fff}
-  header,.panel,#gate,.tip,#tmodal,#sigModal,#member{display:none!important}
+  header,.panel,#gate,.tip,#tmodal,#sigModal,#member,#busy{display:none!important}
   .wrap{display:block;padding:0;margin:0}
   .stage{display:block;overflow:visible}
   .stage .holder{transform:none!important}
@@ -181,6 +196,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
   <button id="btnInk">잉크 절약: 끔</button>
   <button id="btnReset">새 계약서</button>
   <button id="btnHandoff">📱 회원에게 전달</button>
+  <button id="btnShare">📤 공유 · 카톡</button>
   <button class="go" id="btnPrint">인쇄 / PDF 저장</button>
 </header>
 
@@ -196,7 +212,12 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
         <div class="f"><label class="t">연락처</label><input autocomplete="off" type="tel" data-f="tel" inputmode="numeric" placeholder="010-0000-0000" /></div>
         <div class="f"><label class="t">주소 (동까지)</label><input autocomplete="off" type="text" data-f="addr" placeholder="예) 하남시 미사강변동" /></div>
       </div>
-      <div><label class="t">MEMBERSHIP CODE NO</label><input autocomplete="off" type="text" data-f="code" /></div>
+      <div><label class="t">MEMBERSHIP CODE NO</label>
+        <div class="row" style="margin:0">
+          <input autocomplete="off" type="text" data-f="code" style="flex:1" />
+          <button type="button" id="btnCode" class="sigdel" style="height:36px;flex:none">🔄 새 번호</button>
+        </div>
+      </div>
     </fieldset>
 
     <fieldset>
@@ -210,23 +231,24 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
       </div>
       <label class="t" style="margin-top:10px">종목</label>
       <div class="chips" data-g="item">
-        <label><input type="radio" name="item" value="매트요가" /><span>매트요가</span></label>
-        <label><input type="radio" name="item" value="플라잉요가" /><span>플라잉요가</span></label>
-        <label><input type="radio" name="item" value="번지피지오" /><span>번지피지오</span></label>
-        <label><input type="radio" name="item" value="기타" /><span>기타</span></label>
+        <label><input type="checkbox" name="item" value="매트요가" /><span>매트요가</span></label>
+        <label><input type="checkbox" name="item" value="플라잉요가" /><span>플라잉요가</span></label>
+        <label><input type="checkbox" name="item" value="번지피지오" /><span>번지피지오</span></label>
+        <label><input type="checkbox" name="item" value="기타" /><span>기타</span></label>
       </div>
       <input autocomplete="off" type="text" data-f="itemEtc" placeholder="기타 종목 직접 입력" style="margin-top:6px" />
       <label class="t" style="margin-top:10px">등록구분</label>
       <div class="chips" data-g="reg">
         <label><input type="radio" name="reg" value="1:1" /><span>1:1</span></label>
         <label><input type="radio" name="reg" value="2:1" /><span>2:1</span></label>
+        <label><input type="radio" name="reg" value="3:1" /><span>3:1</span></label>
         <label><input type="radio" name="reg" value="4:1" /><span>4:1</span></label>
         <label><input type="radio" name="reg" value="기타" /><span>기타</span></label>
       </div>
       <input autocomplete="off" type="text" data-f="regEtc" placeholder="기타 등록구분 직접 입력" style="margin-top:6px" />
       <div class="row" style="margin-top:10px">
         <div class="f"><label class="t">등록 횟수</label><input autocomplete="off" type="number" data-f="cnt" min="0" inputmode="numeric" /></div>
-        <div class="f"><label class="t">강습 시작일</label><input autocomplete="off" type="text" inputmode="numeric" data-f="from" data-date placeholder="20260920" /></div>
+        <div class="f"><label class="t">강습 시작일</label><input autocomplete="off" type="text" inputmode="numeric" data-f="from" data-date placeholder="0918 또는 20260918" /></div>
         <div class="f"><label class="t">강습 종료일 <span style="color:#b98a1a" id="toBadge"></span></label><input autocomplete="off" type="text" inputmode="numeric" data-f="to" data-date placeholder="자동 계산" /></div>
       </div>
       <p class="hint" id="wkHint"></p>
@@ -237,7 +259,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
     <fieldset>
       <legend>결제내역</legend>
       <div class="row">
-        <div class="f"><label class="t">1회 금액</label><input autocomplete="off" type="text" data-f="unit" inputmode="numeric" /></div>
+        <div class="f"><label class="t">1회 금액 <span style="color:#b98a1a" id="unitBadge"></span></label><input autocomplete="off" type="text" data-f="unit" inputmode="numeric" /></div>
         <div class="f"><label class="t">계약금</label><input autocomplete="off" type="text" data-f="paid" inputmode="numeric" /></div>
         <div class="f"><label class="t">미수금</label><input autocomplete="off" type="text" data-f="due" inputmode="numeric" /></div>
       </div>
@@ -296,8 +318,9 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
         </div>
         <p class="hint">담당자 서명을 한 번 등록해 두면 다음부터 선택만 하면 됩니다. (이 기기에만 저장)</p>
       </div>
-      <p class="tip">인쇄 창에서 <b>배경 그래픽</b>을 켜야 검정 제목 띠가 인쇄됩니다.
-        토너를 아끼려면 상단 <b>잉크 절약</b>을 켜세요 — 배경 없이도 동일하게 인쇄됩니다.</p>
+      <p class="tip">검정 제목 띠는 <b>기본으로 인쇄</b>됩니다. 토너를 아끼려면 상단 <b>잉크 절약</b>을 켜세요 —
+        띠가 외곽선으로 바뀌어 내용은 그대로 인쇄됩니다.<br />아이폰·아이패드에서는 「인쇄 / PDF 저장」이
+        자동으로 PDF 공유창을 엽니다. 거기서 인쇄하거나 카카오톡으로 보낼 수 있습니다.</p>
     </fieldset>
   </div>
 
@@ -323,7 +346,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
           <td colspan="2" class="val c" data-v="itemOpts"></td>
         </tr>
         <tr>
-          <td class="lbl">등 록 구 분</td><td class="val c" data-v="regOpts"></td>
+          <td class="lbl">등 록 구 분</td><td class="val c tight" data-v="regOpts"></td>
           <td class="lbl">등 록 횟 수</td><td class="val r" data-v="cnt">회</td>
         </tr>
         <tr>
@@ -471,6 +494,8 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
     </div>
   </div>
 </div>
+
+<div id="busy" hidden><div class="busy-box"><div class="busy-spin"></div><span id="busyMsg">PDF를 만드는 중…</span></div></div>
 
 <script src="app.js"></script>
 </body>
