@@ -19,6 +19,7 @@ body{margin:0;background:#eceae5;color:#1d1d1b;
 #gate .err{color:#c0392b;font-size:12px;height:16px;margin-top:8px}
 #gate .gdef{font-size:11px;color:#999;line-height:1.6;margin:10px 0 0}
 #gate .glink{width:100%;height:auto;margin-top:12px;background:none;border:0;color:#9a9a9a;font-size:12px;text-decoration:underline;cursor:pointer}
+#gate .gback{width:100%;height:40px;margin-top:10px;border:1px solid #d5d3cc;border-radius:8px;background:#fff;color:#55534e;font-size:13px;cursor:pointer}
 #gate input{letter-spacing:6px;font-size:20px}
 #app{display:none}
 header{position:sticky;top:0;z-index:20;background:#1d1d1b;color:#fff;display:flex;align-items:center;gap:8px;padding:10px 14px;flex-wrap:wrap}
@@ -214,6 +215,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
     <div class="err" id="gerr"></div>
     <button id="gbtn">들어가기</button>
     <button type="button" id="gforgot" class="glink">PIN을 잊으셨나요?</button>
+    <button type="button" id="gback" class="gback">← 캘린더로 돌아가기</button>
     <p class="gdef">초기 PIN은 <b>1234</b>입니다. 들어간 뒤 상단 「PIN 변경」에서 바꿔 주세요.</p>
   </div>
 </div>

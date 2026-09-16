@@ -37,6 +37,9 @@
     });
     setTimeout(function () { $('#gpw').focus(); }, 100);
   }
+  var backBtn = $("#gback");
+  if (backBtn) backBtn.addEventListener("click", function () { location.href = "/"; });
+
   /* PIN 분실 — 캘린더 관리자 비밀번호로 초기 PIN(1234)으로 되돌린다 */
   var forgotBtn = $('#gforgot');
   if (forgotBtn) {
