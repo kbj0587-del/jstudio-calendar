@@ -46,7 +46,10 @@
   function init() {
     var sheet = $('#sheet');
     var fields = $$('[data-f]');
-    var groups = ['join', 'item', 'reg', 'pay'];
+    var groups = ["join", "item", "reg", "pay"];
+    var totalTouched = false;   /* 총 결제금액을 손으로 고쳤는가 */
+    var toTouched = false;      /* 강습 종료일을 손으로 고쳤는가 */
+    var agreed = false;         /* 약관 동의 여부(전자서명 전제) */
 
     /* 값 포맷 도우미 */
     function digits(v) { return String(v || '').replace(/[^0-9]/g, ''); }
@@ -84,6 +87,31 @@
       }).join('');
     }
 
+    /* 날짜: 20101014 · 101013 처럼 숫자만 입력해도 2010-10-14 로 자동 정리 */
+    function normDate(raw) {
+      var d = digits(raw);
+      var y, m, dd;
+      if (d.length === 8) { y = +d.slice(0, 4); m = +d.slice(4, 6); dd = +d.slice(6, 8); }
+      else if (d.length === 6) {
+        var yy = +d.slice(0, 2);
+        y = yy <= 30 ? 2000 + yy : 1900 + yy;
+        m = +d.slice(2, 4); dd = +d.slice(4, 6);
+      } else return '';
+      if (y < 1900 || y > 2200 || m < 1 || m > 12 || dd < 1 || dd > 31) return '';
+      var t = new Date(y, m - 1, dd);
+      if (t.getFullYear() !== y || t.getMonth() !== m - 1 || t.getDate() !== dd) return '';
+      return y + '-' + String(m).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+    }
+    function dval(k) {
+      var el = $('[data-f="' + k + '"]');
+      if (!el) return '';
+      return normDate(el.value);
+    }
+    function setDate(k, iso) {
+      var el = $('[data-f="' + k + '"]');
+      if (el) el.value = iso || '';
+    }
+
     function val(k) { var el = $('[data-f="' + k + '"]'); return el ? el.value.trim() : ''; }
     function put(k, html) {
       var el = sheet.querySelector('[data-v="' + k + '"]');
@@ -93,7 +121,7 @@
     function render() {
       put('code', val('code'));
       put('name', val('name'));
-      put('birth', korDate(val('birth'), '년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일'));
+      put('birth', korDate(dval("birth"), '년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일'));
       put('tel', val('tel'));
       put('addr', val('addr') || '<span class="ph">"동"까지만 기록해 주세요.</span>');
 
@@ -105,7 +133,18 @@
       var cnt = digits(val('cnt'));
       put('cnt', (cnt ? cnt + ' ' : '') + '회');
 
-      var f = val('from'), t = val('to');
+      /* 강습 종료일 — 시작일 + (횟수 × 1주). 직접 고치면 자동 계산을 멈춘다. */
+      var f = dval("from");
+      if (!toTouched && f && cnt) {
+        var e = new Date(f + 'T00:00:00');
+        e.setDate(e.getDate() + Number(cnt) * 7);
+        setDate('to', e.getFullYear() + '-' + String(e.getMonth() + 1).padStart(2, '0') +
+          '-' + String(e.getDate()).padStart(2, '0'));
+      }
+      var t = dval("to");
+      $('#toBadge').textContent = (f && cnt)
+        ? (toTouched ? '· 직접 입력됨' : '· 자동계산됨 (' + cnt + '주)')
+        : '';
       var blankFrom = '20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일';
       put('period', (korDate(f, blankFrom)) + '&nbsp;&nbsp;~&nbsp;&nbsp;' + (korDate(t, blankFrom)));
 
@@ -115,20 +154,24 @@
       var paid = comma(val('paid')), due = comma(val('due'));
       put('paidDue', (paid || '') + ' / ' + (due || ''));
 
-      var totalManual = digits(val('total'));
+      /* 총 결제금액 — 1회금액 × 횟수를 칸에 바로 채워 넣는다.
+         직접 고친 뒤에는(totalTouched) 자동 덮어쓰기를 하지 않는다. */
       var auto = (digits(val('unit')) && cnt) ? Number(digits(val('unit'))) * Number(cnt) : 0;
-      var total = totalManual ? Number(totalManual) : auto;
-      put('total', total ? '₩ ' + total.toLocaleString('ko-KR') : '₩');
+      if (!totalTouched && auto) $('[data-f="total"]').value = auto.toLocaleString('ko-KR');
+      var shown = digits(val('total'));
+      put('total', shown ? '₩ ' + Number(shown).toLocaleString('ko-KR') : '₩');
+      $('#totalBadge').textContent = auto
+        ? (totalTouched ? '· 직접 입력됨 (자동값 ' + auto.toLocaleString('ko-KR') + '원)' : '· 자동계산됨')
+        : '';
       $('#calc').textContent = auto
-        ? (totalManual
-          ? '자동계산 ' + auto.toLocaleString('ko-KR') + '원 → 직접 입력한 ' + Number(totalManual).toLocaleString('ko-KR') + '원으로 출력됩니다.'
-          : '자동계산: ' + comma(val('unit')) + '원 × ' + cnt + '회 = ' + auto.toLocaleString('ko-KR') + '원')
+        ? comma(val('unit')) + '원 × ' + cnt + '회 = ' + auto.toLocaleString('ko-KR') + '원'
+          + (totalTouched ? ' (칸을 비우면 이 값으로 되돌아갑니다)' : '')
         : '1회 금액과 횟수를 입력하면 자동으로 계산됩니다.';
 
       put('stdItem', esc(val('stdItem')));
       put('stdPrice', comma(val('stdPrice')) || esc(val('stdPrice')));
 
-      put('signDate', korDate(val('signDate'), '20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일'));
+      put('signDate', korDate(dval("signDate"), '20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일'));
 
       /* 회원권 사용기준일 안내 */
       var hint = '';
@@ -251,19 +294,95 @@
         $('#sigHint').textContent = paper
           ? '서명란을 빈 줄로 출력합니다. 출력 후 종이에 직접 서명받으세요.'
           : '화면에서 손가락이나 펜으로 서명을 받습니다. 서명한 그대로 인쇄됩니다.';
+        applyAgree();
         renderSigns(); saveDraft();
       });
     });
     $('#sigHint').textContent = '화면에서 손가락이나 펜으로 서명을 받습니다. 서명한 그대로 인쇄됩니다.';
 
+    /* ── 약관 보기 → 동의 → 서명 흐름 ────────────────────
+       전자서명(화면 서명)일 때만 동의를 요구한다.
+       종이 자필은 출력물에 서명을 받으므로 잠그지 않는다. */
+    var modal = $('#tmodal'), tmChk = $('#tmChk'), tmOk = $('#tmOk');
+
+    function buildTermsView() {
+      var body = $('#tmBody');
+      if (body.childElementCount) return;
+      var clone = sheet.querySelector('.terms').cloneNode(true);
+      /* 면책규정 테두리 박스를 풀어 본문과 같은 흐름으로 읽히게 한다 */
+      var box = clone.querySelector('.exempt');
+      if (box) while (box.firstChild) box.parentNode.insertBefore(box.firstChild, box);
+      if (box) box.remove();
+      body.appendChild(clone);
+    }
+    function openTerms() {
+      buildTermsView();
+      tmChk.checked = agreed;
+      tmOk.disabled = !agreed;
+      modal.hidden = false;
+      $('#tmBody').scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+    }
+    function closeTerms() {
+      modal.hidden = true;
+      document.body.style.overflow = '';
+    }
+    function applyAgree() {
+      var paper = sigMode() === 'paper';
+      var box = $('#agreeBox'), area = $('#sigArea');
+      box.style.display = paper ? 'none' : '';
+      area.classList.toggle('locked', !paper && !agreed);
+      $('#btnTerms').classList.toggle('done', agreed);
+      $('#btnTerms').textContent = agreed ? '✅ 약관 동의 완료 · 다시 보기' : '📖 약관 보기 · 동의하기';
+      $('#agreeState').textContent = agreed
+        ? '동의를 확인했습니다. 아래에서 서명을 받으세요.'
+        : '약관에 동의하면 서명란이 열립니다.';
+    }
+
+    $('#btnTerms').addEventListener('click', openTerms);
+    $('#tmClose').addEventListener('click', closeTerms);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeTerms(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) closeTerms();
+    });
+    tmChk.addEventListener('change', function () { tmOk.disabled = !tmChk.checked; });
+    tmOk.addEventListener('click', function () {
+      if (!tmChk.checked) return;
+      agreed = true;
+      closeTerms();
+      applyAgree();
+      saveDraft();
+      var c = $('#sigA');
+      if (c) c.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+
     /* ── 입력 바인딩 ─────────────────────────────────────── */
     fields.forEach(function (el) {
+      var k = el.dataset.f;
       el.addEventListener('input', function () {
-        var k = el.dataset.f;
         if (k === 'tel') el.value = hyphenTel(el.value);
         if (['unit', 'paid', 'due', 'total', 'stdPrice'].indexOf(k) > -1) el.value = comma(el.value);
+        /* 자동계산 칸을 손으로 고치면 그때부터 수동 값을 존중한다.
+           칸을 비우면 다시 자동계산으로 돌아간다. */
+        if (k === 'total') totalTouched = el.value.trim() !== '';
+        if (k === 'to') toTouched = el.value.trim() !== '';
+        /* 숫자만 8자리(또는 6자리) 채워지면 즉시 YYYY-MM-DD 로 정리 */
+        if (el.hasAttribute('data-date')) {
+          var n = digits(el.value);
+          if (n.length === 6 || n.length === 8) {
+            var iso = normDate(el.value);
+            if (iso) el.value = iso;
+          }
+        }
         render();
       });
+      /* 칸을 벗어날 때 한 번 더 정리 — 2010.10.14 처럼 찍어 넣은 경우까지 흡수 */
+      if (el.hasAttribute('data-date')) {
+        el.addEventListener('blur', function () {
+          var iso = normDate(el.value);
+          if (iso) { el.value = iso; render(); }
+        });
+      }
       el.addEventListener('change', render);
     });
     groups.concat(['sigmode']).forEach(function (g) {
@@ -290,6 +409,7 @@
           var c = document.querySelector('input[name="' + g + '"]:checked');
           d.g[g] = c ? c.value : '';
         });
+        d.agreed = agreed;
         d.sig.a = pads.sigA.data();
         d.sig.b = pads.sigB.data();
         localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
@@ -307,10 +427,13 @@
         var r = document.querySelector('input[name="' + g + '"][value="' + d.g[g] + '"]');
         if (r) r.checked = true;
       });
+      agreed = !!d.agreed;
       if (d.sig) { pads.sigA.load(d.sig.a); pads.sigB.load(d.sig.b); }
     }
 
-    $('#btnReset').addEventListener('click', function () {
+    $("#btnBack").addEventListener("click", function () { location.href = "/"; });
+
+    $("#btnReset").addEventListener('click', function () {
       if (!confirm('작성 중인 내용을 모두 지우고 새 계약서를 시작할까요?')) return;
       try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
       location.reload();
@@ -344,6 +467,7 @@
     }
 
     loadDraft();
+    applyAgree();
     render();
     fit();
   }
