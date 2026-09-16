@@ -789,7 +789,7 @@
     $$('#pinPad [data-k]').forEach(function (b) {
       b.addEventListener('click', function () {
         var k = b.dataset.k;
-        if (k === 'ok') return ppSubmit();
+        if (k === 'cancel') return closePinPad();
         if (k === 'back') { ppBuf = ppBuf.slice(0, -1); ppDraw(); return; }
         if (ppBuf.length >= 6) return;
         ppBuf += k; ppDraw();
@@ -810,7 +810,7 @@
         closePinPad();
       }
     });
-    $('#ppCancel').addEventListener('click', closePinPad);
+    $('#ppOk').addEventListener('click', ppSubmit);
 
     /* 회원이 임의로 빠져나가 입력값을 건드리지 못하도록 PIN 으로만 복귀 */
     function exitMember() {
@@ -862,8 +862,8 @@
       $('#mbAll').disabled = !readToEnd;
       $('#mbAll').classList.toggle('done', ok);
       $('#mbAll').textContent = ok
-        ? '✓ 전체 동의 완료 — 아래에서 서명해 주세요'
-        : (readToEnd ? '✓ 약관을 모두 읽었으며 전체 동의합니다' : '약관을 끝까지 읽으면 열립니다');
+        ? '✓ 전체 동의 완료'
+        : (readToEnd ? '약관 전체 동의' : '약관을 끝까지 읽어 주세요');
 
       consentState = all.map(function (c) { return c.checked; });
       if (ok && !agreed) agreedAt = stamp();

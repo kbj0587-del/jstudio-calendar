@@ -128,13 +128,13 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .mb-prog{font-size:13px;font-weight:600;color:#8a8880}
 .mb-prog.done{color:#1a7a4f}
 /* 약관 본문 안에 끼워 넣는 동의 박스 */
-.mb-ck{display:flex;gap:10px;align-items:center;margin:8px 0 14px;padding:10px 12px;border:1px solid #d5d3cc;border-radius:9px;background:#fbfaf7;font-size:13.5px;line-height:1.5;cursor:pointer}
-.mb-ck input{width:24px;height:24px;accent-color:#1d1d1b;flex:none}
-.mb-ck.on{border-color:#1a7a4f;background:#f2f9f5}
-.mb-ck b{font-weight:600}
-.mb-allbtn{width:100%;height:48px;margin-top:10px;border:1px solid #1d1d1b;border-radius:10px;background:#fff;font-size:14px;font-weight:600;cursor:pointer}
-.mb-allbtn:disabled{border-color:#d5d3cc;color:#b4b2a9;cursor:not-allowed}
-.mb-allbtn.done{background:#1d1d1b;color:#fff}
+.mb-ck{display:flex;gap:10px;align-items:center;margin:10px 0 16px;padding:12px 14px;border:2px solid #e0b355;border-radius:10px;background:#fff8e8;font-size:14px;line-height:1.5;cursor:pointer;color:#6b4f14}
+.mb-ck input{width:26px;height:26px;accent-color:#1a7a4f;flex:none}
+.mb-ck.on{border-color:#1a7a4f;background:#eef8f2;color:#0f5c3a}
+.mb-ck b{font-weight:700}
+.mb-allbtn{width:100%;height:52px;margin-top:10px;border:0;border-radius:11px;background:#b98a1a;color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+.mb-allbtn:disabled{background:#e6e3dc;color:#a6a49d;cursor:not-allowed}
+.mb-allbtn.done{background:#1a7a4f;color:#fff}
 .mb-consent{margin-top:16px;padding-top:14px;border-top:1px solid #e2e0da;font-size:13px;line-height:1.7;color:#55534e}
 .mb-sigstate{font-size:14px;color:#8a8880;margin-bottom:12px}
 .mb-sigstate.ok{color:#1a7a4f;font-weight:600}
@@ -172,7 +172,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .pp-grid button{height:52px;font-size:20px;border:1px solid #e2e0da;border-radius:10px;background:#fff;cursor:pointer}
 .pp-grid button:active{background:#f1efe8}
 .pp-grid .pp-alt{font-size:15px;color:#8a8880}
-.pp-cancel{margin-top:10px;width:100%;height:42px;border:0;background:none;color:#8a8880;font-size:13px;cursor:pointer}
+.pp-ok{margin-top:10px;width:100%;height:50px;border:0;border-radius:11px;background:#1d1d1b;color:#fff;font-size:17px;font-weight:700;cursor:pointer}
 #shBox{position:fixed;inset:0;background:rgba(20,20,18,.65);z-index:115;display:flex;align-items:center;justify-content:center;padding:16px}
 #shBox[hidden]{display:none}
 .sh-inner{background:#fff;border-radius:16px;padding:22px 20px 16px;width:min(360px,100%);text-align:center}
@@ -512,7 +512,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
       <div class="mb-foot">
         <div class="mb-prog" id="mbProg">동의 0 / 0</div>
         <p class="mb-scrollhint" id="mbScrollHint">⬇ 약관을 끝까지 내려서 읽어 주세요</p>
-        <button type="button" id="mbAll" class="mb-allbtn" disabled>✓ 약관을 모두 읽었으며 전체 동의합니다</button>
+        <button type="button" id="mbAll" class="mb-allbtn" disabled>약관 전체 동의</button>
       </div>
 
     </section>
@@ -559,9 +559,9 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
       <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
       <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
       <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
-      <button type="button" data-k="back" class="pp-alt">⌫</button><button type="button" data-k="0">0</button><button type="button" data-k="ok" class="pp-alt">확인</button>
+      <button type="button" data-k="back" class="pp-alt">⌫</button><button type="button" data-k="0">0</button><button type="button" data-k="cancel" class="pp-alt">취소</button>
     </div>
-    <button type="button" id="ppCancel" class="pp-cancel">취소</button>
+    <button type="button" id="ppOk" class="pp-ok">확인</button>
   </div>
 </div>
 
