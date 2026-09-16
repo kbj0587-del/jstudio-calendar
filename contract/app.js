@@ -193,79 +193,77 @@
       });
     }
 
-    /* ── 서명 캔버스 (손가락 · 펜 · 마우스) ───────────────── */
-    var pads = {};
-    function makePad(id) {
-      var cv = document.getElementById(id);
-      var ratio = window.devicePixelRatio || 1;
-      var ctx = cv.getContext('2d');
-      var drawn = false, drawing = false;
+    /* ── 서명 팝업 (손가락 · 펜 · 마우스) ──────────────────
+       가입자(A) · 담당자(B) 서명을 각각 큰 팝업에서 받는다.
+       패널에는 결과만 작게 보여 준다. */
+    var sig = { A: '', B: '' };
+    var sigTarget = 'A';
+    var sgModal = $('#sigModal'), sgCanvas = $('#sgCanvas');
+    var sgCtx = sgCanvas.getContext('2d');
+    var sgDrawn = false, sgDrawing = false, sgRatio = window.devicePixelRatio || 1;
 
-      function resize() {
-        var keep = drawn ? cv.toDataURL() : null;
-        var r = cv.getBoundingClientRect();
-        cv.width = Math.max(1, Math.round(r.width * ratio));
-        cv.height = Math.max(1, Math.round(r.height * ratio));
-        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-        ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#111';
-        if (keep) {
-          var img = new Image();
-          img.onload = function () { ctx.drawImage(img, 0, 0, r.width, r.height); };
-          img.src = keep;
-        }
-      }
-      resize();
-      window.addEventListener('resize', resize);
-
-      function pos(e) {
-        var r = cv.getBoundingClientRect();
-        return { x: e.clientX - r.left, y: e.clientY - r.top };
-      }
-      cv.addEventListener('pointerdown', function (e) {
-        e.preventDefault();
-        drawing = true; drawn = true;
-        try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 일부 환경에서 미지원 */ }
-        var p = pos(e);
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + 0.1, p.y); ctx.stroke();
-      });
-      cv.addEventListener('pointermove', function (e) {
-        if (!drawing) return;
-        e.preventDefault();
-        var p = pos(e);
-        ctx.lineTo(p.x, p.y); ctx.stroke();
-      });
-      ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
-        cv.addEventListener(ev, function () {
-          if (!drawing) return;
-          drawing = false;
-          renderSigns(); saveDraft();
-        });
-      });
-
-      return {
-        isEmpty: function () { return !drawn; },
-        data: function () { return drawn ? cv.toDataURL('image/png') : ''; },
-        clear: function () {
-          ctx.clearRect(0, 0, cv.width, cv.height);
-          drawn = false; renderSigns(); saveDraft();
-        },
-        load: function (url) {
-          if (!url) return;
-          var img = new Image();
-          img.onload = function () {
-            var r = cv.getBoundingClientRect();
-            ctx.drawImage(img, 0, 0, r.width, r.height);
-            drawn = true; renderSigns();
-          };
-          img.src = url;
-        }
-      };
+    function sgSetup() {
+      var r = sgCanvas.getBoundingClientRect();
+      sgCanvas.width = Math.max(1, Math.round(r.width * sgRatio));
+      sgCanvas.height = Math.max(1, Math.round(r.height * sgRatio));
+      sgCtx.setTransform(sgRatio, 0, 0, sgRatio, 0, 0);
+      sgCtx.lineWidth = 2.8; sgCtx.lineCap = 'round'; sgCtx.lineJoin = 'round';
+      sgCtx.strokeStyle = '#111';
+      sgCtx.clearRect(0, 0, r.width, r.height);
+      sgDrawn = false;
+      $('#sgSave').disabled = true;
     }
-    pads.sigA = makePad('sigA');
-    pads.sigB = makePad('sigB');
-    $$('[data-clear]').forEach(function (b) {
-      b.addEventListener('click', function () { pads[b.dataset.clear].clear(); });
+    function sgPos(e) {
+      var r = sgCanvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+    sgCanvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      sgDrawing = true; sgDrawn = true;
+      $('#sgSave').disabled = false;
+      try { sgCanvas.setPointerCapture(e.pointerId); } catch (err) { /* 미지원 환경 */ }
+      var p = sgPos(e);
+      sgCtx.beginPath(); sgCtx.moveTo(p.x, p.y); sgCtx.lineTo(p.x + 0.1, p.y); sgCtx.stroke();
+    });
+    sgCanvas.addEventListener('pointermove', function (e) {
+      if (!sgDrawing) return;
+      e.preventDefault();
+      var p = sgPos(e);
+      sgCtx.lineTo(p.x, p.y); sgCtx.stroke();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+      sgCanvas.addEventListener(ev, function () { sgDrawing = false; });
+    });
+
+    function openSign(which) {
+      sigTarget = which;
+      $('#sgTitle').textContent = which === 'A' ? '가입자 서명' : '담당자 서명';
+      sgModal.hidden = false;
+      document.body.style.overflow = 'hidden';
+      /* 화면에 붙은 뒤에 크기를 재야 캔버스 해상도가 맞는다 */
+      requestAnimationFrame(sgSetup);
+    }
+    function closeSign() {
+      sgModal.hidden = true;
+      document.body.style.overflow = '';
+    }
+    $('#sgClear').addEventListener('click', sgSetup);
+    $('#sgCancel').addEventListener('click', closeSign);
+    $('#sgSave').addEventListener('click', function () {
+      if (!sgDrawn) return;
+      sig[sigTarget] = sgCanvas.toDataURL('image/png');
+      closeSign();
+      renderSigns(); saveDraft();
+      if (memberOn) memberSigned();
+    });
+    $$('[data-sign]').forEach(function (b) {
+      b.addEventListener('click', function () { openSign(b.dataset.sign); });
+    });
+    $$('[data-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        sig[b.dataset.del] = '';
+        renderSigns(); saveDraft();
+      });
     });
 
     function sigMode() {
@@ -274,23 +272,26 @@
     }
     function renderSigns() {
       var paper = sigMode() === 'paper';
-      var staff = val('staff');
-      fillSlot('#slotA', paper ? '' : pads.sigA.data());
-      fillSlot('#slotB', paper ? '' : pads.sigB.data(), staff);
+      fillSlot('#slotA', paper ? '' : sig.A);
+      fillSlot('#slotB', paper ? '' : sig.B, val('staff'));
+      ['A', 'B'].forEach(function (k) {
+        var has = !paper && !!sig[k];
+        $('#thumb' + k).innerHTML = has ? '<img src="' + sig[k] + '" alt="" />' : '';
+        var st = $('#state' + k);
+        st.textContent = has ? '서명 완료' : '미서명';
+        st.classList.toggle('ok', has);
+      });
     }
     function fillSlot(sel, url, nameBelow) {
       var el = $(sel);
       if (url) el.innerHTML = '<img src="' + url + '" alt="" />';
+      else if (nameBelow) el.innerHTML = '<span>' + esc(nameBelow) + ' 서명</span>';
       else el.innerHTML = '<span>서명</span>';
-      if (nameBelow && !url) el.innerHTML = '<span>' + esc(nameBelow) + ' 서명</span>';
     }
 
     $$('input[name="sigmode"]').forEach(function (r) {
       r.addEventListener('change', function () {
         var paper = sigMode() === 'paper';
-        $('#sigArea').querySelectorAll('.sigbox').forEach(function (b) {
-          b.style.display = paper ? 'none' : '';
-        });
         $('#sigHint').textContent = paper
           ? '서명란을 빈 줄로 출력합니다. 출력 후 종이에 직접 서명받으세요.'
           : '화면에서 손가락이나 펜으로 서명을 받습니다. 서명한 그대로 인쇄됩니다.';
@@ -352,9 +353,145 @@
       closeTerms();
       applyAgree();
       saveDraft();
-      var c = $('#sigA');
-      if (c) c.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      var c = $("#sigArea");
+      if (c) c.scrollIntoView({ block: "center", behavior: "smooth" });
     });
+
+    /* ── 회원에게 전달(핸드오프) 모드 ──────────────────────
+       관리자가 정보를 다 채운 뒤 폰/패드를 회원에게 넘기는 화면.
+       회원은 ① 가입 내용 확인 ② 약관 읽고 동의 ③ 서명 만 한다.
+       입력 폼·인쇄·미리보기는 전부 가려져 회원이 건드릴 수 없다. */
+    var memberOn = false;
+
+    function handoffCheck() {
+      var miss = [];
+      if (!val('name')) miss.push('회원명');
+      if (!dval('birth')) miss.push('생년월일');
+      if (!val('tel')) miss.push('연락처');
+      if (!document.querySelector('input[name="item"]:checked')) miss.push('종목');
+      if (!digits(val('cnt'))) miss.push('등록 횟수');
+      if (!dval('from')) miss.push('강습 시작일');
+      if (!digits(val('total'))) miss.push('총 결제금액');
+      return miss;
+    }
+
+    function memberInfoRows() {
+      var picked = function (n) {
+        var el = document.querySelector('input[name="' + n + '"]:checked');
+        return el ? el.value : '';
+      };
+      var item = picked('item');
+      if (item === '기타') item = val('itemEtc') || '기타';
+      var reg = picked('reg');
+      if (reg === '기타') reg = val('regEtc') || '기타';
+      var f = dval('from'), t = dval('to');
+      var rows = [
+        ['회원명', val('name')],
+        ['연락처', val('tel')],
+        ['종목', item],
+        ['등록구분', reg],
+        ['등록 횟수', digits(val('cnt')) + '회'],
+        ['강습 기간', (korDate(f, '-')) + ' ~ ' + (korDate(t, '-'))],
+        ['총 결제금액', digits(val('total')) ? Number(digits(val('total'))).toLocaleString('ko-KR') + '원' : '-'],
+        ['결제구분', picked('pay') || '-']
+      ];
+      return rows.map(function (r) {
+        return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1] || '-') + '</dd>';
+      }).join('');
+    }
+
+    function buildMemberTerms() {
+      var box = $('#mbTerms');
+      if (box.childElementCount) return;
+      var clone = sheet.querySelector('.terms').cloneNode(true);
+      var ex = clone.querySelector('.exempt');
+      if (ex) { while (ex.firstChild) ex.parentNode.insertBefore(ex.firstChild, ex); ex.remove(); }
+      box.appendChild(clone);
+    }
+
+    function memberSigned() {
+      var ok = !!sig.A;
+      var st = $('#mbSigState');
+      st.textContent = ok ? '서명이 등록되었습니다. 아래 버튼을 눌러 제출해 주세요.' : '약관에 동의하면 서명할 수 있습니다.';
+      st.classList.toggle('ok', ok);
+      $('#mbSign').textContent = ok ? '✍️ 다시 서명하기' : '✍️ 서명하기';
+      $('#mbDone').hidden = !ok;
+    }
+
+    function openMember() {
+      var miss = handoffCheck();
+      if (miss.length && !confirm('아직 비어 있는 항목이 있습니다.\n\n· ' + miss.join('\n· ') +
+        '\n\n그래도 회원에게 전달할까요?')) return;
+      if (sigMode() === 'paper') {
+        if (!confirm('지금은 "종이 자필 서명" 모드입니다.\n화면 서명으로 바꿔서 전달할까요?')) return;
+        var r = document.querySelector('input[name="sigmode"][value="screen"]');
+        r.checked = true;
+        r.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      buildMemberTerms();
+      $('#mbInfo').innerHTML = memberInfoRows();
+      $('#mbChk').checked = agreed;
+      $('#mbChk').disabled = !agreed;
+      $('#mbAgreeLabel').classList.toggle('off', !agreed);
+      $('#mbScrollHint').textContent = agreed ? '✅ 약관을 확인했습니다' : '⬇ 약관을 끝까지 내려서 읽어 주세요';
+      $('#mbScrollHint').classList.toggle('done', agreed);
+      $('#mbSign').disabled = !agreed;
+      $('#mbFin').hidden = true;
+      memberSigned();
+      memberOn = true;
+      $('#member').hidden = false;
+      $('#mbScroll').scrollTop = 0;
+      $('#mbTerms').scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeMember() {
+      memberOn = false;
+      $('#member').hidden = true;
+      document.body.style.overflow = '';
+      render();
+    }
+
+    /* 회원이 임의로 빠져나가 입력값을 건드리지 못하도록 관리자 비밀번호로만 복귀 */
+    function exitMember() {
+      var pw = prompt('직원 확인 — 관리자 비밀번호를 입력하세요');
+      if (pw === null) return;
+      fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok) closeMember();
+          else alert('비밀번호가 맞지 않습니다.');
+        })
+        .catch(function () { alert('서버에 연결할 수 없습니다.'); });
+    }
+
+    /* 약관을 끝까지 내려야 동의 체크가 열린다 */
+    $('#mbTerms').addEventListener('scroll', function () {
+      var el = this;
+      if (el.scrollTop + el.clientHeight < el.scrollHeight - 24) return;
+      if (!$('#mbChk').disabled) return;
+      $('#mbChk').disabled = false;
+      $('#mbAgreeLabel').classList.remove('off');
+      $('#mbScrollHint').textContent = '✅ 약관을 끝까지 확인했습니다';
+      $('#mbScrollHint').classList.add('done');
+    });
+    $('#mbChk').addEventListener('change', function () {
+      agreed = this.checked;
+      $('#mbSign').disabled = !agreed;
+      if (!agreed) { $('#mbDone').hidden = true; }
+      applyAgree(); saveDraft();
+    });
+    $('#mbSign').addEventListener('click', function () { openSign('A'); });
+    $('#mbDone').addEventListener('click', function () {
+      $('#mbFin').hidden = false;
+    });
+    $('#mbExit').addEventListener('click', exitMember);
+    $('#mbFinExit').addEventListener('click', exitMember);
+    $('#btnHandoff').addEventListener('click', openMember);
 
     /* ── 입력 바인딩 ─────────────────────────────────────── */
     fields.forEach(function (el) {
@@ -410,8 +547,8 @@
           d.g[g] = c ? c.value : '';
         });
         d.agreed = agreed;
-        d.sig.a = pads.sigA.data();
-        d.sig.b = pads.sigB.data();
+        d.sig.a = sig.A;
+        d.sig.b = sig.B;
         localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
       } catch (e) { /* 용량 초과 등은 무시 — 출력에는 영향 없음 */ }
     }
@@ -428,7 +565,7 @@
         if (r) r.checked = true;
       });
       agreed = !!d.agreed;
-      if (d.sig) { pads.sigA.load(d.sig.a); pads.sigB.load(d.sig.b); }
+      if (d.sig) { sig.A = d.sig.a || ""; sig.B = d.sig.b || ""; }
     }
 
     $("#btnBack").addEventListener("click", function () { location.href = "/"; });

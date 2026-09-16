@@ -80,10 +80,74 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .tm-body .terms .red{color:#c0392b;font-weight:700}
 .tm-body .terms .gray{color:#777}
 .tm-body .terms li.plain:before{content:""}
+.sigrow{display:flex;align-items:center;gap:8px;border:1px solid #e2e0da;border-radius:9px;padding:9px 10px;margin-top:8px}
+.sigrow-l{flex:1;min-width:0}
+.sigrow-t{display:block;font-size:13px;font-weight:600}
+.sigrow-s{display:block;font-size:11px;color:#8a8880}
+.sigrow-s.ok{color:#1a7a4f}
+.sigthumb{width:74px;height:34px;border-bottom:1px solid #d5d3cc;display:flex;align-items:flex-end;justify-content:center;flex:none}
+.sigthumb img{max-width:100%;max-height:34px}
+.sigbtn{height:34px;padding:0 12px;border:1px solid #1d1d1b;border-radius:7px;background:#1d1d1b;color:#fff;font-size:12px;cursor:pointer;flex:none}
+.sigdel{height:34px;padding:0 10px;border:1px solid #d5d3cc;border-radius:7px;background:#fff;font-size:12px;color:#8a8880;cursor:pointer;flex:none}
+#sigModal{position:fixed;inset:0;background:rgba(20,20,18,.72);z-index:100;display:flex;align-items:center;justify-content:center;padding:14px}
+#sigModal[hidden]{display:none}
+.sg-box{background:#fff;border-radius:16px;width:min(760px,100%);padding:16px 18px 14px}
+.sg-head h2{margin:0;font-size:18px}
+.sg-sub{font-size:13px;color:#8a8880}
+.sg-pad{position:relative;margin:12px 0;border:1px solid #d5d3cc;border-radius:12px;background:#fdfdfc;overflow:hidden}
+.sg-pad canvas{display:block;width:100%;height:min(46vh,300px);touch-action:none}
+.sg-line{position:absolute;left:8%;right:8%;bottom:34px;border-bottom:1px dashed #cfcdc6;pointer-events:none}
+.sg-foot{display:flex;gap:8px;align-items:center}
+.sg-foot button{height:44px;padding:0 18px;border:1px solid #d5d3cc;border-radius:10px;background:#fff;font-size:14px;cursor:pointer}
+.sg-ok{background:#1d1d1b!important;color:#fff;border-color:#1d1d1b!important;font-weight:600}
+.sg-ok:disabled{background:#d5d3cc!important;border-color:#d5d3cc!important;color:#8a8880;cursor:not-allowed}
+#member{position:fixed;inset:0;background:#f4f2ee;z-index:90;display:flex;flex-direction:column}
+#member[hidden]{display:none}
+.mb-top{background:#1d1d1b;color:#fff;display:flex;align-items:center;gap:10px;padding:14px 16px;flex:none}
+.mb-brand{font-size:12px;color:#b9b6ae;letter-spacing:1px}
+.mb-title{flex:1;font-size:16px;font-weight:600}
+.mb-exit{background:none;border:1px solid #55534e;color:#b9b6ae;border-radius:7px;height:30px;padding:0 10px;font-size:12px;cursor:pointer}
+.mb-scroll{flex:1;overflow:auto;padding:16px;-webkit-overflow-scrolling:touch}
+.mb-card{background:#fff;border-radius:14px;padding:18px 18px 20px;margin:0 auto 14px;max-width:720px}
+.mb-card h3{margin:0 0 14px;font-size:17px}
+.mb-dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:15px}
+.mb-dl dt{color:#8a8880;white-space:nowrap}
+.mb-dl dd{margin:0;font-weight:600;text-align:right}
+.mb-note{font-size:13px;color:#8a8880;margin:14px 0 0}
+.mb-terms{max-height:46vh;overflow:auto;border:1px solid #e2e0da;border-radius:10px;padding:14px 16px;-webkit-overflow-scrolling:touch}
+.mb-scrollhint{font-size:13px;color:#b98a1a;margin:10px 0 0;font-weight:600}
+.mb-scrollhint.done{color:#1a7a4f}
+.mb-agree{display:flex;gap:12px;align-items:center;margin-top:14px;padding:14px;border:1px solid #e2e0da;border-radius:10px;font-size:15px;cursor:pointer}
+.mb-agree input{width:26px;height:26px;accent-color:#1d1d1b;flex:none}
+.mb-agree.off{opacity:.45;cursor:not-allowed}
+.mb-sigstate{font-size:14px;color:#8a8880;margin-bottom:12px}
+.mb-sigstate.ok{color:#1a7a4f;font-weight:600}
+.mb-btn{width:100%;height:54px;border:0;border-radius:12px;background:#1d1d1b;color:#fff;font-size:16px;font-weight:600;cursor:pointer}
+.mb-btn:disabled{background:#d5d3cc;color:#8a8880;cursor:not-allowed}
+.mb-done{background:#1a7a4f;margin-top:10px}
+.mb-fin{position:absolute;inset:0;background:#f4f2ee;display:flex;align-items:center;justify-content:center;padding:20px}
+.mb-fin[hidden]{display:none}
+.mb-fin-box{background:#fff;border-radius:16px;padding:34px 28px;text-align:center;max-width:420px;width:100%}
+.mb-fin-ico{font-size:44px}
+.mb-fin-box h2{margin:12px 0 8px;font-size:20px}
+.mb-fin-box p{font-size:14px;color:#8a8880;line-height:1.7;margin:0 0 22px}
+.mb-terms .terms h2{font-size:14px;background:#1d1d1b;color:#fff;border:0;border-radius:7px;padding:8px 12px;margin:18px 0 8px;letter-spacing:0}
+.mb-terms .terms h2:first-child{margin-top:0}
+.mb-terms .terms ul{padding:0;margin:0;list-style:none}
+.mb-terms .terms li{position:relative;font-size:14px;line-height:1.75;margin:0 0 9px;padding-left:16px}
+.mb-terms .terms li:before{position:absolute;content:"\2022";left:2px;top:0;font-size:14px}
+.mb-terms .terms li.sub{padding-left:30px}
+.mb-terms .terms li.sub:before{left:16px}
+.mb-terms .terms li.plain{padding-left:16px;font-weight:600}
+.mb-terms .terms li.plain:before{content:""}
+.mb-terms .terms .em{font-weight:700}
+.mb-terms .terms .exempt{border:0;padding:0}
+.mb-terms .terms .red{color:#c0392b;font-weight:700}
+.mb-terms .terms .gray{color:#777}
 @media(max-width:1080px){.wrap{flex-direction:column;align-items:stretch}.panel{flex:none}.stage{order:2}}
 @media print{
   body{background:#fff}
-  header,.panel,#gate,.tip,#tmodal{display:none!important}
+  header,.panel,#gate,.tip,#tmodal,#sigModal,#member{display:none!important}
   .wrap{display:block;padding:0;margin:0}
   .stage{display:block;overflow:visible}
   .stage .holder{transform:none!important}
@@ -110,6 +174,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
   <h1>회원가입(PT) 계약서</h1>
   <button id="btnInk">잉크 절약: 끔</button>
   <button id="btnReset">새 계약서</button>
+  <button id="btnHandoff">📱 회원에게 전달</button>
   <button class="go" id="btnPrint">인쇄 / PDF 저장</button>
 </header>
 
@@ -204,15 +269,19 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
       <div id="sigArea">
         <div class="row" style="margin-top:8px">
           <div class="f"><label class="t">계약일</label><input autocomplete="off" type="text" inputmode="numeric" data-f="signDate" data-date /></div>
-        </div>
-        <label class="t" style="margin-top:6px">가입자 서명</label>
-        <div class="sigbox"><canvas id="sigA"></canvas>
-          <div class="bar"><span>손가락 또는 펜으로 서명하세요</span><button type="button" data-clear="sigA">지우기</button></div></div>
-        <label class="t" style="margin-top:10px">담당자 서명</label>
-        <div class="sigbox"><canvas id="sigB"></canvas>
-          <div class="bar"><span>담당 강사 서명</span><button type="button" data-clear="sigB">지우기</button></div></div>
-        <div class="row" style="margin-top:8px">
           <div class="f"><label class="t">담당자 이름 (선택)</label><input autocomplete="off" type="text" data-f="staff" /></div>
+        </div>
+        <div class="sigrow">
+          <div class="sigrow-l"><span class="sigrow-t">가입자 서명</span><span class="sigrow-s" id="stateA">미서명</span></div>
+          <span class="sigthumb" id="thumbA"></span>
+          <button type="button" class="sigbtn" data-sign="A">✍️ 서명</button>
+          <button type="button" class="sigdel" data-del="A">지우기</button>
+        </div>
+        <div class="sigrow">
+          <div class="sigrow-l"><span class="sigrow-t">담당자 서명</span><span class="sigrow-s" id="stateB">미서명</span></div>
+          <span class="sigthumb" id="thumbB"></span>
+          <button type="button" class="sigbtn" data-sign="B">✍️ 서명</button>
+          <button type="button" class="sigdel" data-del="B">지우기</button>
         </div>
       </div>
       <p class="tip">인쇄 창에서 <b>배경 그래픽</b>을 켜야 검정 제목 띠가 인쇄됩니다.
@@ -317,6 +386,64 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
     </div>
   </div></div>
 </div>
+</div>
+
+<div id="sigModal" hidden>
+  <div class="sg-box" role="dialog" aria-modal="true" aria-labelledby="sgTitle">
+    <div class="sg-head">
+      <h2 id="sgTitle">가입자 서명</h2>
+      <span class="sg-sub">손가락 또는 펜으로 아래 칸에 서명해 주세요</span>
+    </div>
+    <div class="sg-pad"><canvas id="sgCanvas"></canvas><span class="sg-line"></span></div>
+    <div class="sg-foot">
+      <button type="button" id="sgClear">지우기</button>
+      <span style="flex:1"></span>
+      <button type="button" id="sgCancel">취소</button>
+      <button type="button" id="sgSave" class="sg-ok" disabled>서명 완료</button>
+    </div>
+  </div>
+</div>
+
+<div id="member" hidden>
+  <div class="mb-top">
+    <span class="mb-brand">제이스튜디오</span>
+    <span class="mb-title">회원가입 계약 확인 및 서명</span>
+    <button type="button" id="mbExit" class="mb-exit">직원용</button>
+  </div>
+
+  <div class="mb-scroll" id="mbScroll">
+    <section class="mb-card">
+      <h3>1. 가입 내용을 확인해 주세요</h3>
+      <dl class="mb-dl" id="mbInfo"></dl>
+      <p class="mb-note">내용이 다르면 직원에게 말씀해 주세요.</p>
+    </section>
+
+    <section class="mb-card">
+      <h3>2. 약관을 읽고 동의해 주세요</h3>
+      <div class="mb-terms" id="mbTerms"></div>
+      <p class="mb-scrollhint" id="mbScrollHint">⬇ 약관을 끝까지 내려서 읽어 주세요</p>
+      <label class="mb-agree" id="mbAgreeLabel">
+        <input type="checkbox" id="mbChk" autocomplete="off" disabled />
+        <span>위 약관을 모두 읽고 이해했으며, 이에 동의합니다.</span>
+      </label>
+    </section>
+
+    <section class="mb-card">
+      <h3>3. 서명해 주세요</h3>
+      <div class="mb-sigstate" id="mbSigState">약관에 동의하면 서명할 수 있습니다.</div>
+      <button type="button" id="mbSign" class="mb-btn" disabled>✍️ 서명하기</button>
+      <button type="button" id="mbDone" class="mb-btn mb-done" hidden>제출하고 직원에게 돌려주기</button>
+    </section>
+  </div>
+
+  <div class="mb-fin" id="mbFin" hidden>
+    <div class="mb-fin-box">
+      <div class="mb-fin-ico">✅</div>
+      <h2>서명이 완료되었습니다</h2>
+      <p>이용해 주셔서 감사합니다.<br />기기를 직원에게 돌려주세요.</p>
+      <button type="button" id="mbFinExit" class="mb-btn">직원 확인</button>
+    </div>
+  </div>
 </div>
 
 <div id="tmodal" hidden>
