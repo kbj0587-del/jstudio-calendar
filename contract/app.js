@@ -506,30 +506,57 @@
     renderStaff();
 
     /* ── PIN 변경 ─────────────────────────────────────────
-       현재 PIN을 확인한 뒤 새 PIN(4~6자리)으로 바꾼다. 서버에 해시로 보관돼
-       모든 기기에 같이 적용된다. */
+       현재 PIN 확인 → 새 PIN → 새 PIN 재입력. 세 단계 모두 숫자패드로 받는다.
+       서버에 해시로 보관돼 모든 기기에 같이 적용된다. */
     $('#btnPin').addEventListener('click', function () {
-      var cur = prompt('현재 PIN을 입력하세요');
-      if (cur === null) return;
-      var next = prompt('새 PIN을 입력하세요 (숫자 4~6자리)');
-      if (next === null) return;
-      next = String(next).trim();
-      if (!/^\d{4,6}$/.test(next)) { alert('PIN은 숫자 4~6자리여야 합니다.'); return; }
-      var again = prompt('확인을 위해 새 PIN을 한 번 더 입력하세요');
-      if (again === null) return;
-      if (String(again).trim() !== next) { alert('새 PIN이 서로 다릅니다.'); return; }
-      fetch('/api/contract/pin/change', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPin: String(cur).trim(), newPin: next })
-      })
-        .then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
-        .then(function (res) {
-          if (res.d && res.d.ok) alert('PIN을 변경했습니다.\n다음 접속부터 새 PIN을 쓰세요.');
-          else alert((res.d && res.d.message) || 'PIN을 변경하지 못했습니다.');
-        })
-        .catch(function () { alert('서버에 연결할 수 없습니다.'); });
+      openPinPad({
+        title: 'PIN 변경 (1/3)',
+        sub: '현재 PIN을 입력하세요',
+        onDone: function (cur) {
+          $('#ppErr').textContent = '확인 중…';
+          verifyPin(cur)
+            .then(function (d) {
+              if (!(d && d.ok)) return ppError('현재 PIN이 맞지 않습니다');
+              askNewPin(cur);
+            })
+            .catch(function () { $('#ppErr').textContent = '서버에 연결할 수 없습니다'; });
+        }
+      });
     });
+
+    function askNewPin(cur) {
+      openPinPad({
+        title: 'PIN 변경 (2/3)',
+        sub: '새 PIN을 입력하세요 (숫자 4~6자리)',
+        onDone: function (next) { confirmNewPin(cur, next); }
+      });
+    }
+
+    function confirmNewPin(cur, next) {
+      openPinPad({
+        title: 'PIN 변경 (3/3)',
+        sub: '확인을 위해 새 PIN을 한 번 더 입력하세요',
+        onDone: function (again) {
+          if (again !== next) return ppError('새 PIN이 서로 다릅니다. 다시 입력하세요');
+          $('#ppErr').textContent = '변경 중…';
+          fetch('/api/contract/pin/change', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPin: cur, newPin: next })
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (d && d.ok) {
+                closePinPad();
+                alert('PIN을 변경했습니다.\n다음 접속부터 새 PIN을 쓰세요.');
+              } else {
+                ppError((d && d.message) || 'PIN을 변경하지 못했습니다');
+              }
+            })
+            .catch(function () { $('#ppErr').textContent = '서버에 연결할 수 없습니다'; });
+        }
+      });
+    }
 
     /* ── 회원에게 전달(핸드오프) 모드 ──────────────────────
        관리자가 정보를 다 채운 뒤 폰/패드를 회원에게 넘기는 화면.
@@ -647,28 +674,27 @@
       render();
     }
 
-    /* 회원이 임의로 빠져나가 입력값을 건드리지 못하도록 관리자 비밀번호로만 복귀 */
-    /* 회원 기기에서는 키보드 대신 화면 숫자패드로 PIN을 받는다.
-       (아이폰 기본 키보드가 문자로 열리는 것을 막고, 입력도 빠르다) */
+    /* ── PIN 숫자패드 (공용) ──────────────────────────────
+       회원 화면 복귀와 PIN 변경에서 함께 쓴다.
+       아이폰 기본 키보드가 문자로 열리는 것을 막고 입력도 빠르다. */
     var ppBuf = '';
+    var ppOnDone = null;
     function ppDraw() {
       $('#ppDots').innerHTML = new Array(ppBuf.length + 1).join('<span></span>');
     }
-    function openPinPad() {
+    function ppError(msg) { $('#ppErr').textContent = msg; ppBuf = ''; ppDraw(); }
+    function openPinPad(opts) {
       ppBuf = ''; ppDraw();
       $('#ppErr').textContent = '';
+      $('#ppTitle').textContent = opts.title;
+      $('#ppSub').textContent = opts.sub;
+      ppOnDone = opts.onDone;
       $('#pinPad').hidden = false;
     }
-    function closePinPad() { $('#pinPad').hidden = true; }
+    function closePinPad() { $('#pinPad').hidden = true; ppOnDone = null; }
     function ppSubmit() {
       if (!/^\d{4,6}$/.test(ppBuf)) { $('#ppErr').textContent = 'PIN은 숫자 4~6자리입니다'; return; }
-      $('#ppErr').textContent = '확인 중…';
-      verifyPin(ppBuf)
-        .then(function (d) {
-          if (d && d.ok) { closePinPad(); closeMember(); }
-          else { $('#ppErr').textContent = 'PIN이 맞지 않습니다'; ppBuf = ''; ppDraw(); }
-        })
-        .catch(function () { $('#ppErr').textContent = '서버에 연결할 수 없습니다'; });
+      if (ppOnDone) ppOnDone(ppBuf);
     }
     $$('#pinPad [data-k]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -680,15 +706,44 @@
         $('#ppErr').textContent = '';
       });
     });
+    /* 데스크톱에서는 실제 키보드 숫자도 받는다 */
+    document.addEventListener('keydown', function (e) {
+      if ($('#pinPad').hidden) return;
+      if (/^[0-9]$/.test(e.key)) {
+        if (ppBuf.length >= 6) return;
+        ppBuf += e.key; ppDraw(); $('#ppErr').textContent = '';
+      } else if (e.key === 'Backspace') {
+        ppBuf = ppBuf.slice(0, -1); ppDraw();
+      } else if (e.key === 'Enter') {
+        ppSubmit();
+      } else if (e.key === 'Escape') {
+        closePinPad();
+      }
+    });
     $('#ppCancel').addEventListener('click', closePinPad);
 
-    function exitMember() { openPinPad(); }
+    /* 회원이 임의로 빠져나가 입력값을 건드리지 못하도록 PIN 으로만 복귀 */
+    function exitMember() {
+      openPinPad({
+        title: '직원 확인',
+        sub: 'PIN을 입력하세요',
+        onDone: function (pin) {
+          $('#ppErr').textContent = '확인 중…';
+          verifyPin(pin)
+            .then(function (d) {
+              if (d && d.ok) { closePinPad(); closeMember(); }
+              else ppError('PIN이 맞지 않습니다');
+            })
+            .catch(function () { $('#ppErr').textContent = '서버에 연결할 수 없습니다'; });
+        }
+      });
+    }
 
     /* 서명 전이라도 직원이 창을 닫을 수 있어야 한다(회원이 나중에 하겠다고 할 때 등).
        닫기도 PIN을 거치지만, 서명이 없으면 그 사실을 먼저 알려 준다. */
     $('#mbClose').addEventListener('click', function () {
       if (!sig.A && !confirm('아직 서명을 받지 않았습니다. 그래도 회원 화면을 닫을까요?\n\n작성한 내용은 그대로 남습니다.')) return;
-      openPinPad();
+      exitMember();
     });
 
     /* 동의 박스는 조항 옆에서 바로 체크할 수 있고,
