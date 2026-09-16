@@ -122,19 +122,18 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .mb-terms{max-height:46vh;max-height:46dvh;overflow:auto;border:1px solid #e2e0da;border-radius:10px;padding:14px 16px;-webkit-overflow-scrolling:touch}
 .mb-scrollhint{font-size:13px;color:#b98a1a;margin:10px 0 0;font-weight:600}
 .mb-scrollhint.done{color:#1a7a4f}
-.mb-keys{margin-top:14px;border:1px solid #e2e0da;border-radius:10px;padding:14px}
-.mb-keys.off{opacity:.45;pointer-events:none}
-.mb-keys-t{margin:0 0 10px;font-size:14px;font-weight:600}
-.mb-key{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid #f0eee9;font-size:14px;line-height:1.6;cursor:pointer}
-.mb-key:first-of-type{border-top:0}
-.mb-key input{width:24px;height:24px;accent-color:#1d1d1b;flex:none;margin-top:1px}
-.mb-allbtn{width:100%;height:44px;margin-top:12px;border:1px solid #1d1d1b;border-radius:10px;background:#fff;font-size:14px;font-weight:600;cursor:pointer}
+.mb-foot{margin-top:14px}
+.mb-prog{font-size:13px;font-weight:600;color:#8a8880}
+.mb-prog.done{color:#1a7a4f}
+/* 약관 본문 안에 끼워 넣는 동의 박스 */
+.mb-ck{display:flex;gap:10px;align-items:center;margin:8px 0 14px;padding:10px 12px;border:1px solid #d5d3cc;border-radius:9px;background:#fbfaf7;font-size:13.5px;line-height:1.5;cursor:pointer}
+.mb-ck input{width:24px;height:24px;accent-color:#1d1d1b;flex:none}
+.mb-ck.on{border-color:#1a7a4f;background:#f2f9f5}
+.mb-ck b{font-weight:600}
+.mb-allbtn{width:100%;height:48px;margin-top:10px;border:1px solid #1d1d1b;border-radius:10px;background:#fff;font-size:14px;font-weight:600;cursor:pointer}
 .mb-allbtn:disabled{border-color:#d5d3cc;color:#b4b2a9;cursor:not-allowed}
 .mb-allbtn.done{background:#1d1d1b;color:#fff}
-.mb-agree{display:flex;gap:12px;align-items:center;margin-top:14px;padding:14px;border:1px solid #e2e0da;border-radius:10px;font-size:15px;cursor:pointer}
-.mb-agree input{width:26px;height:26px;accent-color:#1d1d1b;flex:none}
-.mb-agree.off{opacity:.45;cursor:not-allowed}
-.mb-agree.done{border-color:#1a7a4f}
+.mb-consent{margin-top:16px;padding-top:14px;border-top:1px solid #e2e0da;font-size:13px;line-height:1.7;color:#55534e}
 .mb-sigstate{font-size:14px;color:#8a8880;margin-bottom:12px}
 .mb-sigstate.ok{color:#1a7a4f;font-weight:600}
 .mb-btn{width:100%;height:54px;border:0;border-radius:12px;background:#1d1d1b;color:#fff;font-size:16px;font-weight:600;cursor:pointer}
@@ -235,7 +234,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
       <legend>회원정보</legend>
       <div class="row">
         <div class="f"><label class="t">회원명</label><input autocomplete="off" type="text" data-f="name" /></div>
-        <div class="f"><label class="t">생년월일</label><input autocomplete="off" type="text" inputmode="numeric" data-f="birth" data-date placeholder="19901014 또는 901014" /></div>
+        <div class="f"><label class="t">생년월일</label><input autocomplete="off" type="text" inputmode="numeric" data-f="birth" data-date placeholder="901014" /></div>
       </div>
       <div class="row">
         <div class="f"><label class="t">연락처</label><input autocomplete="off" type="tel" data-f="tel" inputmode="numeric" placeholder="010-0000-0000" /></div>
@@ -277,7 +276,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
       <input autocomplete="off" type="text" data-f="regEtc" placeholder="기타 등록구분 직접 입력" style="margin-top:6px" />
       <div class="row" style="margin-top:10px">
         <div class="f"><label class="t">등록 횟수</label><input autocomplete="off" type="number" data-f="cnt" min="0" inputmode="numeric" /></div>
-        <div class="f"><label class="t">강습 시작일</label><input autocomplete="off" type="text" inputmode="numeric" data-f="from" data-date placeholder="0918 또는 20260918" /></div>
+        <div class="f"><label class="t">강습 시작일</label><input autocomplete="off" type="text" inputmode="numeric" data-f="from" data-date placeholder="0918" /></div>
         <div class="f"><label class="t">강습 종료일 <span style="color:#b98a1a" id="toBadge"></span></label><input autocomplete="off" type="text" inputmode="numeric" data-f="to" data-date placeholder="자동 계산" /></div>
       </div>
       <p class="hint" id="wkHint"></p>
@@ -406,7 +405,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
           <li>개인적인 사정으로 인해 <span class="em">수업에 불참을 하는 경우 1회 수강권은 차감</span>됩니다.</li>
           <li>약속된 시간보다 <span class="em">늦게 도착하는 경우</span> 약속된 시간 중 남은 잔여 시간에 대한 수강을 지원 합니다.</li>
           <li>회원권의 사용기준일은 1회당 일주일로 합니다.(10회 등록시 10주)</li>
-          <li>예약된 강습에 대한 취소 및 변경은 24시간 전까지 가능하며, <span class="red">사전 연락이 없는 경우 및 당일 취소는 1회 강습이 차감</span> 됩니다.</li>
+          <li data-consent="예약 취소·불참 시 1회 차감">예약된 강습에 대한 취소 및 변경은 24시간 전까지 가능하며, <span class="red">사전 연락이 없는 경우 및 당일 취소는 1회 강습이 차감</span> 됩니다.</li>
         </ul>
         <h2>휴회 | RECESS</h2>
         <ul>
@@ -416,15 +415,15 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
         </ul>
         <h2>환불 · 해지 및 양도 | REFUND AND TRANSFER</h2>
         <ul>
-          <li>가입 후 환불은 다음 규정에 의해 환불됩니다. 개시일 이전의 경우 총 이용금액에 대한 위약금 10% 공제, 개시 이후에는 총 이용금액에 대한 위약금 10% + 부가세 + 수수료 + 사은품/쿠폰(상품의 가치에 해당하는 금액)이 공제됩니다.</li>
+          <li data-consent="환불 기준과 공제 항목">가입 후 환불은 다음 규정에 의해 환불됩니다. 개시일 이전의 경우 총 이용금액에 대한 위약금 10% 공제, 개시 이후에는 총 이용금액에 대한 위약금 10% + 부가세 + 수수료 + 사은품/쿠폰(상품의 가치에 해당하는 금액)이 공제됩니다.</li>
           <li class="plain">표준금액 : ◆종목(&nbsp;<span data-v="stdItem"></span>&nbsp;) ◆정상가(1 SESSION <span data-v="stdPrice"></span>원)=수업료</li>
           <li class="plain calc">환불액 = 총 결제금액 − (이용한 횟수 × 정상가) − 위약금(총 이용금액의 10%) − 부가세 − 사은품·쿠폰 상당액</li>
-          <li class="sub">회원권을 <span class="em">이벤트 및 할인가로 등록한 경우</span>, 이미 이용한 횟수분은 할인가가 아닌 <span class="red">정상가 기준으로 공제</span>합니다.</li>
+          <li class="sub" data-consent="할인가 등록 시 정상가 기준 공제">회원권을 <span class="em">이벤트 및 할인가로 등록한 경우</span>, 이미 이용한 횟수분은 할인가가 아닌 <span class="red">정상가 기준으로 공제</span>합니다.</li>
           <li class="sub">사은품·쿠폰은 <span class="em">제공 당시 통상 판매가</span>를 기준으로 공제합니다.</li>
           <li class="sub">약정한 기한내 회원의 사정으로 운동을 개시하지 않더라도 <span class="em">강습 시작일로부터 회원권의 효력이 발생</span>합니다. <span class="gray">(개시전 최대15일 한정 1회 연장가능)</span></li>
           <li class="sub">환불요청시 잔여 기간 주단위 사용 가능 횟수를 기준으로 환불 금액을 계산합니다.</li>
-          <li class="sub">해지 신청은 <span class="em">센터 방문 또는 유선</span>으로 하며, 환불은 신청한 날로부터 <span class="em">영업일 기준 30일 이내</span>에 처리합니다.</li>
-          <li>회원은 최초 등록한 본인만의 이용을 원칙으로 하나, 부득이한 경우 <span class="em">사전 승인을 받아</span> 양도할 수 있고, <span class="em">양도 수수료</span>(3만원 VAT별도)를 본원에 지급해야 합니다. 양도받은 재양도 및 환불이 불가합니다.</li>
+          <li class="sub" data-consent="해지 신청 방법과 환불 처리 기한">해지 신청은 <span class="em">센터 방문 또는 유선</span>으로 하며, 환불은 신청한 날로부터 <span class="em">영업일 기준 30일 이내</span>에 처리합니다.</li>
+          <li data-consent="양도 조건과 수수료">회원은 최초 등록한 본인만의 이용을 원칙으로 하나, 부득이한 경우 <span class="em">사전 승인을 받아</span> 양도할 수 있고, <span class="em">양도 수수료</span>(3만원 VAT별도)를 본원에 지급해야 합니다. 양도받은 재양도 및 환불이 불가합니다.</li>
           <li>가입시 제공받은 서비스 항목(기간, 사은품, 횟수)등은 양도가 불가합니다.</li>
         </ul>
         <div class="exempt">
@@ -432,12 +431,12 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
           <ul>
             <li>센터 이용시 <span class="em">귀중품은 반드시 안내데스크 또는 별도 보관</span>해야 합니다. <span class="gray">(별도 보관을 요청하지 않은 물품에 대한 도난, 분실은 본원에서 책임지지 않습니다)</span> <span class="red">다만 본원의 관리 소홀이 인정되는 경우는 그러하지 아니합니다.</span></li>
             <li><span class="em">주의 의무를 따라야 하며</span>, 강사의 지도 내용과 다른 동작으로 인한 부상 및 이를 따르지 않음으로 발생한 모든 책임은 스스로에게 있습니다. <span class="red">다만 본원의 고의 및 과실이 명백한 경우는 예외로 합니다.</span></li>
-            <li>건강상의 특이사항이 있을시에는 <span class="em">강사및 센터 관리자에게 전달</span>하여야 하며, 강습 중 나에게 일어날 수 있는 상해로는 <span class="em">타박상, 염좌, 근육통, 근경련, 현기증, 골절, 메스꺼움 및 울렁거림 등이 포함되며 고혈압 · 녹내장 · 임신 · 6개월이내 수술환자 · 미주신경 실신증과 기타 건강상의 특이사항이 있을 경우 수업참여 할 수가 없음을 안내를 받았으며, 건강상의 특이사항을 스스로 관리 할 수 있기에 본 강습에 스스로 참여 하는 것입니다.</span></li>
+            <li data-consent="건강상 특이사항 고지 의무">건강상의 특이사항이 있을시에는 <span class="em">강사및 센터 관리자에게 전달</span>하여야 하며, 강습 중 나에게 일어날 수 있는 상해로는 <span class="em">타박상, 염좌, 근육통, 근경련, 현기증, 골절, 메스꺼움 및 울렁거림 등이 포함되며 고혈압 · 녹내장 · 임신 · 6개월이내 수술환자 · 미주신경 실신증과 기타 건강상의 특이사항이 있을 경우 수업참여 할 수가 없음을 안내를 받았으며, 건강상의 특이사항을 스스로 관리 할 수 있기에 본 강습에 스스로 참여 하는 것입니다.</span></li>
           </ul>
         </div>
       </div>
 
-      <div class="consent">
+      <div class="consent" data-consent="개인정보 수집·이용 및 계약 효력">
         ※ 본 계약서에 서명함으로써 회원권의 효력이 즉시 개시되고, 본 계약에 규정된 모든 권리와 의무는 서명 즉시 효력이 발생합니다. 서명과 함께 모든 약관에 동의함을 의미 하며, 약관을 충분히 읽고 전달받았기에 이의가 없음으로 가입에 동의합니다. ※ <span class="em">개인정보 수집·이용 동의</span> — 수집항목: 성명·생년월일·연락처·주소 / 목적: 회원 관리 및 계약 이행 / 보유기간: 계약 종료 후 관계 법령에 따른 기간. 동의를 거부할 수 있으나 이 경우 회원 가입이 제한됩니다. ※ 본 계약서는 <span class="em">2부를 작성하여 회원과 본원이 각 1부씩 보관</span>합니다.<span class="agree" data-v="agreeMark">동의함 □</span>
       </div>
 
@@ -489,25 +488,11 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
     <section class="mb-card">
       <h3>2. 약관을 읽고 동의해 주세요</h3>
       <div class="mb-terms" id="mbTerms"></div>
-      <p class="mb-scrollhint" id="mbScrollHint">⬇ 약관을 끝까지 내려서 읽어 주세요</p>
-      <div class="mb-keys" id="mbKeys">
-        <p class="mb-keys-t">아래 <b>중요 조항</b>에 각각 동의해 주세요</p>
-        <label class="mb-key"><input type="checkbox" data-key="cancel" autocomplete="off" disabled />
-          <span><b>예약 취소·불참</b> — 사전 연락 없는 취소나 당일 취소, 불참 시 1회 수강이 차감됩니다.</span></label>
-        <label class="mb-key"><input type="checkbox" data-key="refund" autocomplete="off" disabled />
-          <span><b>환불 기준</b> — 중도 해지 시 이용한 횟수분 수업료와 위약금(총 이용금액의 10%), 제공받은 사은품·쿠폰 상당액이 공제됩니다.</span></label>
-        <label class="mb-key"><input type="checkbox" data-key="transfer" autocomplete="off" disabled />
-          <span><b>양도</b> — 양도는 사전 승인이 필요하고 수수료(3만원, VAT 별도)가 발생합니다.</span></label>
-        <label class="mb-key"><input type="checkbox" data-key="health" autocomplete="off" disabled />
-          <span><b>건강 상태 고지</b> — 고혈압·녹내장·임신·최근 수술 등 건강상 특이사항을 미리 알려야 하며, 알리지 않아 생긴 문제는 책임지기 어렵습니다.</span></label>
-        <label class="mb-key"><input type="checkbox" data-key="privacy" autocomplete="off" disabled />
-          <span><b>개인정보 수집·이용</b> — 성명·생년월일·연락처·주소를 회원 관리와 계약 이행 목적으로 수집·이용하는 데 동의합니다. (보유기간: 계약 종료 후 관계 법령에 따른 기간)</span></label>
-        <button type="button" id="mbAll" class="mb-allbtn" disabled>✓ 위 항목 전체 동의</button>
+      <div class="mb-foot">
+        <div class="mb-prog" id="mbProg">동의 0 / 0</div>
+        <p class="mb-scrollhint" id="mbScrollHint">⬇ 약관을 끝까지 내려서 읽어 주세요</p>
+        <button type="button" id="mbAll" class="mb-allbtn" disabled>✓ 약관을 모두 읽었으며 전체 동의합니다</button>
       </div>
-      <label class="mb-agree" id="mbAgreeLabel">
-        <input type="checkbox" id="mbChk" autocomplete="off" disabled />
-        <span>위 약관을 모두 읽고 이해했으며, 이에 동의합니다.</span>
-      </label>
 
     </section>
 

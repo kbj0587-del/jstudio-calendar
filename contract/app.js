@@ -544,6 +544,8 @@
       }).join('');
     }
 
+    /* 약관 본문을 회원 화면에 옮기면서, 동의가 필요한 조항 바로 아래에
+       동의 박스를 끼워 넣는다. 인쇄물에는 들어가지 않는다. */
     function buildMemberTerms() {
       var box = $('#mbTerms');
       if (box.childElementCount) return;
@@ -551,6 +553,24 @@
       var ex = clone.querySelector('.exempt');
       if (ex) { while (ex.firstChild) ex.parentNode.insertBefore(ex.firstChild, ex); ex.remove(); }
       box.appendChild(clone);
+
+      /* 계약 효력·개인정보 안내도 회원이 읽어야 하므로 함께 붙인다 */
+      var con = sheet.querySelector('.consent').cloneNode(true);
+      var mark = con.querySelector('.agree');
+      if (mark) mark.remove();
+      con.className = 'mb-consent';
+      box.appendChild(con);
+
+      $$('#mbTerms [data-consent]').forEach(function (el, i) {
+        var lab = document.createElement('label');
+        lab.className = 'mb-ck';
+        lab.innerHTML = '<input type="checkbox" data-ck="' + i + '" autocomplete="off" />' +
+          '<span><b>' + el.dataset.consent + '</b> — 위 내용을 확인하고 동의합니다.</span>';
+        el.parentNode.insertBefore(lab, el.nextSibling);
+      });
+      $$('#mbTerms input[data-ck]').forEach(function (c) {
+        c.addEventListener('change', syncConsent);
+      });
     }
 
     function memberSigned() {
@@ -575,13 +595,8 @@
       buildMemberTerms();
       $('#mbInfo').innerHTML = memberInfoRows();
       /* 이미 동의를 받아 둔 계약서라면 상태를 복원하고, 아니면 처음부터 받는다 */
-      $$('#mbKeys input[data-key]').forEach(function (c) {
-        c.checked = agreed;
-        c.disabled = !agreed;
-      });
-      $('#mbKeys').classList.toggle('off', !agreed);
-      $('#mbAll').disabled = !agreed;
-      $('#mbChk').checked = agreed;
+      cks().forEach(function (c) { c.checked = agreed; });
+      readToEnd = agreed;
       $('#mbScrollHint').textContent = agreed ? '✅ 약관을 확인했습니다' : '⬇ 약관을 끝까지 내려서 읽어 주세요';
       $('#mbScrollHint').classList.toggle('done', agreed);
       syncConsent();
@@ -645,51 +660,49 @@
       openPinPad();
     });
 
-    /* 약관을 끝까지 내려야 동의 체크가 열린다 */
-    /* 약관을 끝까지 내려야 중요 조항 동의가 열린다 */
-    function unlockConsent() {
-      if (!$('#mbKeys').classList.contains('off')) return;
-      $('#mbKeys').classList.remove('off');
-      $$('#mbKeys input[data-key]').forEach(function (c) { c.disabled = false; });
-      $('#mbAll').disabled = false;
-      $('#mbScrollHint').textContent = '✅ 약관을 끝까지 확인했습니다';
-      $('#mbScrollHint').classList.add('done');
-    }
+    /* 동의 박스는 조항 옆에서 바로 체크할 수 있고,
+       일일이 체크하기 어려울 때를 위해 "전체 동의" 버튼을 둔다.
+       전체 동의 버튼은 약관을 끝까지 내려 읽은 뒤에만 열린다. */
+    var readToEnd = false;
+    function cks() { return $$('#mbTerms input[data-ck]'); }
+    function ckDone() { return cks().filter(function (c) { return c.checked; }).length; }
+
     $('#mbTerms').addEventListener('scroll', function () {
       if (this.scrollTop + this.clientHeight < this.scrollHeight - 24) return;
-      unlockConsent();
+      if (readToEnd) return;
+      readToEnd = true;
+      $('#mbScrollHint').textContent = '✅ 약관을 끝까지 확인했습니다';
+      $('#mbScrollHint').classList.add('done');
+      syncConsent();
     });
 
-    /* 중요 조항을 모두 체크해야 전체 동의가 열리고, 전체 동의를 해야 서명이 열린다 */
-    function keysAllChecked() {
-      var all = $$('#mbKeys input[data-key]');
-      return all.length > 0 && all.every(function (c) { return c.checked; });
-    }
     function syncConsent() {
-      var ok = keysAllChecked();
+      var all = cks(), done = ckDone();
+      var ok = all.length > 0 && done === all.length;
+      all.forEach(function (c) { c.closest('.mb-ck').classList.toggle('on', c.checked); });
+
+      $('#mbProg').textContent = '동의 ' + done + ' / ' + all.length;
+      $('#mbProg').classList.toggle('done', ok);
+      $('#mbAll').disabled = !readToEnd;
       $('#mbAll').classList.toggle('done', ok);
-      $('#mbAll').textContent = ok ? '✓ 중요 조항 전체 동의 완료' : '✓ 위 항목 전체 동의';
-      var chk = $('#mbChk');
-      chk.disabled = !ok;
-      $('#mbAgreeLabel').classList.toggle('off', !ok);
-      if (!ok && chk.checked) chk.checked = false;
-      $('#mbAgreeLabel').classList.toggle('done', chk.checked);
-      agreed = ok && chk.checked;
+      $('#mbAll').textContent = ok
+        ? '✓ 전체 동의 완료 — 아래에서 서명해 주세요'
+        : (readToEnd ? '✓ 약관을 모두 읽었으며 전체 동의합니다' : '약관을 끝까지 읽으면 열립니다');
+
+      agreed = ok;
       $('#mbSign').disabled = !agreed;
       if (!agreed) $('#mbDone').hidden = true;
       applyAgree();
       render();
       saveDraft();
     }
-    $$('#mbKeys input[data-key]').forEach(function (c) {
-      c.addEventListener('change', syncConsent);
-    });
+
     $('#mbAll').addEventListener('click', function () {
-      var turnOn = !keysAllChecked();
-      $$('#mbKeys input[data-key]').forEach(function (c) { c.checked = turnOn; });
+      if (!readToEnd) return;
+      var turnOn = ckDone() !== cks().length;
+      cks().forEach(function (c) { c.checked = turnOn; });
       syncConsent();
     });
-    $('#mbChk').addEventListener('change', syncConsent);
 
     $('#mbSign').addEventListener('click', function () { openSign('A'); });
     $('#mbDone').addEventListener('click', function () {
