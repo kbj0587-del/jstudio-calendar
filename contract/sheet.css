@@ -1,0 +1,65 @@
+/* ============================================================
+   회원가입(PT) 계약서 — 출력 시트 전용 스타일 (A4 세로 1장, 흑백)
+   화면 미리보기와 인쇄 결과가 동일하도록 mm 단위로 고정한다.
+   ============================================================ */
+.sheet{
+  width:210mm; min-height:297mm; padding:7mm 9mm 4mm;
+  background:#fff; color:#000; box-sizing:border-box;
+  font-family:"Apple SD Gothic Neo","Malgun Gothic","맑은 고딕",system-ui,sans-serif;
+  font-size:8.4pt; line-height:1.35; letter-spacing:-.2px;
+}
+.sheet *{box-sizing:border-box}
+.sheet .code{font-size:8pt;letter-spacing:.5px;margin:0 0 2mm}
+.sheet table{width:100%;border-collapse:collapse;table-layout:fixed}
+.sheet td{border:.6pt solid #000;padding:1.4mm 2mm;vertical-align:middle;height:7mm}
+.sheet .band td{
+  background:#000;color:#fff;text-align:center;font-weight:700;
+  font-size:10pt;letter-spacing:3px;height:6.2mm;padding:.8mm
+}
+.sheet .title-row td{border:none;padding:0 0 1mm}
+.sheet .title-box{border:.6pt solid #000;border-bottom:none;padding:2.5mm 3mm 2mm;position:relative}
+.sheet .title-box h1{margin:0;text-align:center;font-size:19pt;font-weight:800;letter-spacing:1px}
+.sheet .title-box .brand{position:absolute;right:3mm;bottom:2.4mm;font-size:8pt}
+.sheet .lbl{background:#efefef;text-align:center;font-weight:700;width:22%}
+.sheet .val{font-weight:500;word-break:break-all}
+.sheet .val.c{text-align:center}
+.sheet .val.r{text-align:right}
+.sheet .ph{color:#9a9a9a;font-weight:400}
+.sheet .memo{height:14mm;vertical-align:top;padding-top:2mm;white-space:pre-wrap}
+.sheet .opt{display:inline-block;margin-right:2.4mm;white-space:nowrap}
+.sheet .opt b{font-weight:700}
+.sheet .on{font-weight:800}
+
+.sheet .terms{margin-top:1.8mm}
+.sheet .terms h2{
+  margin:0;font-size:8.6pt;font-weight:800;background:#e3e3e3;
+  border-top:.6pt solid #000;padding:.9mm 2mm;letter-spacing:.2px
+}
+.sheet .terms ul{margin:0;padding:1mm 2mm 1.2mm 0;list-style:none}
+.sheet .terms li{position:relative;padding-left:4mm;margin:.35mm 0;font-size:7.5pt;line-height:1.45}
+.sheet .terms li:before{content:"▤";position:absolute;left:.6mm;top:0;font-size:6pt}
+.sheet .terms li.sub{padding-left:7mm}
+.sheet .terms li.sub:before{content:"•";left:4.4mm;top:-.3mm;font-size:8pt}
+.sheet .terms li.plain{padding-left:2mm}
+.sheet .terms li.plain:before{content:""}
+.sheet .terms .em{font-weight:800}
+.sheet .terms .red{font-weight:800;text-decoration:underline}
+.sheet .terms .gray{color:#555}
+.sheet .exempt{border:1pt solid #000;padding:.6mm 1mm 1.4mm}
+.sheet .consent{border:.6pt solid #000;border-top:none;padding:1.6mm 2mm;text-align:center;font-size:7.4pt;line-height:1.6;font-weight:700}
+.sheet .consent .agree{display:block;text-align:right;margin-top:.6mm}
+
+.sheet .sign{width:100%;border-collapse:collapse;margin-top:0}
+.sheet .sign td{height:11mm;border:.6pt solid #000;border-top:none}
+.sheet .sign .date{text-align:center;font-weight:600;font-size:9pt}
+.sheet .sign .who{width:34%;padding:0}
+.sheet .sign .who div{display:flex;align-items:center;justify-content:flex-end;gap:2mm;height:11mm;padding-right:3mm}
+.sheet .sign .who .nm{font-weight:700;font-size:9pt}
+.sheet .sign .slot{width:32mm;height:9mm;border-bottom:.6pt solid #666;display:flex;align-items:flex-end;justify-content:center}
+.sheet .sign .slot img{max-width:100%;max-height:9mm}
+.sheet .sign .slot span{font-size:7.5pt;color:#999;padding-bottom:1mm}
+
+/* 잉크 절약(배경 없이) 모드 — 검정 띠를 외곽선으로 대체 */
+.sheet.ink .band td{background:#fff;color:#000;border:1.2pt solid #000}
+.sheet.ink .lbl{background:#fff}
+.sheet.ink .terms h2{background:#fff;border-bottom:.4pt solid #000}

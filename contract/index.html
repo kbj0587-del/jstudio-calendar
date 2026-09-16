@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="robots" content="noindex,nofollow" />
+<title>회원가입(PT) 계약서 — 제이스튜디오</title>
+<link rel="stylesheet" href="sheet.css" />
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#eceae5;color:#1d1d1b;
+     font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;font-size:14px}
+#gate{position:fixed;inset:0;background:#1d1d1b;display:flex;align-items:center;justify-content:center;z-index:99}
+#gate .box{background:#fff;border-radius:14px;padding:28px 26px;width:300px;text-align:center}
+#gate h1{font-size:16px;margin:0 0 4px}
+#gate p{font-size:12px;color:#777;margin:0 0 16px}
+#gate input{width:100%;height:40px;border:1px solid #ccc;border-radius:8px;padding:0 12px;font-size:15px;text-align:center}
+#gate button{width:100%;height:40px;margin-top:10px;border:0;border-radius:8px;background:#1d1d1b;color:#fff;font-size:14px;cursor:pointer}
+#gate .err{color:#c0392b;font-size:12px;height:16px;margin-top:8px}
+#app{display:none}
+header{position:sticky;top:0;z-index:20;background:#1d1d1b;color:#fff;display:flex;align-items:center;gap:8px;padding:10px 14px;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:600;flex:1;min-width:140px}
+header button{height:34px;padding:0 14px;border:1px solid #666;border-radius:8px;background:#2e2e2b;color:#fff;font-size:13px;cursor:pointer}
+header button.go{background:#fff;color:#1d1d1b;border-color:#fff;font-weight:600}
+.wrap{display:flex;gap:16px;align-items:flex-start;padding:16px;max-width:1500px;margin:0 auto}
+.panel{flex:0 0 430px;background:#fff;border-radius:12px;padding:16px;max-width:100%}
+.stage{flex:1;min-width:0;display:flex;justify-content:center;overflow:auto}
+.stage .holder{transform-origin:top center}
+.sheet{box-shadow:0 2px 16px rgba(0,0,0,.18)}
+fieldset{border:0;border-top:1px solid #e2e0da;margin:0 0 4px;padding:14px 0 4px}
+fieldset:first-of-type{border-top:0;padding-top:0}
+legend{font-size:12px;font-weight:700;color:#8a8880;letter-spacing:.5px;padding:0}
+.row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.f{flex:1;min-width:0}
+label.t{display:block;font-size:11px;color:#8a8880;margin:0 0 3px}
+input[type=text],input[type=tel],input[type=date],input[type=number],textarea,select{
+  width:100%;height:36px;border:1px solid #d5d3cc;border-radius:7px;padding:0 10px;font-size:14px;
+  font-family:inherit;background:#fff;color:#1d1d1b}
+textarea{height:64px;padding:8px 10px;resize:vertical;line-height:1.5}
+input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips label{font-size:13px;border:1px solid #d5d3cc;border-radius:20px;padding:6px 13px;cursor:pointer;background:#fff;user-select:none}
+.chips input{display:none}
+.chips input:checked+span{font-weight:700}
+.chips label:has(input:checked){background:#1d1d1b;color:#fff;border-color:#1d1d1b}
+.hint{font-size:11px;color:#8a8880;margin:4px 0 0;line-height:1.5}
+.calc{background:#f3f1ec;border-radius:7px;padding:8px 10px;font-size:13px;margin-top:6px}
+.sigbox{border:1px solid #d5d3cc;border-radius:7px;background:#fff;margin-top:6px}
+.sigbox canvas{display:block;width:100%;height:110px;touch-action:none;border-radius:7px 7px 0 0}
+.sigbox .bar{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #eae8e2;padding:5px 8px;font-size:11px;color:#8a8880}
+.sigbox .bar button{border:1px solid #d5d3cc;background:#fff;border-radius:6px;height:26px;padding:0 10px;font-size:11px;cursor:pointer}
+.tip{background:#fff7e6;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.6;color:#6b4f14;margin:10px 0 0}
+@media(max-width:1080px){.wrap{flex-direction:column;align-items:stretch}.panel{flex:none}.stage{order:2}}
+@media print{
+  body{background:#fff}
+  header,.panel,#gate,.tip{display:none!important}
+  .wrap{display:block;padding:0;margin:0}
+  .stage{display:block;overflow:visible}
+  .stage .holder{transform:none!important}
+  .sheet{box-shadow:none;margin:0}
+  @page{size:A4 portrait;margin:0}
+}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="box">
+    <h1>회원가입 계약서</h1>
+    <p>캘린더 관리자 비밀번호를 입력하세요</p>
+    <input type="password" id="gpw" autocomplete="current-password" />
+    <div class="err" id="gerr"></div>
+    <button id="gbtn">들어가기</button>
+  </div>
+</div>
+
+<div id="app">
+<header>
+  <h1>회원가입(PT) 계약서</h1>
+  <button id="btnInk">잉크 절약: 끔</button>
+  <button id="btnReset">새 계약서</button>
+  <button class="go" id="btnPrint">인쇄 / PDF 저장</button>
+</header>
+
+<div class="wrap">
+  <div class="panel">
+    <fieldset>
+      <legend>회원정보</legend>
+      <div class="row">
+        <div class="f"><label class="t">회원명</label><input autocomplete="off" type="text" data-f="name" /></div>
+        <div class="f"><label class="t">생년월일</label><input autocomplete="off" type="date" data-f="birth" /></div>
+      </div>
+      <div class="row">
+        <div class="f"><label class="t">연락처</label><input autocomplete="off" type="tel" data-f="tel" inputmode="numeric" placeholder="010-0000-0000" /></div>
+        <div class="f"><label class="t">주소 (동까지)</label><input autocomplete="off" type="text" data-f="addr" placeholder="예) 하남시 미사강변동" /></div>
+      </div>
+      <div><label class="t">MEMBERSHIP CODE NO</label><input autocomplete="off" type="text" data-f="code" /></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>가입정보</legend>
+      <label class="t">가입구분</label>
+      <div class="chips" data-g="join">
+        <label><input type="radio" name="join" value="신규" /><span>신규</span></label>
+        <label><input type="radio" name="join" value="재등록" /><span>재등록</span></label>
+        <label><input type="radio" name="join" value="휴면" /><span>휴면</span></label>
+        <label><input type="radio" name="join" value="양도" /><span>양도</span></label>
+      </div>
+      <label class="t" style="margin-top:10px">종목</label>
+      <div class="chips" data-g="item">
+        <label><input type="radio" name="item" value="매트요가" /><span>매트요가</span></label>
+        <label><input type="radio" name="item" value="플라잉요가" /><span>플라잉요가</span></label>
+        <label><input type="radio" name="item" value="번지피지오" /><span>번지피지오</span></label>
+        <label><input type="radio" name="item" value="기타" /><span>기타</span></label>
+      </div>
+      <input autocomplete="off" type="text" data-f="itemEtc" placeholder="기타 종목 직접 입력" style="margin-top:6px" />
+      <label class="t" style="margin-top:10px">등록구분</label>
+      <div class="chips" data-g="reg">
+        <label><input type="radio" name="reg" value="1:1" /><span>1:1</span></label>
+        <label><input type="radio" name="reg" value="2:1" /><span>2:1</span></label>
+        <label><input type="radio" name="reg" value="4:1" /><span>4:1</span></label>
+        <label><input type="radio" name="reg" value="기타" /><span>기타</span></label>
+      </div>
+      <input autocomplete="off" type="text" data-f="regEtc" placeholder="기타 등록구분 직접 입력" style="margin-top:6px" />
+      <div class="row" style="margin-top:10px">
+        <div class="f"><label class="t">등록 횟수</label><input autocomplete="off" type="number" data-f="cnt" min="0" inputmode="numeric" /></div>
+        <div class="f"><label class="t">강습 시작일</label><input autocomplete="off" type="date" data-f="from" /></div>
+        <div class="f"><label class="t">강습 종료일</label><input autocomplete="off" type="date" data-f="to" /></div>
+      </div>
+      <p class="hint" id="wkHint"></p>
+      <label class="t" style="margin-top:6px">혜택(SV) 및 특이사항</label>
+      <textarea autocomplete="off" data-f="bonus"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>결제내역</legend>
+      <div class="row">
+        <div class="f"><label class="t">1회 금액</label><input autocomplete="off" type="text" data-f="unit" inputmode="numeric" /></div>
+        <div class="f"><label class="t">계약금</label><input autocomplete="off" type="text" data-f="paid" inputmode="numeric" /></div>
+        <div class="f"><label class="t">미수금</label><input autocomplete="off" type="text" data-f="due" inputmode="numeric" /></div>
+      </div>
+      <div><label class="t">총 결제금액 (비우면 1회금액 × 횟수로 자동계산)</label>
+        <input autocomplete="off" type="text" data-f="total" inputmode="numeric" /></div>
+      <div class="calc" id="calc">1회 금액과 횟수를 입력하면 자동으로 계산됩니다.</div>
+      <label class="t" style="margin-top:10px">결제구분</label>
+      <div class="chips" data-g="pay">
+        <label><input type="radio" name="pay" value="카드" /><span>카드</span></label>
+        <label><input type="radio" name="pay" value="현금" /><span>현금</span></label>
+        <label><input type="radio" name="pay" value="Npay" /><span>Npay</span></label>
+        <label><input type="radio" name="pay" value="ZPay" /><span>ZPay</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>표준금액 (환불 규정 표기용)</legend>
+      <div class="row">
+        <div class="f"><label class="t">종목</label><input autocomplete="off" type="text" data-f="stdItem" value="PT" /></div>
+        <div class="f"><label class="t">1 SESSION 정상가</label><input autocomplete="off" type="text" data-f="stdPrice" value="150,000" inputmode="numeric" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>서명</legend>
+      <div class="chips" data-g="sigmode">
+        <label><input type="radio" name="sigmode" value="screen" checked /><span>화면 서명</span></label>
+        <label><input type="radio" name="sigmode" value="paper" /><span>종이 자필 서명</span></label>
+      </div>
+      <p class="hint" id="sigHint"></p>
+      <div id="sigArea">
+        <div class="row" style="margin-top:8px">
+          <div class="f"><label class="t">계약일</label><input autocomplete="off" type="date" data-f="signDate" /></div>
+        </div>
+        <label class="t" style="margin-top:6px">가입자 서명</label>
+        <div class="sigbox"><canvas id="sigA"></canvas>
+          <div class="bar"><span>손가락 또는 펜으로 서명하세요</span><button type="button" data-clear="sigA">지우기</button></div></div>
+        <label class="t" style="margin-top:10px">담당자 서명</label>
+        <div class="sigbox"><canvas id="sigB"></canvas>
+          <div class="bar"><span>담당 강사 서명</span><button type="button" data-clear="sigB">지우기</button></div></div>
+        <div class="row" style="margin-top:8px">
+          <div class="f"><label class="t">담당자 이름 (선택)</label><input autocomplete="off" type="text" data-f="staff" /></div>
+        </div>
+      </div>
+      <p class="tip">인쇄 창에서 <b>배경 그래픽</b>을 켜야 검정 제목 띠가 인쇄됩니다.
+        토너를 아끼려면 상단 <b>잉크 절약</b>을 켜세요 — 배경 없이도 동일하게 인쇄됩니다.</p>
+    </fieldset>
+  </div>
+
+  <div class="stage"><div class="holder" id="holder">
+    <div class="sheet" id="sheet">
+      <p class="code">MEMBERSHIP CODE NO&nbsp;&nbsp;<span data-v="code"></span></p>
+      <table>
+        <tr class="title-row"><td colspan="4">
+          <div class="title-box"><h1>회원가입(PT) 계약서</h1><span class="brand">제이스튜디오</span></div>
+        </td></tr>
+        <tr class="band"><td colspan="4">회 원 정 보</td></tr>
+        <tr>
+          <td class="lbl">회원명</td><td class="val" data-v="name"></td>
+          <td class="lbl">생년월일</td><td class="val c" data-v="birth">년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일</td>
+        </tr>
+        <tr>
+          <td class="lbl">연락처</td><td class="val" data-v="tel"></td>
+          <td class="lbl">주 소</td><td class="val" data-v="addr"><span class="ph">"동"까지만 기록해 주세요.</span></td>
+        </tr>
+        <tr class="band"><td colspan="4">가 입 정 보</td></tr>
+        <tr>
+          <td colspan="2" class="val c" data-v="joinOpts"></td>
+          <td colspan="2" class="val c" data-v="itemOpts"></td>
+        </tr>
+        <tr>
+          <td class="lbl">등 록 구 분</td><td class="val c" data-v="regOpts"></td>
+          <td class="lbl">등 록 횟 수</td><td class="val r" data-v="cnt">회</td>
+        </tr>
+        <tr>
+          <td class="lbl">강 습 기 간</td>
+          <td colspan="3" class="val c" data-v="period">20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일&nbsp;&nbsp;&nbsp;~&nbsp;&nbsp;&nbsp;20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일</td>
+        </tr>
+        <tr>
+          <td class="lbl">혜택(SV) 및 특이사항</td>
+          <td colspan="3" class="val memo" data-v="bonus"></td>
+        </tr>
+        <tr class="band"><td colspan="4">결 제 내 역</td></tr>
+        <tr>
+          <td class="lbl">1회 금액</td><td class="val" data-v="unit">₩</td>
+          <td class="lbl">계약금/미수금</td><td class="val c" data-v="paidDue">/</td>
+        </tr>
+        <tr>
+          <td class="lbl">총 결제금액</td><td class="val" data-v="total">₩</td>
+          <td class="lbl">결제구분</td><td class="val c" data-v="payOpts"></td>
+        </tr>
+      </table>
+
+      <div class="terms">
+        <h2>수업참여 | CLASS PARTICIPATION</h2>
+        <ul>
+          <li>본원 출입 시 반듯이 <span class="em">출석체크(연속수강 포함)</span>를 해야 합니다.</li>
+          <li>개인적인 사정으로 인해 <span class="em">수업에 불참을 하는 경우 1회 수강권은 차감</span>됩니다.</li>
+          <li>약속된 시간보다 <span class="em">늦게 도착하는 경우</span> 약속된 시간 중 남은 잔여 시간에 대한 수강을 지원 합니다.</li>
+          <li>회원권의 사용기준일은 1회당 일주일로 합니다.(10회 등록시 10주)</li>
+          <li>예약된 강습에 대한 취소 및 변경은 24시간 전까지 가능하며, <span class="red">사전 연락이 없는 경우 및 당일 취소는 1회 강습이 차감</span> 됩니다.</li>
+        </ul>
+        <h2>휴회 | RECESS</h2>
+        <ul>
+          <li>휴회(홀딩)는 정확한 서류(의사의 진료소견 서 및 진단서, 출장확인서 등)를 첨부 하시는 경우에 한해 1회를 사용이 가능 합니다.</li>
+          <li>휴회 신청은 최소 1주일 전에 미리 담당 강사 또는 센터에 말씀을 해 주셔야 합니다.</li>
+        </ul>
+        <h2>환불 및 양도 | REFUND AND TRANSFER</h2>
+        <ul>
+          <li>가입 후 환불은 다음 규정에 의해 환불됩니다. 개시일 이전의 경우 총 이용금액에 대한 위약금 10% 공제, 개시 이후에는 총 이용금액에 대한 위약금 10% + 부가세 + 수료료 + 사은품/쿠폰(상품의 가치에 해당하는 금액)이 공제됩니다.</li>
+          <li class="plain">표준금액 : ◆종목(&nbsp;<span data-v="stdItem"></span>&nbsp;) ◆정상가(1 SESSON <span data-v="stdPrice"></span>원)=수업료</li>
+          <li class="sub">회원권을 <span class="red">이벤트 및 할인 가격으로 등록한 경우와 쿠폰제는 환불이 불가합니다.</span></li>
+          <li class="sub">약정한 기한내 회원의 사정으로 운동을 개시하지 않더라도 자동으로 회원권의 효력이 발생됩니다. <span class="gray">(개시전 최대15일 한정 1회 연장가능)</span></li>
+          <li class="sub">환불요청시 잔여 기간 주단위 사용 가능 횟수를 기준으로 환불 금액을 계산합니다.</li>
+          <li>회원은 최초 등록한 본인만의 이용을 원칙으로 하나, 부득이한 경우 <span class="em">사전 승인을 받아</span> 양도할 수 있고, <span class="em">양도 수수료</span>(3만원 VAT별도)를 본원에 지급해야 합니다. 양도받은 재양도 및 환불이 불가합니다.</li>
+          <li>가입시 제공받은 서비스 항목(기간, 사은품, 회수)등은 양도가 불가합니다.</li>
+        </ul>
+        <div class="exempt">
+          <h2 style="border-top:none">면책규정 | EXEMPTION PROVISIONS</h2>
+          <ul>
+            <li>센터 이용시 <span class="em">귀중품은 반드시 안내데스크 또는 별도 보관</span>해야 합니다. <span class="gray">(별도 보관을 요청하지 않은 물품에 대한 도난,분실은 본원에서 책임지지 않습니다)</span></li>
+            <li><span class="em">주의 의무를 따라야 하며</span>, 강사의 지도 내용과 다른 동작으로 인한 부상 및 이를 따르지 않음으로 발생한 모든 책임은 스스로에게 있습니다.</li>
+            <li>건강상의 특이사항이 있을시에는 <span class="em">강사및 센터 관리자에게 전달</span>하여야 하며, 강습 중 나에게 일어날 수 있는 상해로는 <span class="em">타박상, 염좌, 근육통, 근경련, 현기증, 골절, 메스꺼움 및 울렁거림 등이 포함되며 고혈압 · 녹내장 · 임신 · 6개월이내 수술환자 · 미주신경 실신증과 기타 건강상의 특이사항이 있을 경우 수업참여 할 수가 없음을 안내를 받았으며, 건강상의 특이사항을 스스로 관리 할 수 있기에 본 강습에 스스로 참여 하는 것입니다.</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="consent">
+        ※ 본 계약서에 서명함으로써 회원권의 효력이 즉시 개시되고, 본 계약에 규정된 모든 권리와 의무는 서명 즉시 효력이 발생합니다.<br />
+        서명과 함께 모든 약관에 동의함을 의미 하며, 약관을 충분히 읽고 전달받았기에 이의가 없음으로 가입에 동의합니다.<br />
+        약관의 동의는 구두상으로 전달받지 않았더라도 위 약관에 대한 포괄적인 동의를 의미합니다.
+        <span class="agree">동의함 ☑</span>
+      </div>
+
+      <table class="sign">
+        <tr>
+          <td class="date" rowspan="2" data-v="signDate">20&nbsp;&nbsp;&nbsp;&nbsp;년&nbsp;&nbsp;&nbsp;&nbsp;월&nbsp;&nbsp;&nbsp;&nbsp;일</td>
+          <td class="who"><div><span class="nm">가입자</span><span class="slot" id="slotA"><span>서명</span></span></div></td>
+        </tr>
+        <tr>
+          <td class="who"><div><span class="nm">담당자</span><span class="slot" id="slotB"><span>서명</span></span></div></td>
+        </tr>
+      </table>
+    </div>
+  </div></div>
+</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
