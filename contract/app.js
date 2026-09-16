@@ -955,14 +955,27 @@
     window.addEventListener("orientationchange", function () { setTimeout(fit, 250); });
     /* iOS 에서 확대/축소나 주소창 변화로 보이는 영역이 바뀌면 다시 맞춘다 */
     if (window.visualViewport) window.visualViewport.addEventListener("resize", fit);
-
     /* ── MEMBERSHIP CODE NO 자동 생성 ──────────────────────
-       해당 연도 + 임의 4자리. 서버에 목록을 두지 않으므로 중복을 완전히
-       막지는 못하지만(1만분의 1), 손으로 적는 수고를 덜기 위한 번호다. */
+       번호는 절대 줄어들지 않고 늘어나기만 한다.
+       · 기준값 = 그 해의 며칠째 × 10  (9월 16일 → 2590)
+       · 새 번호 = max(직전 번호 + 1~7, 기준값)
+       증가폭은 무작위라 그대로 세어 볼 수는 없지만, 번호만 보고
+       대략 언제 작성한 계약서인지 짐작할 수 있다.
+       마지막 번호는 이 브라우저에 보관한다. */
+    var SEQ_KEY = 'jstudio_contract_seq';
     function makeCode() {
-      var y = new Date().getFullYear();
-      var n = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-      return y + '-' + n;
+      var now = new Date();
+      var y = now.getFullYear();
+      var doy = Math.floor((now - new Date(y, 0, 0)) / 86400000);   /* 1~366 */
+      var base = doy * 10;
+
+      var prev = 0, st = null;
+      try { st = JSON.parse(localStorage.getItem(SEQ_KEY) || 'null'); } catch (e) { /* 무시 */ }
+      if (st && st.y === y) prev = Number(st.n) || 0;
+
+      var next = Math.max(prev + 1 + Math.floor(Math.random() * 7), base);
+      try { localStorage.setItem(SEQ_KEY, JSON.stringify({ y: y, n: next })); } catch (e) { /* 무시 */ }
+      return y + '-' + String(next).padStart(4, '0');
     }
     $('#btnCode').addEventListener('click', function () {
       var el = $('[data-f="code"]');
@@ -1206,8 +1219,7 @@
       }
     });
 
-    /* 기본값: 계약일 = 오늘, 회원번호 = 연도-임의4자리 */
-    if (!val("code")) $("[data-f=\"code\"]").value = makeCode();
+    /* 기본값: 계약일 = 오늘 */
     if (!val('signDate')) {
       var n = new Date();
       $('[data-f="signDate"]').value = n.getFullYear() + '-' +
@@ -1215,6 +1227,9 @@
     }
 
     loadDraft();
+    /* 회원번호는 임시 저장을 불러온 뒤에 만든다.
+       먼저 만들면 새로고침할 때마다 번호가 하나씩 날아간다. */
+    if (!val("code")) $("[data-f=\"code\"]").value = makeCode();
     applyAgree();
     render();
     fit();
