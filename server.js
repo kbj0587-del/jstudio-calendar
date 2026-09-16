@@ -604,6 +604,37 @@ app.post('/api/admin/verify', (req, res) => {
   res.json({ ok: checkAdminPassword(password) });
 });
 
+// ── 계약서 작성 PIN (4~6자리) ──────────────────────
+// 캘린더 관리자 비밀번호와 분리한다. 계약서는 데스크에서 자주 여는 화면이라
+// 접근을 가볍게 하려는 용도이고, 서버에 계약 내용을 저장하지도 않는다.
+// 변경 전에는 기본값 1234 를 쓴다.
+const CONTRACT_PIN_DEFAULT = '1234';
+function checkContractPin(pin) {
+  const v = String(pin || '').trim();
+  if (!/^\d{4,6}$/.test(v)) return false;
+  if (store.contractPinHash) return hashPin(v) === store.contractPinHash;
+  return v === CONTRACT_PIN_DEFAULT;
+}
+
+app.post('/api/contract/pin/verify', (req, res) => {
+  const { pin } = req.body || {};
+  res.json({ ok: checkContractPin(pin), isDefault: !store.contractPinHash });
+});
+
+app.post('/api/contract/pin/change', async (req, res) => {
+  const { currentPin, newPin } = req.body || {};
+  if (!checkContractPin(currentPin)) {
+    return res.status(403).json({ error: 'bad_pin', message: '현재 PIN이 맞지 않습니다.' });
+  }
+  const v = String(newPin || '').trim();
+  if (!/^\d{4,6}$/.test(v)) {
+    return res.status(400).json({ error: 'bad_request', message: 'PIN은 숫자 4~6자리여야 합니다.' });
+  }
+  store.contractPinHash = hashPin(v);
+  await saveToFile();
+  res.json({ ok: true });
+});
+
 // 관리자 비밀번호 변경 (현재 비밀번호는 이미 x-admin-password 헤더로 검증됨 — requireAdmin)
 app.post('/api/admin/change-password', requireAdmin, async (req, res) => {
   const { newPassword } = req.body || {};

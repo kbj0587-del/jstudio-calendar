@@ -17,27 +17,46 @@
     app.style.display = 'block';
     init();
   }
+  /* PIN 확인은 서버가 한다(기기마다 다른 값을 쓰지 않도록).
+     미설정 상태에서는 기본 PIN 1234 가 통한다. */
+  function verifyPin(pin) {
+    return fetch('/api/contract/pin/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: pin })
+    }).then(function (r) { return r.json(); });
+  }
+
   if (sessionStorage.getItem('jstudio_contract_ok') === '1') {
     openApp();
   } else {
-    $('#gbtn').addEventListener('click', submitPw);
-    $('#gpw').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitPw(); });
+    $('#gbtn').addEventListener('click', submitPin);
+    $('#gpw').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitPin(); });
+    $('#gpw').addEventListener('input', function () {
+      this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+    });
     setTimeout(function () { $('#gpw').focus(); }, 100);
   }
-  function submitPw() {
-    var pw = $('#gpw').value.trim();
+  function submitPin() {
+    var pin = $('#gpw').value.trim();
     var err = $('#gerr');
-    if (!pw) { err.textContent = '비밀번호를 입력하세요'; return; }
+    if (!/^\d{4,6}$/.test(pin)) { err.textContent = 'PIN은 숫자 4~6자리입니다'; return; }
     err.textContent = '확인 중…';
-    fetch('/api/admin/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw })
-    })
-      .then(function (r) { return r.json(); })
+    verifyPin(pin)
       .then(function (d) {
-        if (d && d.ok) { sessionStorage.setItem('jstudio_contract_ok', '1'); openApp(); }
-        else { err.textContent = '비밀번호가 맞지 않습니다'; }
+        if (d && d.ok) {
+          sessionStorage.setItem('jstudio_contract_ok', '1');
+          openApp();
+          if (d.isDefault) {
+            setTimeout(function () {
+              alert('아직 초기 PIN(1234)을 쓰고 있습니다.\n상단 「PIN 변경」에서 바꿔 주세요.');
+            }, 400);
+          }
+        } else {
+          err.textContent = 'PIN이 맞지 않습니다';
+          $('#gpw').value = '';
+          $('#gpw').focus();
+        }
       })
       .catch(function () { err.textContent = '서버에 연결할 수 없습니다'; });
   }
@@ -237,7 +256,10 @@
 
     function openSign(which) {
       sigTarget = which;
-      $('#sgTitle').textContent = which === 'A' ? '가입자 서명' : '담당자 서명';
+      $("#sgTitle").textContent =
+        which === "A" ? "가입자 서명"
+          : which === "S" ? ("담당자 서명 등록 — " + pendingStaffName)
+            : "담당자 서명";
       sgModal.hidden = false;
       document.body.style.overflow = 'hidden';
       /* 화면에 붙은 뒤에 크기를 재야 캔버스 해상도가 맞는다 */
@@ -251,7 +273,16 @@
     $('#sgCancel').addEventListener('click', closeSign);
     $('#sgSave').addEventListener('click', function () {
       if (!sgDrawn) return;
-      sig[sigTarget] = sgCanvas.toDataURL('image/png');
+      var data = sgCanvas.toDataURL("image/png");
+      if (sigTarget === "S") {
+        staffList.push({ name: pendingStaffName, sig: data });
+        saveStaff(); renderStaff();
+        $("#staffSel").value = String(staffList.length - 1);
+        sig.B = data;
+        $("[data-f=\"staff\"]").value = pendingStaffName;
+      } else {
+        sig[sigTarget] = data;
+      }
       closeSign();
       renderSigns(); saveDraft();
       if (memberOn) memberSigned();
@@ -357,6 +388,85 @@
       if (c) c.scrollIntoView({ block: "center", behavior: "smooth" });
     });
 
+    /* ── 담당자 서명 미리 등록 ─────────────────────────────
+       강사 서명을 한 번 받아 두면 다음 계약서부터는 고르기만 하면 된다.
+       계약 내용과 달리 서버에 보내지 않고 이 기기에만 보관한다. */
+    var STAFF_KEY = 'jstudio_contract_staff';
+    var staffList = [];
+    var pendingStaffName = '';
+
+    function loadStaff() {
+      try { staffList = JSON.parse(localStorage.getItem(STAFF_KEY) || '[]'); }
+      catch (e) { staffList = []; }
+      if (!Array.isArray(staffList)) staffList = [];
+    }
+    function saveStaff() {
+      try { localStorage.setItem(STAFF_KEY, JSON.stringify(staffList)); }
+      catch (e) { alert('저장 공간이 부족해 담당자 서명을 보관하지 못했습니다.'); }
+    }
+    function renderStaff() {
+      var sel = $('#staffSel');
+      var cur = sel.value;
+      sel.innerHTML = '<option value="">저장된 담당자 서명 선택…</option>' +
+        staffList.map(function (s, i) {
+          return '<option value="' + i + '">' + esc(s.name) + '</option>';
+        }).join('');
+      if (cur && staffList[cur]) sel.value = cur;
+    }
+
+    $('#staffSel').addEventListener('change', function () {
+      var s = staffList[this.value];
+      if (!s) return;
+      sig.B = s.sig;
+      $('[data-f="staff"]').value = s.name;
+      render();
+    });
+    $('#btnStaffAdd').addEventListener('click', function () {
+      var name = prompt('등록할 담당자 이름을 입력하세요');
+      if (name === null) return;
+      name = String(name).trim();
+      if (!name) { alert('이름을 입력해 주세요.'); return; }
+      pendingStaffName = name;
+      openSign('S');
+    });
+    $('#btnStaffDel').addEventListener('click', function () {
+      var sel = $('#staffSel');
+      var s = staffList[sel.value];
+      if (!s) { alert('삭제할 담당자를 먼저 선택하세요.'); return; }
+      if (!confirm('"' + s.name + '" 서명을 삭제할까요?')) return;
+      staffList.splice(sel.value, 1);
+      saveStaff(); renderStaff();
+    });
+
+    loadStaff();
+    renderStaff();
+
+    /* ── PIN 변경 ─────────────────────────────────────────
+       현재 PIN을 확인한 뒤 새 PIN(4~6자리)으로 바꾼다. 서버에 해시로 보관돼
+       모든 기기에 같이 적용된다. */
+    $('#btnPin').addEventListener('click', function () {
+      var cur = prompt('현재 PIN을 입력하세요');
+      if (cur === null) return;
+      var next = prompt('새 PIN을 입력하세요 (숫자 4~6자리)');
+      if (next === null) return;
+      next = String(next).trim();
+      if (!/^\d{4,6}$/.test(next)) { alert('PIN은 숫자 4~6자리여야 합니다.'); return; }
+      var again = prompt('확인을 위해 새 PIN을 한 번 더 입력하세요');
+      if (again === null) return;
+      if (String(again).trim() !== next) { alert('새 PIN이 서로 다릅니다.'); return; }
+      fetch('/api/contract/pin/change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPin: String(cur).trim(), newPin: next })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
+        .then(function (res) {
+          if (res.d && res.d.ok) alert('PIN을 변경했습니다.\n다음 접속부터 새 PIN을 쓰세요.');
+          else alert((res.d && res.d.message) || 'PIN을 변경하지 못했습니다.');
+        })
+        .catch(function () { alert('서버에 연결할 수 없습니다.'); });
+    });
+
     /* ── 회원에게 전달(핸드오프) 모드 ──────────────────────
        관리자가 정보를 다 채운 뒤 폰/패드를 회원에게 넘기는 화면.
        회원은 ① 가입 내용 확인 ② 약관 읽고 동의 ③ 서명 만 한다.
@@ -454,19 +564,14 @@
 
     /* 회원이 임의로 빠져나가 입력값을 건드리지 못하도록 관리자 비밀번호로만 복귀 */
     function exitMember() {
-      var pw = prompt('직원 확인 — 관리자 비밀번호를 입력하세요');
-      if (pw === null) return;
-      fetch('/api/admin/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw })
-      })
-        .then(function (r) { return r.json(); })
+      var pin = prompt("직원 확인 — PIN을 입력하세요");
+      if (pin === null) return;
+      verifyPin(String(pin).trim())
         .then(function (d) {
           if (d && d.ok) closeMember();
-          else alert('비밀번호가 맞지 않습니다.');
+          else alert("PIN이 맞지 않습니다.");
         })
-        .catch(function () { alert('서버에 연결할 수 없습니다.'); });
+        .catch(function () { alert("서버에 연결할 수 없습니다."); });
     }
 
     /* 약관을 끝까지 내려야 동의 체크가 열린다 */

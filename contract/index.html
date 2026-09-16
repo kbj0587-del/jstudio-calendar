@@ -17,6 +17,8 @@ body{margin:0;background:#eceae5;color:#1d1d1b;
 #gate input{width:100%;height:40px;border:1px solid #ccc;border-radius:8px;padding:0 12px;font-size:15px;text-align:center}
 #gate button{width:100%;height:40px;margin-top:10px;border:0;border-radius:8px;background:#1d1d1b;color:#fff;font-size:14px;cursor:pointer}
 #gate .err{color:#c0392b;font-size:12px;height:16px;margin-top:8px}
+#gate .gdef{font-size:11px;color:#999;line-height:1.6;margin:12px 0 0}
+#gate input{letter-spacing:6px;font-size:20px}
 #app{display:none}
 header{position:sticky;top:0;z-index:20;background:#1d1d1b;color:#fff;display:flex;align-items:center;gap:8px;padding:10px 14px;flex-wrap:wrap}
 header h1{font-size:15px;margin:0;font-weight:600;flex:1;min-width:140px}
@@ -88,6 +90,8 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 .sigthumb{width:74px;height:34px;border-bottom:1px solid #d5d3cc;display:flex;align-items:flex-end;justify-content:center;flex:none}
 .sigthumb img{max-width:100%;max-height:34px}
 .sigbtn{height:34px;padding:0 12px;border:1px solid #1d1d1b;border-radius:7px;background:#1d1d1b;color:#fff;font-size:12px;cursor:pointer;flex:none}
+.staffrow{display:flex;gap:6px;margin-top:8px}
+.staffrow select{flex:1;min-width:0;height:34px;font-size:12px}
 .sigdel{height:34px;padding:0 10px;border:1px solid #d5d3cc;border-radius:7px;background:#fff;font-size:12px;color:#8a8880;cursor:pointer;flex:none}
 #sigModal{position:fixed;inset:0;background:rgba(20,20,18,.72);z-index:100;display:flex;align-items:center;justify-content:center;padding:14px}
 #sigModal[hidden]{display:none}
@@ -161,10 +165,11 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 <div id="gate">
   <div class="box">
     <h1>회원가입 계약서</h1>
-    <p>캘린더 관리자 비밀번호를 입력하세요</p>
-    <input type="password" id="gpw" autocomplete="current-password" />
+    <p>PIN 4~6자리를 입력하세요</p>
+    <input type="password" id="gpw" inputmode="numeric" maxlength="6" autocomplete="off" />
     <div class="err" id="gerr"></div>
     <button id="gbtn">들어가기</button>
+    <p class="gdef">초기 PIN은 <b>1234</b>입니다. 들어간 뒤 상단 「PIN 변경」에서 바꿔 주세요.</p>
   </div>
 </div>
 
@@ -172,6 +177,7 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
 <header>
   <button id="btnBack" title="캘린더로 돌아가기">← 캘린더</button>
   <h1>회원가입(PT) 계약서</h1>
+  <button id="btnPin">PIN 변경</button>
   <button id="btnInk">잉크 절약: 끔</button>
   <button id="btnReset">새 계약서</button>
   <button id="btnHandoff">📱 회원에게 전달</button>
@@ -283,6 +289,12 @@ input:focus,textarea:focus,select:focus{outline:0;border-color:#1d1d1b}
           <button type="button" class="sigbtn" data-sign="B">✍️ 서명</button>
           <button type="button" class="sigdel" data-del="B">지우기</button>
         </div>
+        <div class="staffrow">
+          <select id="staffSel" aria-label="저장된 담당자 서명"><option value="">저장된 담당자 서명 선택…</option></select>
+          <button type="button" id="btnStaffAdd" class="sigdel">＋ 등록</button>
+          <button type="button" id="btnStaffDel" class="sigdel">삭제</button>
+        </div>
+        <p class="hint">담당자 서명을 한 번 등록해 두면 다음부터 선택만 하면 됩니다. (이 기기에만 저장)</p>
       </div>
       <p class="tip">인쇄 창에서 <b>배경 그래픽</b>을 켜야 검정 제목 띠가 인쇄됩니다.
         토너를 아끼려면 상단 <b>잉크 절약</b>을 켜세요 — 배경 없이도 동일하게 인쇄됩니다.</p>
