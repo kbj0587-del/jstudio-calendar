@@ -222,35 +222,37 @@
 
       put('bonus', esc(val('bonus')));
 
-      /* 1회 금액 — 등록구분별 할인율을 정상가에 적용해 채운다.
-         2:1 은 20%, 3:1 은 30% 할인. 직접 고치면(unitTouched) 건드리지 않는다. */
+      /* 1회 금액은 '정상 회당가'다. 비어 있으면 표준금액(정상가)을 그대로 채운다.
+         할인은 회당 금액이 아니라 총 결제금액 단계에서 적용한다. */
       var std = Number(digits(val('stdPrice'))) || 0;
       var regPick = (document.querySelector('input[name="reg"]:checked') || {}).value || '';
       var rate = DISCOUNT[regPick] || 0;
-      var autoUnit = std ? Math.round(std * (1 - rate) / 10) * 10 : 0;
-      if (!unitTouched && autoUnit) $('[data-f="unit"]').value = autoUnit.toLocaleString('ko-KR');
-      $('#unitBadge').textContent = !std ? ''
-        : unitTouched ? '· 직접 입력됨 (자동값 ' + autoUnit.toLocaleString('ko-KR') + '원)'
-          : rate ? '· ' + regPick + ' 할인 ' + (rate * 100) + '% 적용'
-            : '· 정상가 적용';
+      if (!unitTouched && std) $('[data-f="unit"]').value = std.toLocaleString('ko-KR');
+      $('#unitBadge').textContent = unitTouched ? '' : (std ? '· 표준금액에서 가져옴' : '');
 
       put('unit', won(val('unit')));
       var paid = comma(val('paid')), due = comma(val('due'));
       put('paidDue', (paid || '') + ' / ' + (due || ''));
 
-      /* 총 결제금액 — 1회금액 × 횟수를 칸에 바로 채워 넣는다.
-         직접 고친 뒤에는(totalTouched) 자동 덮어쓰기를 하지 않는다. */
-      var auto = (digits(val('unit')) && cnt) ? Number(digits(val('unit'))) * Number(cnt) : 0;
+      /* 총 결제금액 = 회당 금액 × 횟수 × (1 − 등록구분 할인율).
+         2:1 은 20%, 3:1 은 30%. 직접 고친 뒤에는 자동 덮어쓰기를 하지 않는다. */
+      var unit = Number(digits(val('unit'))) || 0;
+      var gross = (unit && cnt) ? unit * Number(cnt) : 0;
+      var auto = gross ? Math.round(gross * (1 - rate) / 10) * 10 : 0;
       if (!totalTouched && auto) $('[data-f="total"]').value = auto.toLocaleString('ko-KR');
       var shown = digits(val('total'));
       put('total', shown ? '₩ ' + Number(shown).toLocaleString('ko-KR') : '₩');
-      $('#totalBadge').textContent = auto
-        ? (totalTouched ? '· 직접 입력됨 (자동값 ' + auto.toLocaleString('ko-KR') + '원)' : '· 자동계산됨')
-        : '';
-      $('#calc').textContent = auto
-        ? comma(val('unit')) + '원 × ' + cnt + '회 = ' + auto.toLocaleString('ko-KR') + '원'
-          + (totalTouched ? ' (칸을 비우면 이 값으로 되돌아갑니다)' : '')
-        : '1회 금액과 횟수를 입력하면 자동으로 계산됩니다.';
+      $('#totalBadge').textContent = !auto ? ''
+        : totalTouched ? '· 직접 입력됨 (자동값 ' + auto.toLocaleString('ko-KR') + '원)'
+          : rate ? '· ' + regPick + ' 할인 ' + (rate * 100) + '% 적용됨'
+            : '· 자동계산됨';
+      $('#calc').textContent = !auto
+        ? '1회 금액과 횟수를 입력하면 자동으로 계산됩니다.'
+        : (rate
+          ? comma(val('unit')) + '원 × ' + cnt + '회 = ' + gross.toLocaleString('ko-KR') + '원'
+            + '  →  ' + regPick + ' 할인 ' + (rate * 100) + '% 적용  →  ' + auto.toLocaleString('ko-KR') + '원'
+          : comma(val('unit')) + '원 × ' + cnt + '회 = ' + auto.toLocaleString('ko-KR') + '원')
+          + (totalTouched ? ' (칸을 비우면 이 값으로 되돌아갑니다)' : '');
 
       put('stdItem', esc(val('stdItem')));
       put('stdPrice', comma(val('stdPrice')) || esc(val('stdPrice')));
