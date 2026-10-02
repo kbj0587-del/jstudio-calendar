@@ -84,7 +84,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 <div class="cert">
   <img src="https://mjs.ai.kr/cert-assets/flying-cert-bg@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
 
-  <div style="position:absolute;left:52px;top:50px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526&nbsp;&nbsp;|&nbsp;&nbsp;발급번호 {{cert_no}}</div>
+  <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>발급번호 {{cert_no}}</div>
 
   <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
 
