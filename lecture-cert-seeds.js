@@ -17,11 +17,11 @@ html,body{margin:0;padding:0;background:#ffffff}
 <body>
 <div class="cert">
   <img src="https://mjs.ai.kr/cert-assets/aroma-cert-bg.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
-  <div style="position:absolute;left:0;top:0;width:794px;height:1123px;background:#ffffff;opacity:0.65;pointer-events:none"></div>
+  <div style="position:absolute;left:0;top:0;width:794px;height:1123px;background:#ffffff;opacity:0.5;pointer-events:none"></div>
   <img src="https://mjs.ai.kr/cert-assets/aroma-cert-frame.webp" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill;pointer-events:none">
 
   <div style="position:absolute;left:173px;top:158px;width:452px;display:flex;flex-direction:column;align-items:center;gap:8px">
-    <div style="font-family:'Cinzel',serif;font-weight:400;font-size:50px;line-height:1.05;letter-spacing:1px;color:#CDB17A">CERTIFICATE</div>
+    <div style="font-family:'Cinzel',serif;font-weight:400;font-size:42px;line-height:1.05;letter-spacing:1px;color:#CDB17A">CERTIFICATE</div>
     <div style="font-family:'Nanum Myeongjo',serif;font-weight:800;font-size:23px;line-height:1.25;letter-spacing:4px;margin-right:-4px;color:#CDB17A">아로마 전문 지도사</div>
     <div style="font-family:'Open Sans',sans-serif;font-weight:500;font-size:15px;line-height:1.3;letter-spacing:1px;color:#CDB17A">Professional Aroma Instructor</div>
   </div>
