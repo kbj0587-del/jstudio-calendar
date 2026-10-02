@@ -757,6 +757,43 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, certs: rows });
   }));
 
+  // 수료자(동일인) 집계 — 발급기록을 사람 단위로 묶음. 식별키: 연락처 숫자(4자리↑) 우선, 없으면 한글이름+생년월일
+  app.get('/api/lecture/admin/cert-holders', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const rows = (await q(
+      `SELECT c.id, c.cert_type_id, c.cert_no, c.holder_name, c.name_en, c.birth, c.holder_phone,
+              c.completion_date, c.created_at, t.name AS cert_type_name
+         FROM lecture_certs c
+         LEFT JOIN lecture_cert_types t ON t.id = c.cert_type_id
+        ORDER BY c.created_at DESC, c.id DESC`)).rows;
+    const map = {};
+    for (const r of rows) {
+      const digits = String(r.holder_phone || '').replace(/\D/g, '');
+      const key = digits.length >= 4
+        ? 'p:' + digits
+        : 'n:' + String(r.holder_name || '').trim().toLowerCase() + '|' + String(r.birth || '').slice(0, 10);
+      if (!map[key]) {
+        map[key] = {
+          key, holder_name: r.holder_name, name_en: r.name_en, birth: r.birth,
+          holder_phone: r.holder_phone, certs: []
+        };
+      }
+      const h = map[key];
+      // 최신 레코드(먼저 들어온 것이 최신, created_at DESC)의 비어있지 않은 값으로 보강
+      if (!h.name_en && r.name_en) h.name_en = r.name_en;
+      if (!h.birth && r.birth) h.birth = r.birth;
+      if (!h.holder_phone && r.holder_phone) h.holder_phone = r.holder_phone;
+      h.certs.push({
+        id: r.id, cert_type_id: r.cert_type_id, cert_type_name: r.cert_type_name,
+        cert_no: r.cert_no, completion_date: r.completion_date
+      });
+    }
+    const holders = Object.values(map).map(h => ({ ...h, count: h.certs.length }))
+      .sort((a, b) => (b.count - a.count) || String(a.holder_name || '').localeCompare(String(b.holder_name || '')));
+    res.json({ ok: true, holders });
+  }));
+
   // 자격증 발급 기록 추가/수정
   app.post('/api/lecture/admin/cert', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
