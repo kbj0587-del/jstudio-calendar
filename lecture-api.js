@@ -675,7 +675,7 @@ function registerLectureRoutes(app, deps) {
   app.get('/api/lecture/admin/cert-types', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     await ensureCertTables();
-    const rows = (await q(`SELECT t.id, t.name, t.issuer, t.sort, t.active, t.created_at,
+    const rows = (await q(`SELECT t.id, t.name, t.issuer, t.sort, t.active, t.created_at, t.template_html,
                                   (t.template_html IS NOT NULL AND t.template_html <> '') AS has_template,
                                   (SELECT count(*) FROM lecture_certs c WHERE c.cert_type_id = t.id)::int AS issued_count
                            FROM lecture_cert_types t ORDER BY t.sort, t.created_at`)).rows;
