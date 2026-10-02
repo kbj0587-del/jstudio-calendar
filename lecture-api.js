@@ -753,7 +753,7 @@ function registerLectureRoutes(app, deps) {
          FROM lecture_certs c
          LEFT JOIN lecture_cert_types t ON t.id = c.cert_type_id
          ${where}
-        ORDER BY t.sort NULLS LAST, t.name NULLS LAST, c.completion_date DESC NULLS LAST, c.created_at DESC`, params)).rows;
+        ORDER BY c.created_at DESC, c.id DESC`, params)).rows;
     res.json({ ok: true, certs: rows });
   }));
 
