@@ -69,7 +69,7 @@ const FLYING_LOW = `<!doctype html>
 <title>플라잉요가 자격증</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&family=Kaushan+Script&display=swap">
 <style>
 @font-face{font-family:'aMapsiB';src:url('https://www.mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'aCheerleader';src:url('https://www.mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
@@ -100,7 +100,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
   <div style="position:absolute;left:190px;top:959px;width:400px;text-align:center;font-family:'aCheerleader','Noto Sans KR',sans-serif;font-weight:900;font-size:40px;line-height:1;color:#333333;white-space:nowrap">제이스튜디오</div>
   <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
 
-  <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
+  <div style="position:absolute;left:524px;top:960px;width:280px;text-align:center;font-family:'Kaushan Script',cursive;font-size:30px;line-height:1;color:#1e2b4d;white-space:nowrap">Kim hyun jung</div>
   <div style="position:absolute;left:579px;top:999px;width:170px;height:1.2px;background:#555555;opacity:.6"></div>
   <div style="position:absolute;left:549px;top:1006px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
 </div>
@@ -115,7 +115,7 @@ const FLYING_HIGH = `<!doctype html>
 <title>플라잉요가 자격증</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&family=Kaushan+Script&display=swap">
 <style>
 @font-face{font-family:'aMapsiB';src:url('https://www.mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'aCheerleader';src:url('https://www.mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
@@ -146,7 +146,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
   <div style="position:absolute;left:190px;top:959px;width:400px;text-align:center;font-family:'aCheerleader','Noto Sans KR',sans-serif;font-weight:900;font-size:40px;line-height:1;color:#333333;white-space:nowrap">제이스튜디오</div>
   <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
 
-  <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
+  <div style="position:absolute;left:524px;top:960px;width:280px;text-align:center;font-family:'Kaushan Script',cursive;font-size:30px;line-height:1;color:#1e2b4d;white-space:nowrap">Kim hyun jung</div>
   <div style="position:absolute;left:579px;top:999px;width:170px;height:1.2px;background:#555555;opacity:.6"></div>
   <div style="position:absolute;left:549px;top:1006px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
 </div>
@@ -161,7 +161,7 @@ const FLYING_GEN = `<!doctype html>
 <title>플라잉요가 자격증</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&family=Kaushan+Script&display=swap">
 <style>
 @font-face{font-family:'aMapsiB';src:url('https://www.mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'aCheerleader';src:url('https://www.mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
@@ -192,7 +192,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
   <div style="position:absolute;left:190px;top:959px;width:400px;text-align:center;font-family:'aCheerleader','Noto Sans KR',sans-serif;font-weight:900;font-size:40px;line-height:1;color:#333333;white-space:nowrap">제이스튜디오</div>
   <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
 
-  <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
+  <div style="position:absolute;left:524px;top:960px;width:280px;text-align:center;font-family:'Kaushan Script',cursive;font-size:30px;line-height:1;color:#1e2b4d;white-space:nowrap">Kim hyun jung</div>
   <div style="position:absolute;left:579px;top:999px;width:170px;height:1.2px;background:#555555;opacity:.6"></div>
   <div style="position:absolute;left:549px;top:1006px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
 </div>
