@@ -4,7 +4,7 @@
 //  DB: 같은 Supabase(jstudio-calendar) 의 lecture_* 테이블 (기존 기능과 격리).
 //  프론트: mjs.ai.kr/lecture 에서 CORS 로 호출.
 const crypto = require('crypto');
-const { AROMA_TEMPLATE } = require('./lecture-cert-seeds');
+const { CERT_SEEDS } = require('./lecture-cert-seeds');
 
 const SECRET = process.env.LECTURE_SECRET || process.env.ADMIN_PASSWORD || 'mjs-lecture-dev';
 const TOKEN_TTL_SEC = 6 * 60 * 60; // 6시간
@@ -579,15 +579,15 @@ function registerLectureRoutes(app, deps) {
     //  이미 같은 이름의 자격증이 있으면 template_html 을 이 폼으로 갱신, 없으면 신규 등록.
     //  (관리자가 이 종류의 폼을 직접 수정했다면 재배포 시 이 시드로 되돌아갈 수 있음 — 커스터마이즈 필요 시 시드 갱신)
     try {
-      if (AROMA_TEMPLATE) {
-        const up = await q('UPDATE lecture_cert_types SET template_html=$2 WHERE name=$1',
-          ['아로마 전문 지도사', AROMA_TEMPLATE]);
+      for (const s of (CERT_SEEDS || [])) {
+        if (!s || !s.name || !s.template) continue;
+        const up = await q('UPDATE lecture_cert_types SET template_html=$2 WHERE name=$1', [s.name, s.template]);
         if (!up.rowCount) {
           await q('INSERT INTO lecture_cert_types (name, issuer, template_html, sort, active) VALUES ($1,$2,$3,0,true)',
-            ['아로마 전문 지도사', '미사 제이스튜디오', AROMA_TEMPLATE]);
-          console.log('✅ lecture: 아로마 자격증 발급 폼 신규 등록');
+            [s.name, s.issuer || null, s.template]);
+          console.log('✅ lecture: 발급 폼 신규 등록 — ' + s.name);
         } else {
-          console.log('✅ lecture: 아로마 자격증 발급 폼 갱신(' + up.rowCount + ')');
+          console.log('✅ lecture: 발급 폼 갱신 — ' + s.name);
         }
       }
     } catch (e) { console.error('[lecture] cert seed', String((e && e.message) || e)); }
