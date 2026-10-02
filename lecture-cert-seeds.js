@@ -63,14 +63,14 @@ use of natural aromatics.</div>
 </html>
 `;
 
-const FLYING_TEMPLATE = `<!doctype html>
+const FLYING_LOW = `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<title>플라잉요가 지도사 자격증</title>
+<title>플라잉요가 자격증</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
 <style>
 @font-face{font-family:'aMapsiB';src:url('https://mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
 @font-face{font-family:'aCheerleader';src:url('https://mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
@@ -78,11 +78,113 @@ const FLYING_TEMPLATE = `<!doctype html>
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.gold{color:#c7a24a;background:linear-gradient(180deg,#f6e6a6 0%,#d8b24f 42%,#b5872c 72%,#edd079 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 </style>
 </head>
 <body>
 <div class="cert">
-  <img src="https://mjs.ai.kr/cert-assets/flying-cert-bg@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
+  <img src="https://mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
+
+  <div class="gold" style="position:absolute;left:0;top:170px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:42px;line-height:1;letter-spacing:5px;margin-right:-5px">FLYINGYOGA</div>
+  <div class="gold" style="position:absolute;left:0;top:224px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:12.5px;line-height:1;letter-spacing:3px;margin-right:-3px">LOW FLYING FOUNDATION COURSE CERTIFICATE</div>
+
+  <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>발급번호 {{cert_no}}</div>
+
+  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
+
+  <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
+that you have completed the training course
+recognised by Flyart Yoga and have passed
+the qualification verification corresponding to the course.</div>
+
+  <div style="position:absolute;left:120px;top:695px;width:600px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:41.06px;color:#333333;white-space:pre-line;word-break:keep-all">위 사람은 본원의 자격관리 기준에 의거하여 교육과정을 이수하고
+소정의 자격시험에 합격하여 본 증서를 수여합니다.</div>
+
+  <div style="position:absolute;left:240px;top:857px;width:300px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:1;color:#333333;white-space:nowrap">{{issued_date_ko}}</div>
+
+  <div style="position:absolute;left:190px;top:959px;width:400px;text-align:center;font-family:'aCheerleader','Noto Sans KR',sans-serif;font-weight:900;font-size:40px;line-height:1;color:#333333;white-space:nowrap">제이스튜디오</div>
+  <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
+
+  <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
+  <div style="position:absolute;left:549px;top:1002px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
+</div>
+</body>
+</html>
+`;
+
+const FLYING_HIGH = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>플라잉요가 자격증</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
+<style>
+@font-face{font-family:'aMapsiB';src:url('https://mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aCheerleader';src:url('https://mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'LeferiPointBlack';src:url('https://mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
+@page{size:A4 portrait;margin:0}
+html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.gold{color:#c7a24a;background:linear-gradient(180deg,#f6e6a6 0%,#d8b24f 42%,#b5872c 72%,#edd079 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+</style>
+</head>
+<body>
+<div class="cert">
+  <img src="https://mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
+
+  <div class="gold" style="position:absolute;left:0;top:170px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:42px;line-height:1;letter-spacing:5px;margin-right:-5px">FLYINGYOGA</div>
+  <div class="gold" style="position:absolute;left:0;top:224px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:12.5px;line-height:1;letter-spacing:3px;margin-right:-3px">HIGH FLYING FOUNDATION COURSE CERTIFICATE</div>
+
+  <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>발급번호 {{cert_no}}</div>
+
+  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
+
+  <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
+that you have completed the training course
+recognised by Flyart Yoga and have passed
+the qualification verification corresponding to the course.</div>
+
+  <div style="position:absolute;left:120px;top:695px;width:600px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:41.06px;color:#333333;white-space:pre-line;word-break:keep-all">위 사람은 본원의 자격관리 기준에 의거하여 교육과정을 이수하고
+소정의 자격시험에 합격하여 본 증서를 수여합니다.</div>
+
+  <div style="position:absolute;left:240px;top:857px;width:300px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:1;color:#333333;white-space:nowrap">{{issued_date_ko}}</div>
+
+  <div style="position:absolute;left:190px;top:959px;width:400px;text-align:center;font-family:'aCheerleader','Noto Sans KR',sans-serif;font-weight:900;font-size:40px;line-height:1;color:#333333;white-space:nowrap">제이스튜디오</div>
+  <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
+
+  <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
+  <div style="position:absolute;left:549px;top:1002px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
+</div>
+</body>
+</html>
+`;
+
+const FLYING_GEN = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>플라잉요가 자격증</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
+<style>
+@font-face{font-family:'aMapsiB';src:url('https://mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aCheerleader';src:url('https://mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'LeferiPointBlack';src:url('https://mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
+@page{size:A4 portrait;margin:0}
+html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.gold{color:#c7a24a;background:linear-gradient(180deg,#f6e6a6 0%,#d8b24f 42%,#b5872c 72%,#edd079 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+</style>
+</head>
+<body>
+<div class="cert">
+  <img src="https://mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
+
+  <div class="gold" style="position:absolute;left:0;top:170px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:42px;line-height:1;letter-spacing:5px;margin-right:-5px">FLYINGYOGA</div>
+  <div class="gold" style="position:absolute;left:0;top:224px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:12.5px;line-height:1;letter-spacing:3px;margin-right:-3px">FOUNDATION COURSE CERTIFICATE</div>
 
   <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>발급번호 {{cert_no}}</div>
 
@@ -110,7 +212,9 @@ the qualification verification corresponding to the course.</div>
 
 const CERT_SEEDS = [
   { name: "아로마 전문 지도사", issuer: "미사 제이스튜디오", template: AROMA_TEMPLATE },
-  { name: "로우플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_TEMPLATE },
+  { name: "로우플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_LOW },
+  { name: "하이플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_HIGH },
+  { name: "플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_GEN },
 ];
 
-module.exports = { AROMA_TEMPLATE, FLYING_TEMPLATE, CERT_SEEDS };
+module.exports = { AROMA_TEMPLATE, FLYING_LOW, FLYING_HIGH, FLYING_GEN, CERT_SEEDS };
