@@ -89,15 +89,14 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 
   <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>Reference No. {{cert_no}}</div>
 
-  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
-  <div style="position:absolute;left:247px;top:466px;width:300px;height:1.4px;background:#555555;opacity:.6"></div>
+  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap"><span style="display:inline-block;border-bottom:1.6px solid rgba(85,85,85,.6);padding-bottom:9px">{{holder_name}}</span></div>
 
-  <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
+  <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:36px;color:#333333;white-space:pre-line">This certificate is presented to prove
 that you have completed the training course
 recognised by Flyart Yoga and have passed
 the qualification verification corresponding to the course.</div>
 
-  <div style="position:absolute;left:120px;top:695px;width:600px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:41.06px;color:#333333;white-space:pre-line;word-break:keep-all">위 사람은 본원의 자격관리 기준에 의거하여 교육과정을 이수하고
+  <div style="position:absolute;left:120px;top:695px;width:600px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:36px;color:#333333;white-space:pre-line;word-break:keep-all">위 사람은 본원의 자격관리 기준에 의거하여 교육과정을 이수하고
 소정의 자격시험에 합격하여 본 증서를 수여합니다.</div>
 
   <div style="position:absolute;left:240px;top:857px;width:300px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:1;color:#333333;white-space:nowrap">{{issued_date_ko}}</div>
@@ -140,15 +139,14 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 
   <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>Reference No. {{cert_no}}</div>
 
-  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
-  <div style="position:absolute;left:247px;top:466px;width:300px;height:1.4px;background:#555555;opacity:.6"></div>
+  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap"><span style="display:inline-block;border-bottom:1.6px solid rgba(85,85,85,.6);padding-bottom:9px">{{holder_name}}</span></div>
 
-  <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
+  <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:36px;color:#333333;white-space:pre-line">This certificate is presented to prove
 that you have completed the training course
 recognised by Flyart Yoga and have passed
 the qualification verification corresponding to the course.</div>
 
-  <div style="position:absolute;left:120px;top:695px;width:600px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:41.06px;color:#333333;white-space:pre-line;word-break:keep-all">위 사람은 본원의 자격관리 기준에 의거하여 교육과정을 이수하고
+  <div style="position:absolute;left:120px;top:695px;width:600px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:36px;color:#333333;white-space:pre-line;word-break:keep-all">위 사람은 본원의 자격관리 기준에 의거하여 교육과정을 이수하고
 소정의 자격시험에 합격하여 본 증서를 수여합니다.</div>
 
   <div style="position:absolute;left:240px;top:857px;width:300px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:1;color:#333333;white-space:nowrap">{{issued_date_ko}}</div>
@@ -191,15 +189,14 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 
   <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>Reference No. {{cert_no}}</div>
 
-  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
-  <div style="position:absolute;left:247px;top:466px;width:300px;height:1.4px;background:#555555;opacity:.6"></div>
+  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap"><span style="display:inline-block;border-bottom:1.6px solid rgba(85,85,85,.6);padding-bottom:9px">{{holder_name}}</span></div>
 
-  <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
+  <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:36px;color:#333333;white-space:pre-line">This certificate is presented to prove
 that you have completed the training course
 recognised by Flyart Yoga and have passed
 the qualification verification corresponding to the course.</div>
 
-  <div style="position:absolute;left:120px;top:695px;width:600px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:41.06px;color:#333333;white-space:pre-line;word-break:keep-all">위 사람은 본원의 자격관리 기준에 의거하여 교육과정을 이수하고
+  <div style="position:absolute;left:120px;top:695px;width:600px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:36px;color:#333333;white-space:pre-line;word-break:keep-all">위 사람은 본원의 자격관리 기준에 의거하여 교육과정을 이수하고
 소정의 자격시험에 합격하여 본 증서를 수여합니다.</div>
 
   <div style="position:absolute;left:240px;top:857px;width:300px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:1;color:#333333;white-space:nowrap">{{issued_date_ko}}</div>
