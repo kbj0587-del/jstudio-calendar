@@ -107,7 +107,8 @@ the qualification verification corresponding to the course.</div>
   <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
 
   <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
-  <div style="position:absolute;left:549px;top:1002px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
+  <div style="position:absolute;left:579px;top:999px;width:170px;height:1.2px;background:#555555;opacity:.6"></div>
+  <div style="position:absolute;left:549px;top:1006px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
 </div>
 </body>
 </html>
@@ -157,7 +158,8 @@ the qualification verification corresponding to the course.</div>
   <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
 
   <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
-  <div style="position:absolute;left:549px;top:1002px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
+  <div style="position:absolute;left:579px;top:999px;width:170px;height:1.2px;background:#555555;opacity:.6"></div>
+  <div style="position:absolute;left:549px;top:1006px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
 </div>
 </body>
 </html>
@@ -207,7 +209,8 @@ the qualification verification corresponding to the course.</div>
   <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
 
   <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
-  <div style="position:absolute;left:549px;top:1002px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
+  <div style="position:absolute;left:579px;top:999px;width:170px;height:1.2px;background:#555555;opacity:.6"></div>
+  <div style="position:absolute;left:549px;top:1006px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
 </div>
 </body>
 </html>
