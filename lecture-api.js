@@ -339,18 +339,20 @@ function registerLectureRoutes(app, deps) {
 
   app.post('/api/lecture/admin/course', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
+    await ensureCertTables();   // group_id 컬럼 보장
     const b = req.body || {};
     const id = String(b.id || '').trim();
     const yt = extractYtId(b.youtube_id);   // 전체 URL이면 ID만 추출
     if (!id || !b.title || !yt) return res.status(400).json({ error: 'id_title_youtube_required' });
+    const groupId = (b.group_id != null && b.group_id !== '') ? (parseInt(b.group_id, 10) || null) : null;
     await q(
-      `INSERT INTO lecture_courses (id, title, youtube_id, description, open_from, open_to, pass_score, active, sort)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `INSERT INTO lecture_courses (id, title, youtube_id, description, open_from, open_to, pass_score, active, sort, group_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, youtube_id=EXCLUDED.youtube_id,
          description=EXCLUDED.description, open_from=EXCLUDED.open_from, open_to=EXCLUDED.open_to,
-         pass_score=EXCLUDED.pass_score, active=EXCLUDED.active, sort=EXCLUDED.sort`,
+         pass_score=EXCLUDED.pass_score, active=EXCLUDED.active, sort=EXCLUDED.sort, group_id=EXCLUDED.group_id`,
       [id, b.title, yt, b.description || null, b.open_from || null, b.open_to || null,
-       Math.max(0, parseInt(b.pass_score, 10) || 0), b.active !== false, parseInt(b.sort, 10) || 0]
+       Math.max(0, parseInt(b.pass_score, 10) || 0), b.active !== false, parseInt(b.sort, 10) || 0, groupId]
     );
     if (Array.isArray(b.quiz)) {
       await q('DELETE FROM lecture_quiz WHERE course_id=$1', [id]);
@@ -373,6 +375,7 @@ function registerLectureRoutes(app, deps) {
 
   app.get('/api/lecture/admin/courses', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
+    await ensureCertTables();   // group_id 컬럼 보장
     const rows = (await q(`SELECT c.*, (SELECT count(*) FROM lecture_quiz z WHERE z.course_id=c.id) AS quiz_count
                            FROM lecture_courses c ORDER BY c.sort, c.created_at`)).rows;
     res.json({ ok: true, courses: rows });
@@ -528,6 +531,243 @@ function registerLectureRoutes(app, deps) {
     const id = parseInt((req.body && req.body.id), 10);
     if (!id) return res.status(400).json({ error: 'id_required' });
     await q('DELETE FROM center_videos WHERE id=$1', [id]);
+    res.json({ ok: true });
+  }));
+
+  // ════════ 강의 그룹 + 자격증 관리 ════════
+  //  강의를 그룹(아로마테라피·플라잉요가·번지피지오 등)으로 묶고, 체크박스로 이동/복사.
+  //  자격증: 종류(등록 자격증) 관리 + 발급현황 리스트. 발급 폼(template_html)은 관리자가 디자인 주입.
+  //  테이블은 최초 호출 시 자동 생성(center_videos 패턴).
+  let certTablesReady = false;
+  async function ensureCertTables() {
+    if (certTablesReady) return;
+    // 강의 그룹
+    await q(`CREATE TABLE IF NOT EXISTS lecture_groups (
+      id serial PRIMARY KEY,
+      name text NOT NULL,
+      sort int NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`);
+    await q(`ALTER TABLE lecture_courses ADD COLUMN IF NOT EXISTS group_id int`);
+    // 등록 자격증(자격증 종류)
+    await q(`CREATE TABLE IF NOT EXISTS lecture_cert_types (
+      id serial PRIMARY KEY,
+      name text NOT NULL,
+      issuer text,
+      template_html text,
+      sort int NOT NULL DEFAULT 0,
+      active boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`);
+    // 자격증 발급현황
+    await q(`CREATE TABLE IF NOT EXISTS lecture_certs (
+      id serial PRIMARY KEY,
+      cert_type_id int,
+      cert_no text,
+      holder_name text NOT NULL,
+      holder_phone text,
+      issued_date date,
+      memo text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )`);
+    certTablesReady = true;
+  }
+
+  // ── 강의 그룹 ──
+  app.get('/api/lecture/admin/groups', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const rows = (await q(`SELECT g.*, (SELECT count(*) FROM lecture_courses c WHERE c.group_id = g.id)::int AS course_count
+                           FROM lecture_groups g ORDER BY g.sort, g.created_at`)).rows;
+    res.json({ ok: true, groups: rows });
+  }));
+
+  // 그룹 추가/수정 (id 있으면 수정)
+  app.post('/api/lecture/admin/group', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const b = req.body || {};
+    const name = String(b.name || '').trim();
+    const sort = parseInt(b.sort, 10) || 0;
+    if (!name) return res.status(400).json({ error: 'name_required' });
+    const id = parseInt(b.id, 10);
+    let saved;
+    if (id) {
+      saved = (await q('UPDATE lecture_groups SET name=$2, sort=$3 WHERE id=$1 RETURNING id, name, sort', [id, name, sort])).rows[0];
+      if (!saved) return res.status(404).json({ error: 'not_found' });
+    } else {
+      saved = (await q('INSERT INTO lecture_groups (name, sort) VALUES ($1,$2) RETURNING id, name, sort', [name, sort])).rows[0];
+    }
+    res.json({ ok: true, group: saved });
+  }));
+
+  // 그룹 삭제 (소속 강의는 group_id=NULL 로 미분류 처리, 강의 자체는 보존)
+  app.post('/api/lecture/admin/group-delete', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const id = parseInt((req.body && req.body.id), 10);
+    if (!id) return res.status(400).json({ error: 'id_required' });
+    await q('UPDATE lecture_courses SET group_id=NULL WHERE group_id=$1', [id]);
+    await q('DELETE FROM lecture_groups WHERE id=$1', [id]);
+    res.json({ ok: true });
+  }));
+
+  // 선택 강의 그룹 이동 (group_id 변경). groupId=null 이면 미분류로.
+  app.post('/api/lecture/admin/courses-move', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids.map(String) : null;
+    const gid = (req.body && req.body.group_id != null) ? (parseInt(req.body.group_id, 10) || null) : null;
+    if (!ids || !ids.length) return res.status(400).json({ error: 'ids_required' });
+    await q('UPDATE lecture_courses SET group_id=$1 WHERE id = ANY($2::text[])', [gid, ids]);
+    res.json({ ok: true, moved: ids.length });
+  }));
+
+  // 선택 강의 그룹 복사 (강의+퀴즈를 새 id로 복제해 대상 그룹에 추가)
+  app.post('/api/lecture/admin/courses-copy', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids.map(String) : null;
+    const gid = (req.body && req.body.group_id != null) ? (parseInt(req.body.group_id, 10) || null) : null;
+    if (!ids || !ids.length) return res.status(400).json({ error: 'ids_required' });
+    let copied = 0;
+    for (const srcId of ids) {
+      const c = (await q('SELECT * FROM lecture_courses WHERE id=$1', [srcId])).rows[0];
+      if (!c) continue;
+      // 고유한 새 id 생성: <원본>-copy, -copy2 …
+      let newId = srcId + '-copy', n = 1;
+      while ((await q('SELECT 1 FROM lecture_courses WHERE id=$1', [newId])).rows.length) {
+        n++; newId = srcId + '-copy' + n;
+      }
+      await q(
+        `INSERT INTO lecture_courses (id, title, youtube_id, description, open_from, open_to, pass_score, active, sort, group_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [newId, c.title + ' (복사)', c.youtube_id, c.description, c.open_from, c.open_to, c.pass_score, c.active, c.sort, gid]
+      );
+      const qs = (await q('SELECT ord, question, options, answer_index, explanation FROM lecture_quiz WHERE course_id=$1 ORDER BY ord, id', [srcId])).rows;
+      for (const z of qs) {
+        await q('INSERT INTO lecture_quiz (course_id, ord, question, options, answer_index, explanation) VALUES ($1,$2,$3,$4,$5,$6)',
+          [newId, z.ord, z.question, JSON.stringify(z.options || []), z.answer_index, z.explanation]);
+      }
+      copied++;
+    }
+    res.json({ ok: true, copied });
+  }));
+
+  // ── 등록 자격증(자격증 종류) ──
+  app.get('/api/lecture/admin/cert-types', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const rows = (await q(`SELECT t.id, t.name, t.issuer, t.sort, t.active, t.created_at,
+                                  (t.template_html IS NOT NULL AND t.template_html <> '') AS has_template,
+                                  (SELECT count(*) FROM lecture_certs c WHERE c.cert_type_id = t.id)::int AS issued_count
+                           FROM lecture_cert_types t ORDER BY t.sort, t.created_at`)).rows;
+    res.json({ ok: true, cert_types: rows });
+  }));
+
+  // 자격증 종류 단건 (발급 폼 템플릿 포함)
+  app.get('/api/lecture/admin/cert-type', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const id = parseInt(req.query.id, 10);
+    if (!id) return res.status(400).json({ error: 'id_required' });
+    const row = (await q('SELECT id, name, issuer, template_html, sort, active FROM lecture_cert_types WHERE id=$1', [id])).rows[0];
+    if (!row) return res.status(404).json({ error: 'not_found' });
+    res.json({ ok: true, cert_type: row });
+  }));
+
+  // 자격증 종류 추가/수정 (id 있으면 수정). template_html = 발급 폼 디자인(HTML).
+  app.post('/api/lecture/admin/cert-type', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const b = req.body || {};
+    const name = String(b.name || '').trim();
+    const issuer = String(b.issuer || '').trim() || null;
+    const sort = parseInt(b.sort, 10) || 0;
+    const active = b.active !== false;
+    const hasTpl = Object.prototype.hasOwnProperty.call(b, 'template_html');
+    const tpl = hasTpl ? (String(b.template_html || '') || null) : undefined;
+    if (!name) return res.status(400).json({ error: 'name_required' });
+    const id = parseInt(b.id, 10);
+    let saved;
+    if (id) {
+      // template_html 은 보낸 경우에만 갱신(목록 수정이 템플릿을 지우지 않도록)
+      if (tpl === undefined) {
+        saved = (await q('UPDATE lecture_cert_types SET name=$2, issuer=$3, sort=$4, active=$5 WHERE id=$1 RETURNING id, name, issuer, sort, active',
+          [id, name, issuer, sort, active])).rows[0];
+      } else {
+        saved = (await q('UPDATE lecture_cert_types SET name=$2, issuer=$3, sort=$4, active=$5, template_html=$6 WHERE id=$1 RETURNING id, name, issuer, sort, active',
+          [id, name, issuer, sort, active, tpl])).rows[0];
+      }
+      if (!saved) return res.status(404).json({ error: 'not_found' });
+    } else {
+      saved = (await q('INSERT INTO lecture_cert_types (name, issuer, sort, active, template_html) VALUES ($1,$2,$3,$4,$5) RETURNING id, name, issuer, sort, active',
+        [name, issuer, sort, active, tpl === undefined ? null : tpl])).rows[0];
+    }
+    res.json({ ok: true, cert_type: saved });
+  }));
+
+  app.post('/api/lecture/admin/cert-type-delete', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const id = parseInt((req.body && req.body.id), 10);
+    if (!id) return res.status(400).json({ error: 'id_required' });
+    await q('DELETE FROM lecture_certs WHERE cert_type_id=$1', [id]);
+    await q('DELETE FROM lecture_cert_types WHERE id=$1', [id]);
+    res.json({ ok: true });
+  }));
+
+  // ── 자격증 발급현황 ──
+  app.get('/api/lecture/admin/certs', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const typeId = parseInt(req.query.typeId, 10);
+    const params = [];
+    let where = '';
+    if (typeId) { where = 'WHERE c.cert_type_id = $1'; params.push(typeId); }
+    const rows = (await q(
+      `SELECT c.id, c.cert_type_id, c.cert_no, c.holder_name, c.holder_phone, c.issued_date, c.memo, c.created_at,
+              t.name AS cert_type_name
+         FROM lecture_certs c
+         LEFT JOIN lecture_cert_types t ON t.id = c.cert_type_id
+         ${where}
+        ORDER BY c.issued_date DESC NULLS LAST, c.created_at DESC`, params)).rows;
+    res.json({ ok: true, certs: rows });
+  }));
+
+  // 자격증 발급 기록 추가/수정
+  app.post('/api/lecture/admin/cert', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const b = req.body || {};
+    const certTypeId = parseInt(b.cert_type_id, 10) || null;
+    const holder = String(b.holder_name || '').trim();
+    const phone = String(b.holder_phone || '').trim() || null;
+    const certNo = String(b.cert_no || '').trim() || null;
+    const issued = b.issued_date || null;
+    const memo = String(b.memo || '').trim() || null;
+    if (!holder) return res.status(400).json({ error: 'holder_required' });
+    const id = parseInt(b.id, 10);
+    let saved;
+    if (id) {
+      saved = (await q(`UPDATE lecture_certs SET cert_type_id=$2, cert_no=$3, holder_name=$4, holder_phone=$5, issued_date=$6, memo=$7
+                        WHERE id=$1 RETURNING id, cert_type_id, cert_no, holder_name, holder_phone, issued_date, memo`,
+        [id, certTypeId, certNo, holder, phone, issued, memo])).rows[0];
+      if (!saved) return res.status(404).json({ error: 'not_found' });
+    } else {
+      saved = (await q(`INSERT INTO lecture_certs (cert_type_id, cert_no, holder_name, holder_phone, issued_date, memo)
+                        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, cert_type_id, cert_no, holder_name, holder_phone, issued_date, memo`,
+        [certTypeId, certNo, holder, phone, issued, memo])).rows[0];
+    }
+    res.json({ ok: true, cert: saved });
+  }));
+
+  app.post('/api/lecture/admin/cert-delete', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    await ensureCertTables();
+    const id = parseInt((req.body && req.body.id), 10);
+    if (!id) return res.status(400).json({ error: 'id_required' });
+    await q('DELETE FROM lecture_certs WHERE id=$1', [id]);
     res.json({ ok: true });
   }));
 
