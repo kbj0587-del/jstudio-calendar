@@ -4,6 +4,7 @@
 //  DB: 같은 Supabase(jstudio-calendar) 의 lecture_* 테이블 (기존 기능과 격리).
 //  프론트: mjs.ai.kr/lecture 에서 CORS 로 호출.
 const crypto = require('crypto');
+const { AROMA_TEMPLATE } = require('./lecture-cert-seeds');
 
 const SECRET = process.env.LECTURE_SECRET || process.env.ADMIN_PASSWORD || 'mjs-lecture-dev';
 const TOKEN_TTL_SEC = 6 * 60 * 60; // 6시간
@@ -570,6 +571,15 @@ function registerLectureRoutes(app, deps) {
       memo text,
       created_at timestamptz NOT NULL DEFAULT now()
     )`);
+    // 발급 폼 시드: cert_types가 비어 있을 때만 "아로마 전문 지도사" 자동 등록(바로 발급 가능)
+    try {
+      const n = Number((await q('SELECT count(*)::int AS n FROM lecture_cert_types')).rows[0].n) || 0;
+      if (n === 0 && AROMA_TEMPLATE) {
+        await q('INSERT INTO lecture_cert_types (name, issuer, template_html, sort, active) VALUES ($1,$2,$3,0,true)',
+          ['아로마 전문 지도사', '미사 제이스튜디오', AROMA_TEMPLATE]);
+        console.log('✅ lecture: 아로마 자격증 발급 폼 시드 등록');
+      }
+    } catch (e) { console.error('[lecture] cert seed', String((e && e.message) || e)); }
     certTablesReady = true;
   }
 
