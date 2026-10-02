@@ -72,6 +72,9 @@ const FLYING_TEMPLATE = `<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@600;700&display=swap">
 <style>
+@font-face{font-family:'aMapsiB';src:url('https://mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aCheerleader';src:url('https://mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'LeferiPointBlack';src:url('https://mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -83,7 +86,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 
   <div style="position:absolute;left:52px;top:50px;font-family:Arial,sans-serif;font-size:10.85px;line-height:1;color:#a0a0a0;white-space:nowrap">Certification No. {{cert_no}}</div>
 
-  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'Times New Roman',Times,serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
+  <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
 
   <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
 that you have completed the training course
@@ -95,8 +98,8 @@ the qualification verification corresponding to the course.</div>
 
   <div style="position:absolute;left:240px;top:857px;width:300px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18.6px;line-height:1;color:#333333;white-space:nowrap">{{issued_date_ko}}</div>
 
-  <div style="position:absolute;left:190px;top:959px;width:400px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:900;font-size:40px;line-height:1;color:#333333;white-space:nowrap">제이스튜디오</div>
-  <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
+  <div style="position:absolute;left:190px;top:959px;width:400px;text-align:center;font-family:'aCheerleader','Noto Sans KR',sans-serif;font-weight:900;font-size:40px;line-height:1;color:#333333;white-space:nowrap">제이스튜디오</div>
+  <div style="position:absolute;left:233px;top:1007px;width:300px;text-align:center;font-family:'LeferiPointBlack','Noto Sans KR',sans-serif;font-weight:700;font-size:18.65px;line-height:1;color:#504f4f;white-space:nowrap">플라잉요가&amp;번지피지오</div>
 
   <div style="position:absolute;left:564px;top:973px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:24px;line-height:1;color:#333333;white-space:nowrap">Kim hyun jung</div>
   <div style="position:absolute;left:549px;top:1002px;width:200px;text-align:center;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1;color:#333333;white-space:nowrap">President</div>
@@ -105,7 +108,6 @@ the qualification verification corresponding to the course.</div>
 </html>
 `;
 
-// [자격증 이름, 발급기관, 템플릿] — ensureCertTables가 이름 기준으로 upsert
 const CERT_SEEDS = [
   { name: "아로마 전문 지도사", issuer: "미사 제이스튜디오", template: AROMA_TEMPLATE },
   { name: "로우플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_TEMPLATE },
