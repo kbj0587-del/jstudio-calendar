@@ -16,8 +16,8 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 </head>
 <body>
 <div class="cert">
-  <img src="https://mjs.ai.kr/cert-assets/aroma-cert-bg@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
-  <div style="position:absolute;left:0;top:0;width:794px;height:1123px;background:#ffffff;opacity:0.5;pointer-events:none"></div>
+  <img src="https://mjs.ai.kr/cert-assets/aroma-cert-bg@300.jpg" alt="" style="position:absolute;left:-8px;top:-8px;width:810px;height:1139px;object-fit:fill">
+  <div style="position:absolute;left:-8px;top:-8px;width:810px;height:1139px;background:#ffffff;opacity:0.5;pointer-events:none"></div>
   <img src="https://mjs.ai.kr/cert-assets/aroma-cert-frame@300.png" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill;pointer-events:none">
 
   <div style="position:absolute;left:173px;top:158px;width:452px;display:flex;flex-direction:column;align-items:center;gap:8px">
