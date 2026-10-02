@@ -72,9 +72,9 @@ const FLYING_LOW = `<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
 <style>
-@font-face{font-family:'aMapsiB';src:url('https://mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'aCheerleader';src:url('https://mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'LeferiPointBlack';src:url('https://mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aMapsiB';src:url('https://www.mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aCheerleader';src:url('https://www.mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'LeferiPointBlack';src:url('https://www.mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -83,7 +83,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 </head>
 <body>
 <div class="cert">
-  <img src="https://mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
+  <img src="https://www.mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
 
   <div class="gold" style="position:absolute;left:0;top:192px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:42px;line-height:1;letter-spacing:5px;margin-right:-5px">FLYINGYOGA</div>
   <div class="gold" style="position:absolute;left:0;top:246px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:12.5px;line-height:1;letter-spacing:3px;margin-right:-3px">LOW FLYING FOUNDATION COURSE CERTIFICATE</div>
@@ -122,9 +122,9 @@ const FLYING_HIGH = `<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
 <style>
-@font-face{font-family:'aMapsiB';src:url('https://mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'aCheerleader';src:url('https://mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'LeferiPointBlack';src:url('https://mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aMapsiB';src:url('https://www.mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aCheerleader';src:url('https://www.mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'LeferiPointBlack';src:url('https://www.mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -133,7 +133,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 </head>
 <body>
 <div class="cert">
-  <img src="https://mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
+  <img src="https://www.mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
 
   <div class="gold" style="position:absolute;left:0;top:192px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:42px;line-height:1;letter-spacing:5px;margin-right:-5px">FLYINGYOGA</div>
   <div class="gold" style="position:absolute;left:0;top:246px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:12.5px;line-height:1;letter-spacing:3px;margin-right:-3px">HIGH FLYING FOUNDATION COURSE CERTIFICATE</div>
@@ -172,9 +172,9 @@ const FLYING_GEN = `<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Cinzel:wght@400;500;600&display=swap">
 <style>
-@font-face{font-family:'aMapsiB';src:url('https://mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'aCheerleader';src:url('https://mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'LeferiPointBlack';src:url('https://mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aMapsiB';src:url('https://www.mjs.ai.kr/cert-assets/fonts/amapsib.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'aCheerleader';src:url('https://www.mjs.ai.kr/cert-assets/fonts/acheerleader.ttf') format('truetype');font-display:swap}
+@font-face{font-family:'LeferiPointBlack';src:url('https://www.mjs.ai.kr/cert-assets/fonts/leferipointblack.ttf') format('truetype');font-display:swap}
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -183,7 +183,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 </head>
 <body>
 <div class="cert">
-  <img src="https://mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
+  <img src="https://www.mjs.ai.kr/cert-assets/flying-cert-bg-clean@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
 
   <div class="gold" style="position:absolute;left:0;top:192px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:42px;line-height:1;letter-spacing:5px;margin-right:-5px">FLYINGYOGA</div>
   <div class="gold" style="position:absolute;left:0;top:246px;width:794px;text-align:center;font-family:'Cinzel',serif;font-weight:500;font-size:12.5px;line-height:1;letter-spacing:3px;margin-right:-3px">FOUNDATION COURSE CERTIFICATE</div>
