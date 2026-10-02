@@ -571,13 +571,20 @@ function registerLectureRoutes(app, deps) {
       memo text,
       created_at timestamptz NOT NULL DEFAULT now()
     )`);
-    // 발급 폼 시드: cert_types가 비어 있을 때만 "아로마 전문 지도사" 자동 등록(바로 발급 가능)
+    // 발급 폼 시드: "아로마 전문 지도사" 종류가 이 발급 폼으로 출력되도록 보장(이름 기준 upsert).
+    //  이미 같은 이름의 자격증이 있으면 template_html 을 이 폼으로 갱신, 없으면 신규 등록.
+    //  (관리자가 이 종류의 폼을 직접 수정했다면 재배포 시 이 시드로 되돌아갈 수 있음 — 커스터마이즈 필요 시 시드 갱신)
     try {
-      const n = Number((await q('SELECT count(*)::int AS n FROM lecture_cert_types')).rows[0].n) || 0;
-      if (n === 0 && AROMA_TEMPLATE) {
-        await q('INSERT INTO lecture_cert_types (name, issuer, template_html, sort, active) VALUES ($1,$2,$3,0,true)',
-          ['아로마 전문 지도사', '미사 제이스튜디오', AROMA_TEMPLATE]);
-        console.log('✅ lecture: 아로마 자격증 발급 폼 시드 등록');
+      if (AROMA_TEMPLATE) {
+        const up = await q('UPDATE lecture_cert_types SET template_html=$2 WHERE name=$1',
+          ['아로마 전문 지도사', AROMA_TEMPLATE]);
+        if (!up.rowCount) {
+          await q('INSERT INTO lecture_cert_types (name, issuer, template_html, sort, active) VALUES ($1,$2,$3,0,true)',
+            ['아로마 전문 지도사', '미사 제이스튜디오', AROMA_TEMPLATE]);
+          console.log('✅ lecture: 아로마 자격증 발급 폼 신규 등록');
+        } else {
+          console.log('✅ lecture: 아로마 자격증 발급 폼 갱신(' + up.rowCount + ')');
+        }
       }
     } catch (e) { console.error('[lecture] cert seed', String((e && e.message) || e)); }
     certTablesReady = true;
