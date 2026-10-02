@@ -1,5 +1,4 @@
-// lecture-cert-seeds.js — 자격증 발급 폼 시드(최초 1회 자동 등록)
-//  ensureCertTables()에서 cert_types가 비어 있을 때만 삽입. 디자인 변경 시 이 파일 갱신.
+// lecture-cert-seeds.js — 자격증 발급 폼 시드
 const AROMA_TEMPLATE = `<!doctype html>
 <html lang="ko">
 <head>
@@ -10,15 +9,16 @@ const AROMA_TEMPLATE = `<!doctype html>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500&family=Open+Sans:wght@400;500;600&family=Oswald:wght@500;600&family=Nanum+Myeongjo:wght@700;800&family=Noto+Sans+KR:wght@400;500&family=Mrs+Saint+Delafield&display=swap">
 <style>
 @page{size:A4 portrait;margin:0}
-html,body{margin:0;padding:0;background:#ffffff}
-.cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Open Sans','Noto Sans KR',sans-serif;color:#26292c;margin:0 auto}
+html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Open Sans','Noto Sans KR',sans-serif;color:#26292c;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cert img{image-rendering:auto}
 </style>
 </head>
 <body>
 <div class="cert">
-  <img src="https://mjs.ai.kr/cert-assets/aroma-cert-bg.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
+  <img src="https://mjs.ai.kr/cert-assets/aroma-cert-bg@300.jpg" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill">
   <div style="position:absolute;left:0;top:0;width:794px;height:1123px;background:#ffffff;opacity:0.5;pointer-events:none"></div>
-  <img src="https://mjs.ai.kr/cert-assets/aroma-cert-frame.webp" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill;pointer-events:none">
+  <img src="https://mjs.ai.kr/cert-assets/aroma-cert-frame@300.png" alt="" style="position:absolute;left:0;top:0;width:794px;height:1123px;object-fit:fill;pointer-events:none">
 
   <div style="position:absolute;left:173px;top:158px;width:452px;display:flex;flex-direction:column;align-items:center;gap:8px">
     <div style="font-family:'Cinzel',serif;font-weight:400;font-size:42px;line-height:1.05;letter-spacing:1px;color:#CDB17A">CERTIFICATE</div>
