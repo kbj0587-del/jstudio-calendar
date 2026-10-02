@@ -571,6 +571,10 @@ function registerLectureRoutes(app, deps) {
       memo text,
       created_at timestamptz NOT NULL DEFAULT now()
     )`);
+    // 수료자 정보 확장: 영문이름·생년월일·수료일 (holder_name=한글이름)
+    await q(`ALTER TABLE lecture_certs ADD COLUMN IF NOT EXISTS name_en text`);
+    await q(`ALTER TABLE lecture_certs ADD COLUMN IF NOT EXISTS birth date`);
+    await q(`ALTER TABLE lecture_certs ADD COLUMN IF NOT EXISTS completion_date date`);
     // 발급 폼 시드: "아로마 전문 지도사" 종류가 이 발급 폼으로 출력되도록 보장(이름 기준 upsert).
     //  이미 같은 이름의 자격증이 있으면 template_html 을 이 폼으로 갱신, 없으면 신규 등록.
     //  (관리자가 이 종류의 폼을 직접 수정했다면 재배포 시 이 시드로 되돌아갈 수 있음 — 커스터마이즈 필요 시 시드 갱신)
@@ -743,12 +747,13 @@ function registerLectureRoutes(app, deps) {
     let where = '';
     if (typeId) { where = 'WHERE c.cert_type_id = $1'; params.push(typeId); }
     const rows = (await q(
-      `SELECT c.id, c.cert_type_id, c.cert_no, c.holder_name, c.holder_phone, c.issued_date, c.memo, c.created_at,
+      `SELECT c.id, c.cert_type_id, c.cert_no, c.holder_name, c.name_en, c.birth, c.holder_phone,
+              c.issued_date, c.completion_date, c.memo, c.created_at,
               t.name AS cert_type_name
          FROM lecture_certs c
          LEFT JOIN lecture_cert_types t ON t.id = c.cert_type_id
          ${where}
-        ORDER BY c.issued_date DESC NULLS LAST, c.created_at DESC`, params)).rows;
+        ORDER BY t.sort NULLS LAST, t.name NULLS LAST, c.completion_date DESC NULLS LAST, c.created_at DESC`, params)).rows;
     res.json({ ok: true, certs: rows });
   }));
 
@@ -758,23 +763,27 @@ function registerLectureRoutes(app, deps) {
     await ensureCertTables();
     const b = req.body || {};
     const certTypeId = parseInt(b.cert_type_id, 10) || null;
-    const holder = String(b.holder_name || '').trim();
-    const phone = String(b.holder_phone || '').trim() || null;
-    const certNo = String(b.cert_no || '').trim() || null;
-    const issued = b.issued_date || null;
+    const holder = String(b.holder_name || '').trim();        // 한글이름
+    const nameEn = String(b.name_en || '').trim() || null;    // 영문이름(자격증 표기)
+    const birth = b.birth || null;                            // 생년월일
+    const phone = String(b.holder_phone || '').trim() || null; // 연락처
+    const completion = b.completion_date || null;             // 수료일(자격증 표기)
+    const certNo = String(b.cert_no || '').trim() || null;    // 발급번호(자동)
     const memo = String(b.memo || '').trim() || null;
+    const issued = completion;   // 하위호환: issued_date = 수료일
     if (!holder) return res.status(400).json({ error: 'holder_required' });
+    const cols = 'id, cert_type_id, cert_no, holder_name, name_en, birth, holder_phone, completion_date, issued_date, memo';
     const id = parseInt(b.id, 10);
     let saved;
     if (id) {
-      saved = (await q(`UPDATE lecture_certs SET cert_type_id=$2, cert_no=$3, holder_name=$4, holder_phone=$5, issued_date=$6, memo=$7
-                        WHERE id=$1 RETURNING id, cert_type_id, cert_no, holder_name, holder_phone, issued_date, memo`,
-        [id, certTypeId, certNo, holder, phone, issued, memo])).rows[0];
+      saved = (await q(`UPDATE lecture_certs SET cert_type_id=$2, cert_no=$3, holder_name=$4, name_en=$5, birth=$6, holder_phone=$7, completion_date=$8, issued_date=$9, memo=$10
+                        WHERE id=$1 RETURNING ${cols}`,
+        [id, certTypeId, certNo, holder, nameEn, birth, phone, completion, issued, memo])).rows[0];
       if (!saved) return res.status(404).json({ error: 'not_found' });
     } else {
-      saved = (await q(`INSERT INTO lecture_certs (cert_type_id, cert_no, holder_name, holder_phone, issued_date, memo)
-                        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, cert_type_id, cert_no, holder_name, holder_phone, issued_date, memo`,
-        [certTypeId, certNo, holder, phone, issued, memo])).rows[0];
+      saved = (await q(`INSERT INTO lecture_certs (cert_type_id, cert_no, holder_name, name_en, birth, holder_phone, completion_date, issued_date, memo)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING ${cols}`,
+        [certTypeId, certNo, holder, nameEn, birth, phone, completion, issued, memo])).rows[0];
     }
     res.json({ ok: true, cert: saved });
   }));
