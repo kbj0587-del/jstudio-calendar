@@ -91,6 +91,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
   <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>발급번호 {{cert_no}}</div>
 
   <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
+  <div style="position:absolute;left:247px;top:480px;width:300px;height:1.4px;background:#555555;opacity:.6"></div>
 
   <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
 that you have completed the training course
@@ -140,6 +141,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
   <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>발급번호 {{cert_no}}</div>
 
   <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
+  <div style="position:absolute;left:247px;top:480px;width:300px;height:1.4px;background:#555555;opacity:.6"></div>
 
   <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
 that you have completed the training course
@@ -189,6 +191,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
   <div style="position:absolute;left:52px;top:46px;font-family:'Noto Sans KR',Arial,sans-serif;font-size:10.85px;line-height:1.5;color:#a0a0a0;white-space:nowrap">Certification No. 2022-001526<br>발급번호 {{cert_no}}</div>
 
   <div style="position:absolute;left:97px;top:416px;width:600px;text-align:center;font-family:'aMapsiB','Times New Roman',serif;font-weight:700;font-size:46.5px;line-height:1;color:#333333;white-space:nowrap">{{holder_name}}</div>
+  <div style="position:absolute;left:247px;top:480px;width:300px;height:1.4px;background:#555555;opacity:.6"></div>
 
   <div style="position:absolute;left:47px;top:508px;width:700px;text-align:center;font-family:'Times New Roman',Times,serif;font-style:italic;font-size:23.25px;line-height:41.06px;color:#333333;white-space:pre-line">This certificate is presented to prove
 that you have completed the training course
