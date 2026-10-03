@@ -77,7 +77,7 @@ const FLYING_LOW = `<!doctype html>
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff url('https://www.mjs.ai.kr/cert-assets/flying-cert-bg-dither@300.jpg') no-repeat center/100% 100%;transform:translateZ(0);backface-visibility:hidden}
-.gold{color:#c7a24a;background:linear-gradient(180deg,#f6e6a6 0%,#d8b24f 42%,#b5872c 72%,#edd079 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.gold{color:#c4a24a}
 </style>
 </head>
 <body>
@@ -122,7 +122,7 @@ const FLYING_HIGH = `<!doctype html>
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff url('https://www.mjs.ai.kr/cert-assets/flying-cert-bg-dither@300.jpg') no-repeat center/100% 100%;transform:translateZ(0);backface-visibility:hidden}
-.gold{color:#c7a24a;background:linear-gradient(180deg,#f6e6a6 0%,#d8b24f 42%,#b5872c 72%,#edd079 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.gold{color:#c4a24a}
 </style>
 </head>
 <body>
@@ -167,7 +167,7 @@ const FLYING_GEN = `<!doctype html>
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .cert{position:relative;width:794px;height:1123px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff url('https://www.mjs.ai.kr/cert-assets/flying-cert-bg-dither@300.jpg') no-repeat center/100% 100%;transform:translateZ(0);backface-visibility:hidden}
-.gold{color:#c7a24a;background:linear-gradient(180deg,#f6e6a6 0%,#d8b24f 42%,#b5872c 72%,#edd079 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.gold{color:#c4a24a}
 </style>
 </head>
 <body>
