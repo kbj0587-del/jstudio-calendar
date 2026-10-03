@@ -431,6 +431,72 @@ function registerLectureRoutes(app, deps) {
     res.json({ ok: true, course_count: courseCount, rows: out });
   }));
 
+  // 수강생 1명의 강의별 상세 진도 — 시청/건너뛴(스킵) 구간까지 복원
+  //  marks(본 버킷 인덱스) + bucket(칸당 초) + duration 으로 미시청 구간을 역산한다.
+  app.get('/api/lecture/admin/student-detail', wrap(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const code = String(req.query.code || '').trim();
+    const sid  = String(req.query.sid || '').trim();
+    if (!code && !sid) return res.status(400).json({ error: 'code_or_sid_required' });
+    const s = (await q(
+      'SELECT id, name, phone, code FROM lecture_students WHERE ' + (sid ? 'id=$1' : 'code=$1'),
+      [sid || code]
+    )).rows[0];
+    if (!s) return res.status(404).json({ error: 'student_not_found' });
+
+    // 모든 강의 + 이 학생의 진도(없으면 미시작). report-overall과 동일하게 전체 강의 기준.
+    const rows = (await q(
+      `SELECT c.id, c.title, c.sort,
+              p.watched_pct, p.seconds_watched, p.duration, p.marks, p.bucket, p.last_pos,
+              p.quiz_score, p.quiz_total, p.passed, p.completed_at, p.updated_at
+         FROM lecture_courses c
+         LEFT JOIN lecture_progress p ON p.course_id = c.id AND p.student_id = $1
+        ORDER BY c.sort, c.created_at`,
+      [s.id]
+    )).rows;
+
+    const courses = rows.map(function (r) {
+      const duration = Math.max(0, Math.floor(Number(r.duration) || 0));
+      const bucket   = Math.max(1, Math.floor(Number(r.bucket) || 2));
+      let marks = [];
+      try { marks = Array.isArray(r.marks) ? r.marks : JSON.parse(r.marks || '[]'); } catch (e) { marks = []; }
+      const totalBuckets = duration > 0 ? Math.ceil(duration / bucket) : 0;
+      const seen = {};
+      marks.forEach(function (n) { n = Math.floor(Number(n)); if (!isNaN(n) && n >= 0 && n < totalBuckets) seen[n] = 1; });
+
+      // 연속 구간 병합 → 시청/건너뛴 세그먼트(초 단위)
+      const watchedSeg = [], skippedSeg = [];
+      if (totalBuckets > 0) {
+        let run = null, runState = null;
+        for (let i = 0; i <= totalBuckets; i++) {
+          const st = (i < totalBuckets) ? (seen[i] ? 'w' : 's') : null;
+          if (st === runState) { run.toIdx = i; continue; }
+          if (run) {
+            const seg = { from: run.fromIdx * bucket, to: Math.min(duration, (run.toIdx + 1) * bucket) };
+            (runState === 'w' ? watchedSeg : skippedSeg).push(seg);
+          }
+          if (st) { run = { fromIdx: i, toIdx: i }; runState = st; } else { run = null; runState = null; }
+        }
+      }
+      const skippedSec = skippedSeg.reduce(function (a, g) { return a + (g.to - g.from); }, 0);
+
+      return {
+        id: r.id, title: r.title,
+        started: r.watched_pct != null,
+        watched_pct: r.watched_pct || 0,
+        duration: duration, bucket: bucket,
+        last_pos: Math.max(0, Math.floor(Number(r.last_pos) || 0)),
+        watched_segments: watchedSeg,
+        skipped_segments: skippedSeg,
+        skipped_seconds: skippedSec,
+        quiz_score: r.quiz_score, quiz_total: r.quiz_total, passed: r.passed,
+        completed_at: r.completed_at, updated_at: r.updated_at
+      };
+    });
+
+    res.json({ ok: true, student: s, courses: courses });
+  }));
+
   // ════════ 센터영상 (영상보기 페이지 mjs.ai.kr/videos) ════════
   //  강의와 별개. 테이블은 최초 호출 시 자동 생성.
   let videoTableReady = false;
