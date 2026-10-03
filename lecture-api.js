@@ -169,9 +169,16 @@ function registerLectureRoutes(app, deps) {
     const seconds = Math.min(duration, union.length * bucket);
     const pct = Math.min(100, Math.round((seconds / duration) * 100));
 
+    // 퀴즈가 없는 강의는 완주(98%↑)만으로 수료 처리 — 퀴즈가 있는 강의는 기존대로 퀴즈 통과 시 수료.
+    let completeNow = null;
+    if (pct >= WATCH_DONE_PCT) {
+      const qn = Number((await q('SELECT count(*)::int AS n FROM lecture_quiz WHERE course_id=$1', [courseId])).rows[0].n) || 0;
+      if (qn === 0) completeNow = new Date();
+    }
+
     await q(
-      `INSERT INTO lecture_progress (student_id, course_id, watched_pct, seconds_watched, duration, marks, bucket, last_pos, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+      `INSERT INTO lecture_progress (student_id, course_id, watched_pct, seconds_watched, duration, marks, bucket, last_pos, completed_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
        ON CONFLICT (student_id, course_id) DO UPDATE SET
          marks = EXCLUDED.marks,
          seconds_watched = EXCLUDED.seconds_watched,
@@ -179,8 +186,9 @@ function registerLectureRoutes(app, deps) {
          watched_pct = GREATEST(lecture_progress.watched_pct, EXCLUDED.watched_pct),
          bucket = EXCLUDED.bucket,
          last_pos = EXCLUDED.last_pos,
+         completed_at = COALESCE(lecture_progress.completed_at, EXCLUDED.completed_at),
          updated_at = now()`,
-      [p.sid, courseId, pct, seconds, duration, JSON.stringify(union), bucket, pos]
+      [p.sid, courseId, pct, seconds, duration, JSON.stringify(union), bucket, pos, completeNow]
     );
     res.json({ ok: true, watched_pct: pct });
   }));
@@ -394,6 +402,7 @@ function registerLectureRoutes(app, deps) {
   app.get('/api/lecture/admin/report', wrap(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const courseId = req.query.courseId;
+    const quizCount = Number((await q('SELECT count(*)::int AS n FROM lecture_quiz WHERE course_id=$1', [courseId || null])).rows[0].n) || 0;
     const rows = (await q(
       `SELECT s.name, s.phone, s.code, p.watched_pct, p.quiz_score, p.quiz_total, p.passed, p.completed_at
        FROM lecture_students s
@@ -401,7 +410,7 @@ function registerLectureRoutes(app, deps) {
        ORDER BY (p.completed_at IS NOT NULL) DESC, p.watched_pct DESC NULLS LAST, s.created_at DESC`,
       [courseId || null]
     )).rows;
-    res.json({ ok: true, rows });
+    res.json({ ok: true, rows, has_quiz: quizCount > 0, watch_done_pct: WATCH_DONE_PCT });
   }));
 
   // 전체 강의 기준 수강 현황 — 학생별 (전체 강의 평균 진도율 · 수료 강의 수)
@@ -447,6 +456,7 @@ function registerLectureRoutes(app, deps) {
     // 모든 강의 + 이 학생의 진도(없으면 미시작). report-overall과 동일하게 전체 강의 기준.
     const rows = (await q(
       `SELECT c.id, c.title, c.sort,
+              (SELECT count(*)::int FROM lecture_quiz z WHERE z.course_id = c.id) AS quiz_count,
               p.watched_pct, p.seconds_watched, p.duration, p.marks, p.bucket, p.last_pos,
               p.quiz_score, p.quiz_total, p.passed, p.completed_at, p.updated_at
          FROM lecture_courses c
@@ -482,6 +492,8 @@ function registerLectureRoutes(app, deps) {
 
       return {
         id: r.id, title: r.title,
+        has_quiz: (Number(r.quiz_count) || 0) > 0,
+        completed_watch: (r.watched_pct || 0) >= WATCH_DONE_PCT,
         started: r.watched_pct != null,
         watched_pct: r.watched_pct || 0,
         duration: duration, bucket: bucket,
