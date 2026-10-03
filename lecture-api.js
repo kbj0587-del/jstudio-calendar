@@ -113,15 +113,18 @@ function registerLectureRoutes(app, deps) {
     const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
     const pr = (await q('SELECT * FROM lecture_progress WHERE student_id = $1', [s.id])).rows;
     const pmap = {}; pr.forEach(p => { pmap[p.course_id] = p; });
+    const qc = {}; (await q('SELECT course_id, count(*)::int AS n FROM lecture_quiz GROUP BY course_id')).rows.forEach(x => { qc[x.course_id] = Number(x.n) || 0; });
     const courses = cs.map(c => ({
       id: c.id, title: c.title, youtube_id: c.youtube_id, description: c.description,
+      has_quiz: (qc[c.id] || 0) > 0,
       progress: pmap[c.id] ? {
         watched_pct: pmap[c.id].watched_pct, passed: pmap[c.id].passed,
         completed: !!pmap[c.id].completed_at,
+        attempted: pmap[c.id].quiz_total != null,
         marks: Array.isArray(pmap[c.id].marks) ? pmap[c.id].marks : [],
         bucket: pmap[c.id].bucket || 2,
         last_pos: pmap[c.id].last_pos || 0
-      } : { watched_pct: 0, passed: false, completed: false, marks: [], bucket: 2, last_pos: 0 }
+      } : { watched_pct: 0, passed: false, completed: false, attempted: false, marks: [], bucket: 2, last_pos: 0 }
     }));
     res.json({ ok: true, token, student: { name: s.name }, courses });
   }));
@@ -134,13 +137,16 @@ function registerLectureRoutes(app, deps) {
     const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
     const pr = (await q('SELECT * FROM lecture_progress WHERE student_id=$1', [s.id])).rows;
     const pmap = {}; pr.forEach(function (x) { pmap[x.course_id] = x; });
+    const qc = {}; (await q('SELECT course_id, count(*)::int AS n FROM lecture_quiz GROUP BY course_id')).rows.forEach(function (x) { qc[x.course_id] = Number(x.n) || 0; });
     const courses = cs.map(function (c) {
       return {
         id: c.id, title: c.title, youtube_id: c.youtube_id, description: c.description,
+        has_quiz: (qc[c.id] || 0) > 0,
         progress: pmap[c.id] ? {
           watched_pct: pmap[c.id].watched_pct, passed: pmap[c.id].passed, completed: !!pmap[c.id].completed_at,
+          attempted: pmap[c.id].quiz_total != null,
           marks: Array.isArray(pmap[c.id].marks) ? pmap[c.id].marks : [], bucket: pmap[c.id].bucket || 2, last_pos: pmap[c.id].last_pos || 0
-        } : { watched_pct: 0, passed: false, completed: false, marks: [], bucket: 2, last_pos: 0 }
+        } : { watched_pct: 0, passed: false, completed: false, attempted: false, marks: [], bucket: 2, last_pos: 0 }
       };
     });
     res.json({ ok: true, student: { name: s.name }, courses: courses });
