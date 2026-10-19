@@ -216,14 +216,48 @@
     return post('verify_token', {}).then(function (r) { return !!(r && r.valid); }).catch(function () { return false; });
   }
 
-  function start() {
+  /*
+   * 로그인 여부를 한 번만 보면 안 된다.
+   * 화면을 열어 둔 채로 관리자 로그인을 하는 경우가 보통이라, 그때 버튼이
+   * 나타나야 한다(새로고침을 요구하면 안 된다). 로그아웃하면 다시 치운다.
+   * 토큰이 바뀐 순간에만 서버에 확인하므로 평소에는 호출이 없다.
+   */
+  var lastToken = null;
+  var armed = false;
+  var watcher = null;
+
+  function arm() {
+    if (armed) return;
+    armed = true;
+    place();
+    /* 앱이 화면을 다시 그리면 버튼이 사라지므로 계속 지켜본다 */
+    watcher = new MutationObserver(function () { place(); });
+    watcher.observe(document.getElementById('root') || document.body, { childList: true, subtree: true });
+  }
+
+  function disarm() {
+    if (!armed) return;
+    armed = false;
+    if (watcher) { watcher.disconnect(); watcher = null; }
+    var b = document.getElementById(BTN_ID);
+    if (b) b.remove();
+    closeModal();
+  }
+
+  function sync() {
+    var t = token();
+    if (t === lastToken) return;
+    lastToken = t;
+    if (!t) return disarm();
     isAdmin().then(function (ok) {
-      if (!ok) return;
-      place();
-      /* 앱이 화면을 다시 그리면 버튼이 사라지므로 계속 지켜본다 */
-      new MutationObserver(function () { place(); })
-        .observe(document.getElementById('root') || document.body, { childList: true, subtree: true });
+      if (t !== lastToken) return;      /* 확인하는 사이에 또 바뀌었으면 버린다 */
+      if (ok) arm(); else disarm();
     });
+  }
+
+  function start() {
+    sync();
+    setInterval(sync, 1500);
   }
 
   if (document.readyState === 'loading') {
