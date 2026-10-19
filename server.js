@@ -945,23 +945,50 @@ app.get('/api/sync', requireAccess, (req, res) => {
 });
 
 app.post('/api/sync/events', requireAccess, async (req, res) => {
-  const { events, action, changedEvent, detail } = req.body;
+  const { action, changedEvent, detail } = req.body;
 
-  if (isInstructor(req)) {
-    const uid = req.headers['x-user-id'];
-    const incoming = events || [];
-    // 강사는 비허용 카테고리를 받지 못했으므로 서버에서 보호
-    const allowedCats = store.instructorAllowedCats || INSTRUCTOR_ALLOWED_CATS;
-    const adminOnly = store.events.filter(ev => !allowedCats.includes(ev.type));
-    // 허용 카테고리 중 다른 강사 개인레슨은 수정 불가
-    // createdById 없는 이벤트(마이그레이션된 구 데이터)는 본인 이벤트로 허용
-    const isOthersPL = ev => ev.type === 'personallesson' && ev.createdById && ev.createdById !== uid;
-    const othersPL = store.events.filter(isOthersPL);
-    const incomingAllowed = incoming.filter(ev => allowedCats.includes(ev.type) && !isOthersPL(ev));
-    store.events = [...adminOnly, ...othersPL, ...incomingAllowed.filter(ev => !othersPL.find(o => o.id === ev.id))];
-  } else {
-    store.events = events || [];
+  // ── 근본 수정 (2026-10-19): 전체 배열로 store.events 를 덮어쓰지 않는다 ──
+  // 과거엔 `store.events = events`(클라이언트가 보낸 전체 배열)로 통째 교체해서,
+  // 낡은 목록을 든 브라우저/기기가 저장하면 그 사이 다른 곳에서 추가·수정된
+  // 일정이 통째로 롤백되어 사라졌다(삭제 로그 없는 반복 유실의 진짜 원인).
+  // 이제는 '명시적으로 바뀐 것'만 반영한다:
+  //   - upserts:    추가/수정된 이벤트들(신규 클라)   / 구 클라는 changedEvent 로 대체
+  //   - deletedIds: 삭제된 id 들(신규 클라)            / 구 클라는 action='delete'+changedEvent
+  // 요청의 전체 events 배열은 '변경 판정'에 쓰지 않는다(그게 유실의 근원이었다).
+  let upserts    = Array.isArray(req.body.upserts)    ? req.body.upserts            : [];
+  let deletedIds = Array.isArray(req.body.deletedIds) ? req.body.deletedIds.slice() : [];
+  if (!upserts.length && !deletedIds.length && changedEvent && changedEvent.id) {
+    if (action === 'delete') deletedIds = [changedEvent.id];
+    else                      upserts   = [changedEvent];
   }
+
+  const allowedCats = store.instructorAllowedCats || INSTRUCTOR_ALLOWED_CATS;
+  const uid         = req.headers['x-user-id'];
+  const instructor  = isInstructor(req);
+  const isOthersPL  = ev => ev && ev.type === 'personallesson' && ev.createdById && ev.createdById !== uid;
+  // 강사 권한 가드: 서버의 현재 이벤트(없으면 들어온 이벤트) 기준으로 판정
+  const canTouch = (id, incomingEv) => {
+    if (!instructor) return true;
+    const ev = store.events.find(e => e.id === id) || incomingEv;
+    if (!ev) return true;
+    if (!allowedCats.includes(ev.type)) return false;           // 허용 카테고리만
+    if (isOthersPL(ev)) return false;                           // 남의 개인레슨 금지
+    if (incomingEv && !allowedCats.includes(incomingEv.type)) return false;
+    return true;
+  };
+
+  // 추가/수정 (id 기준 삽입·교체) — 명시된 이벤트만 건드린다
+  upserts.forEach(ev => {
+    if (!ev || !ev.id || !canTouch(ev.id, ev)) return;
+    const i = store.events.findIndex(e => e.id === ev.id);
+    if (i >= 0) store.events[i] = ev; else store.events.push(ev);
+  });
+  // 삭제 (id 기준 제거)
+  deletedIds.forEach(id => {
+    if (!id || !canTouch(id, null)) return;
+    const i = store.events.findIndex(e => e.id === id);
+    if (i >= 0) store.events.splice(i, 1);
+  });
 
   if (action && changedEvent) {
     const user     = req.currentUser;

@@ -3874,6 +3874,7 @@ async function deleteCurrentEvent() {
   if (!confirm('이 일정을 삭제할까요?')) return;
 
   let alsoDeleteTrialId = null;
+  const syncUpserts = []; // 삭제 과정에서 '수정만 된'(연결 해제) 다른 일정 — 서버에 명시 전송
   if (linkedTrialEv) {
     if (confirm('연결된 체험 일정도 함께 삭제할까요?\n\n[확인] 체험 일정도 삭제\n[취소] 상담만 삭제 (체험 일정 유지)')) {
       alsoDeleteTrialId = linkedTrialEv.id;
@@ -3881,6 +3882,7 @@ async function deleteCurrentEvent() {
       // 상담만 삭제 → 체험 일정은 유지하되 연결만 해제
       linkedTrialEv.extraFields = { ...linkedTrialEv.extraFields };
       delete linkedTrialEv.extraFields.fromConsultId;
+      syncUpserts.push(linkedTrialEv);
     }
   }
 
@@ -3889,6 +3891,7 @@ async function deleteCurrentEvent() {
     const consultEv = events.find(e => e.id === ev.extraFields.fromConsultId);
     if (consultEv?.extraFields?.linkedTrial?.trialEventId === ev.id) {
       delete consultEv.extraFields.linkedTrial.trialEventId;
+      syncUpserts.push(consultEv);
     }
   }
 
@@ -3907,6 +3910,8 @@ async function deleteCurrentEvent() {
     clearTimeout(syncTimer);
     const payload = {
       events,
+      upserts:      syncUpserts,          // 연결 해제된 일정만(없으면 빈 배열)
+      deletedIds:   [...removeIds],       // 삭제할 id 전부(상담+체험 동시삭제 포함)
       action:       'delete',
       changedEvent: deletedEv,
       detail:       `${deletedEv.title} (${deletedEv.date})`,
