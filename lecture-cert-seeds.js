@@ -206,7 +206,7 @@ const COVER = `<!doctype html>
 <title>자격증 표지</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Gowun+Batang:wght@400;700&family=Song+Myung&family=Nanum+Brush+Script&family=Nanum+Pen+Script&family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
 <style>
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -217,7 +217,7 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 <div class="cert">
   <img src="https://www.mjs.ai.kr/cert-assets/cover-artwork@300.png" alt="제이스튜디오" style="position:absolute;left:247px;top:225px;width:300px;height:365px;object-fit:contain">
   <div style="position:absolute;left:397px;top:691px;transform:translateX(-50%);width:70px;height:2px;background:#c4a24a;opacity:.7"></div>
-  <div style="position:absolute;left:117px;top:733px;width:560px;text-align:center;font-family:'Nanum Myeongjo',serif;font-weight:400;font-size:24px;line-height:1.95;color:#5c4e2e;white-space:pre-line;word-break:keep-all">{{cheer_message}}</div>
+  <div style="position:absolute;left:117px;top:733px;width:560px;text-align:center;font-family:{{cheer_font}};font-weight:400;font-size:24px;line-height:1.95;color:#5c4e2e;white-space:pre-line;word-break:keep-all">{{cheer_message}}</div>
 </div>
 </body>
 </html>
