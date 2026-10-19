@@ -13,6 +13,7 @@
 (function () {
   var API = '/api.php';
   var BTN_ID = 'undongpass-import-btn';
+  var LOCK_ID = 'undongpass-lock-btn';
 
   function token() { try { return localStorage.getItem('jstudio_token') || ''; } catch (e) { return ''; } }
 
@@ -197,18 +198,133 @@
     return b;
   }
 
+  /* ── 수업 칸 잠금 ───────────────────────────────────────
+     수업 내용의 주인은 운동패스다. 웹 시간표에서 고쳐도 운동패스로 올라가지
+     않고 다음 불러오기 때 덮어써지므로, 실수로 고치는 일이 없도록 기본으로
+     잠근다. 기능을 들어내지 않고 "읽기 전용" 으로만 바꾸므로 언제든 되돌아간다.
+
+     잠그는 것   수업명·레벨·강사·칸 시간 입력칸, 브레이크 전환 버튼, 끌어 옮기기
+     안 잠그는 것 안내문 문구, 줄 추가·삭제, 메인/보조 시간, 디자인, 설명표
+       (운동패스에 없는 값이라 웹 시간표에서 고치는 게 맞다)
+  ───────────────────────────────────────────────────── */
+  var CELL_PLACEHOLDERS = ['수업명', '레벨', '강사', '시간'];
+  var LOCK_MSG = '수업 내용은 운동패스에서 관리합니다.';
+  var locked = true;   /* 새로고침하면 다시 잠기도록 메모리에만 둔다 */
+
+  function canvas() { return document.getElementById('timetable-canvas'); }
+
+  function cellInputs() {
+    /* 위 네 가지 안내 글자는 수업 칸에만 쓰이므로, 표를 못 찾으면 문서 전체에서 찾는다 */
+    var root = canvas() || document;
+    return Array.prototype.filter.call(root.querySelectorAll('input[type="text"]'), function (i) {
+      return CELL_PLACEHOLDERS.indexOf(i.getAttribute('placeholder') || '') >= 0
+          || i.dataset.upPlaceholder;   /* 잠그며 치워 둔 것도 다시 찾는다 */
+    });
+  }
+
+  function toast(msg) {
+    var old = document.getElementById('up-toast');
+    if (old) old.remove();
+    var t = el('div', 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:99999;'
+      + 'background:#1e293b;color:#fff;font-size:13px;font-weight:800;padding:10px 16px;'
+      + 'border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25)', msg);
+    t.id = 'up-toast';
+    t.className = 'print:hidden';
+    document.body.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.remove(); }, 2200);
+  }
+
+  function onLockedClick(ev) { ev.preventDefault(); toast(LOCK_MSG); }
+
+  function applyLock() {
+    var root = canvas() || document;
+
+    cellInputs().forEach(function (i) {
+      if (locked) {
+        if (!i.dataset.upLocked) {
+          i.dataset.upLocked = '1';
+          i.dataset.upStyle = i.getAttribute('style') || '';
+          /* 빈 칸에 안내 글자가 떠 보이지 않게 치워 두고, 풀 때 되돌린다 */
+          i.dataset.upPlaceholder = i.getAttribute('placeholder') || '';
+          i.setAttribute('placeholder', '');
+          i.addEventListener('mousedown', onLockedClick);
+        }
+        i.readOnly = true;
+        i.title = LOCK_MSG;
+        i.style.backgroundColor = 'transparent';
+        i.style.borderColor = 'transparent';
+        i.style.cursor = 'default';
+      } else if (i.dataset.upLocked) {
+        i.readOnly = false;
+        i.removeAttribute('title');
+        i.setAttribute('style', i.dataset.upStyle);
+        i.setAttribute('placeholder', i.dataset.upPlaceholder);
+        i.removeEventListener('mousedown', onLockedClick);
+        delete i.dataset.upLocked;
+        delete i.dataset.upStyle;
+        delete i.dataset.upPlaceholder;
+      }
+    });
+
+    /* 브레이크 전환 버튼 */
+    Array.prototype.forEach.call(root.querySelectorAll('button'), function (b) {
+      if ((b.textContent || '').indexOf('⏸') !== 0) return;
+      b.disabled = locked;
+      b.style.opacity = locked ? '0.35' : '';
+      b.style.cursor = locked ? 'not-allowed' : '';
+      if (locked) b.title = LOCK_MSG; else b.removeAttribute('title');
+    });
+
+    /* 칸을 끌어서 옮기기 */
+    Array.prototype.forEach.call(root.querySelectorAll('[draggable]'), function (d) {
+      if (locked) {
+        if (d.getAttribute('draggable') === 'true') d.dataset.upDrag = '1';
+        if (d.dataset.upDrag) d.setAttribute('draggable', 'false');
+      } else if (d.dataset.upDrag) {
+        d.setAttribute('draggable', 'true');
+      }
+    });
+  }
+
+  function paintLockBtn(b) {
+    b.textContent = locked ? '🔒 수업 칸 잠김' : '🔓 수업 칸 편집 중';
+    b.style.cssText = locked
+      ? 'border-color:#e2e8f0;background:#fff;color:#64748b'
+      : 'border-color:#fcd34d;background:#fffbeb;color:#92400e';
+    b.title = locked
+      ? '수업 내용은 운동패스에서 관리합니다. 눌러서 잠시 편집할 수 있습니다.'
+      : '새로고침하면 다시 잠깁니다. 여기서 고친 수업은 다음 불러오기 때 덮어써집니다.';
+  }
+
+  function makeLockButton() {
+    var b = document.createElement('button');
+    b.id = LOCK_ID;
+    b.className = 'flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-sm border transition-all print:hidden';
+    b.onclick = function () {
+      locked = !locked;
+      paintLockBtn(b);
+      applyLock();
+      if (!locked) toast('수업 칸을 열었습니다. 새로고침하면 다시 잠깁니다.');
+    };
+    paintLockBtn(b);
+    return b;
+  }
+
   /* 탭 줄(시간표 / 프로그램 소개)의 오른쪽 묶음에 끼워 넣는다 */
   function place() {
-    if (document.getElementById(BTN_ID)) return;
-    var tab = Array.prototype.filter.call(document.querySelectorAll('button'), function (x) {
-      return (x.textContent || '').indexOf('프로그램 소개') >= 0;
-    })[0];
-    if (!tab) return;
-    var row = tab.parentElement && tab.parentElement.parentElement;
-    if (!row) return;
-    var right = row.lastElementChild;
-    if (!right || right === tab.parentElement) return;
-    right.insertBefore(makeButton(), right.firstChild);
+    if (!document.getElementById(BTN_ID)) {
+      var tab = Array.prototype.filter.call(document.querySelectorAll('button'), function (x) {
+        return (x.textContent || '').indexOf('프로그램 소개') >= 0;
+      })[0];
+      var row = tab && tab.parentElement && tab.parentElement.parentElement;
+      var right = row && row.lastElementChild;
+      if (right && right !== tab.parentElement) {
+        right.insertBefore(makeButton(), right.firstChild);
+        right.insertBefore(makeLockButton(), right.firstChild);
+      }
+    }
+    /* 앱이 화면을 다시 그리면 입력칸이 새로 생기므로 잠금을 다시 입힌다 */
+    applyLock();
   }
 
   function isAdmin() {
@@ -231,7 +347,12 @@
     armed = true;
     place();
     /* 앱이 화면을 다시 그리면 버튼이 사라지므로 계속 지켜본다 */
-    watcher = new MutationObserver(function () { place(); });
+    var pending = false;
+    watcher = new MutationObserver(function () {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () { pending = false; place(); });
+    });
     watcher.observe(document.getElementById('root') || document.body, { childList: true, subtree: true });
   }
 
@@ -239,8 +360,11 @@
     if (!armed) return;
     armed = false;
     if (watcher) { watcher.disconnect(); watcher = null; }
-    var b = document.getElementById(BTN_ID);
-    if (b) b.remove();
+    [BTN_ID, LOCK_ID].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (b) b.remove();
+    });
+    locked = true;   /* 다음 로그인 때는 다시 잠긴 상태로 시작 */
     closeModal();
   }
 
