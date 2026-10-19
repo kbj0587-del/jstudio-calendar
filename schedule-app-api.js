@@ -17,6 +17,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const undongpass = require('./schedule-undongpass');
 
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 12; // 12시간
 
@@ -103,6 +104,11 @@ function registerScheduleAppRoutes(app, deps) {
     } catch { return false; }
   }
 
+  async function loadState() {
+    const r = await q('SELECT data FROM js_schedule_state WHERE id = 1', []);
+    return r.rows[0] ? r.rows[0].data : {};
+  }
+
   // ── GET /api.php ──────────────────────────────
   app.get('/api.php', async (req, res) => {
     try {
@@ -156,6 +162,40 @@ function registerScheduleAppRoutes(app, deps) {
           await q('DELETE FROM js_schedule_admins WHERE NOT (username = ANY($1))', [keep]);
         }
         return res.json({ success: true });
+      }
+
+      /*
+       * 운동패스에서 불러오기 (관리자만)
+       *   undongpass_preview — 무엇이 바뀌는지 계산만 해서 돌려준다 (저장 안 함)
+       *   undongpass_apply   — 같은 계산을 한 뒤 실제로 저장한다
+       * 수업 칸의 글자와 센터 이름·전화만 바꾸고, 표의 줄 구조·디자인·설명표·
+       * 지난 달 데이터는 건드리지 않는다. 자세한 규칙은 schedule-undongpass.js 참고.
+       */
+      if (action === 'undongpass_preview' || action === 'undongpass_apply') {
+        if (!readToken((req.body || {}).token))
+          return res.status(403).json({ success: false, error: '관리자로 다시 로그인한 뒤 시도해 주세요.' });
+
+        const state = await loadState();
+        if (!state || !Object.keys(state).length)
+          return res.status(400).json({ success: false, error: '웹 시간표 데이터가 비어 있습니다.' });
+
+        let plan;
+        try {
+          plan = undongpass.buildPlan(state, await undongpass.fetchUndongpass());
+        } catch (e) {
+          return res.status(502).json({ success: false, error: e.message });
+        }
+
+        if (action === 'undongpass_preview')
+          return res.json({ success: true, preview: undongpass.summarize(plan) });
+
+        const next = undongpass.applyPlan(state, plan, { applyLogo: !!(req.body || {}).applyLogo });
+        await q(
+          `INSERT INTO js_schedule_state (id, data, updated_at) VALUES (1, $1, NOW())
+           ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = NOW()`,
+          [JSON.stringify(next)]
+        );
+        return res.json({ success: true, applied: undongpass.summarize(plan) });
       }
 
       /* action 없음 = 전체 상태 저장 (관리자만) */
