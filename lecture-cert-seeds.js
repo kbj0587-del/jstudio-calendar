@@ -197,11 +197,38 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 </html>
 `;
 
+// 자격증 표지: 흰 배경 중앙에 제이스튜디오 로고+상호, 그 아래 응원 문구({{cheer_message}})를
+// 인쇄 시점에 입력받아 포함. 다른 자격증과 세트로 묶이도록 A4 세로.
+const COVER = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>자격증 표지</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+@page{size:A4 portrait;margin:0}
+html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cert{position:relative;width:794px;height:1123px;overflow:hidden;background:#ffffff;font-family:'Noto Sans KR',sans-serif;color:#333333;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+</style>
+</head>
+<body>
+<div class="cert">
+  <img src="https://www.mjs.ai.kr/cert-assets/cover-artwork@300.png" alt="제이스튜디오" style="position:absolute;left:247px;top:225px;width:300px;height:365px;object-fit:contain">
+  <div style="position:absolute;left:397px;top:691px;transform:translateX(-50%);width:70px;height:2px;background:#c4a24a;opacity:.7"></div>
+  <div style="position:absolute;left:117px;top:733px;width:560px;text-align:center;font-family:'Nanum Myeongjo',serif;font-weight:400;font-size:24px;line-height:1.95;color:#5c4e2e;white-space:pre-line;word-break:keep-all">{{cheer_message}}</div>
+</div>
+</body>
+</html>
+`;
+
 const CERT_SEEDS = [
   { name: "아로마 전문 지도사", issuer: "미사 제이스튜디오", template: AROMA_TEMPLATE },
   { name: "로우플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_LOW },
   { name: "하이플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_HIGH },
   { name: "플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_GEN },
+  { name: "자격증 표지", issuer: "제이스튜디오", template: COVER },
 ];
 
-module.exports = { AROMA_TEMPLATE, FLYING_LOW, FLYING_HIGH, FLYING_GEN, CERT_SEEDS };
+module.exports = { AROMA_TEMPLATE, FLYING_LOW, FLYING_HIGH, FLYING_GEN, COVER, CERT_SEEDS };
