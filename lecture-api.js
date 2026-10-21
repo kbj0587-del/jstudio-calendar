@@ -661,19 +661,17 @@ function registerLectureRoutes(app, deps) {
     await q(`ALTER TABLE lecture_certs ADD COLUMN IF NOT EXISTS completion_date date`);
     // 표지 응원문구 폰트 선택(css font-family 문자열 저장)
     await q(`ALTER TABLE lecture_certs ADD COLUMN IF NOT EXISTS cheer_font text`);
-    // 발급 폼 시드: "아로마 전문 지도사" 종류가 이 발급 폼으로 출력되도록 보장(이름 기준 upsert).
-    //  이미 같은 이름의 자격증이 있으면 template_html 을 이 폼으로 갱신, 없으면 신규 등록.
-    //  (관리자가 이 종류의 폼을 직접 수정했다면 재배포 시 이 시드로 되돌아갈 수 있음 — 커스터마이즈 필요 시 시드 갱신)
+    // 발급 폼 시드: 같은 이름의 자격증이 "없을 때만" 신규 등록.
+    //  이미 있으면 관리자가 수정한 template_html 을 보존(덮어쓰지 않음) — 수정이 되돌아가는 문제 방지.
+    //  (시드 폼으로 재설정하려면 해당 자격증을 삭제 후 화면을 다시 열면 재등록됨)
     try {
       for (const s of (CERT_SEEDS || [])) {
         if (!s || !s.name || !s.template) continue;
-        const up = await q('UPDATE lecture_cert_types SET template_html=$2 WHERE name=$1', [s.name, s.template]);
-        if (!up.rowCount) {
+        const ex = await q('SELECT 1 FROM lecture_cert_types WHERE name=$1 LIMIT 1', [s.name]);
+        if (!ex.rowCount) {
           await q('INSERT INTO lecture_cert_types (name, issuer, template_html, sort, active) VALUES ($1,$2,$3,0,true)',
             [s.name, s.issuer || null, s.template]);
           console.log('✅ lecture: 발급 폼 신규 등록 — ' + s.name);
-        } else {
-          console.log('✅ lecture: 발급 폼 갱신 — ' + s.name);
         }
       }
     } catch (e) { console.error('[lecture] cert seed', String((e && e.message) || e)); }
