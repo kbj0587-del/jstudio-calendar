@@ -230,7 +230,7 @@ const WORKSHOP = `<!doctype html>
 <title>워크숍 수료증</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&family=Marcellus&family=Great+Vibes&family=Allura&family=Parisienne&family=Nanum+Brush+Script&family=Nanum+Pen+Script&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&family=Marcellus&family=Great+Vibes&family=Allura&family=Parisienne&family=Playfair+Display:wght@600&family=Cormorant+Garamond:wght@600&family=Alex+Brush&family=Sacramento&family=Pinyon+Script&family=Nanum+Brush+Script&family=Nanum+Pen+Script&display=swap">
 <style>
 @page{size:A4 portrait;margin:0}
 html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -254,7 +254,7 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
 .cSub .tx{font-family:'Cinzel',serif;letter-spacing:6px;font-size:17px;color:#8a6d3f;margin-right:-6px}
 .cBlock{position:absolute;left:0;right:0;top:432px;text-align:center}
 .cBlock .wrap{display:inline-block;min-width:260px}
-.cBlock .nm{display:block;font-family:'Great Vibes',cursive;font-weight:400;font-size:54px;letter-spacing:1px;margin-right:0;color:#2f2718;white-space:nowrap;line-height:1;height:0.78em;overflow:visible;padding:0 26px 0}
+.cBlock .nm{display:block;font-weight:400;letter-spacing:1px;margin-right:0;color:#2f2718;white-space:nowrap;line-height:1;height:0.78em;overflow:visible;padding:0 26px 0}
 .cBlock .divider{display:flex;align-items:center;gap:14px;width:100%}
 .cBlock .divider .ln{flex:1;height:1px;background:#b89b66}
 .cBlock .divider .d{flex:none;width:9px;height:9px;background:#b08d57;transform:rotate(45deg)}
@@ -262,10 +262,10 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
 .cBody{position:absolute;left:137px;width:520px;top:626px;text-align:center;font-size:17px;line-height:2.05;color:#4a3f2e;word-break:keep-all}
 .cBody b{color:#6b4f2a;font-weight:800}
 .cCurric{position:absolute;left:97px;width:600px;top:782px;text-align:center;font-size:15.5px;color:#8a6d3f;font-weight:700;letter-spacing:.3px}
-.cDate{position:absolute;left:0;right:0;top:836px;text-align:center;font-size:18px;color:#4a3f2e;letter-spacing:1px}
+.cDate{position:absolute;left:0;right:0;top:852px;text-align:center;font-size:18px;color:#4a3f2e;letter-spacing:1px}
 .sig{position:absolute;bottom:112px;width:276px;text-align:center}
 .sig.left{left:107px}.sig.right{right:107px}
-.sig .nm{font-family:'Parisienne',cursive;font-size:26px;color:#2e2a22;line-height:1;height:24px;letter-spacing:.5px;white-space:nowrap}
+.sig .nm{color:#2e2a22;line-height:1;height:0.92em;letter-spacing:.5px;white-space:nowrap}
 .sig .ul{height:1px;background:#8d7a56;opacity:.6;margin:1px 20px 7px}
 .sig .rl{font-family:'Cinzel',serif;letter-spacing:2px;font-size:16px;color:#6f5c38}
 .cNo{position:absolute;left:46px;bottom:50px;font-family:'Noto Sans KR',sans-serif;font-size:11px;letter-spacing:.4px;color:#9a8a68}
@@ -280,7 +280,7 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
   <div class="cSub"><span class="ln"></span><span class="tx">OF COMPLETION</span><span class="ln"></span></div>
 
   <div class="cBlock"><div class="wrap">
-    <div class="nm">{{holder_name}}</div>
+    <div class="nm" style="{{name_style}}">{{holder_name}}</div>
     <div class="divider"><span class="ln"></span></div>
   </div></div>
 
@@ -293,12 +293,12 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
   <div class="cDate">{{issued_date_ko}}</div>
 
   <div class="sig left">
-    <div class="nm">Kim Hyunjung</div>
+    <div class="nm" style="{{sig_style}}">Kim Hyunjung</div>
     <div class="ul"></div>
     <div class="rl">Instructor</div>
   </div>
   <div class="sig right">
-    <div class="nm">Park Dahyun</div>
+    <div class="nm" style="{{sig_style}}">Park Dahyun</div>
     <div class="ul"></div>
     <div class="rl">Director</div>
   </div>
