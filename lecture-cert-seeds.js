@@ -273,7 +273,7 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
 </style>
 </head>
 <body>
-<div class="cert">
+<div class="cert" data-namefont="font-family:'Great Vibes',cursive;font-size:54px" data-sigfont="font-family:'Parisienne',cursive;font-size:26px">
   <img class="emblem" src="https://www.mjs.ai.kr/cert-assets/afy-logo.png" alt="ALL FLYING YOGA">
 
   <div class="cTitle">CERTIFICATE</div>
@@ -284,21 +284,21 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
     <div class="divider"><span class="ln"></span></div>
   </div></div>
 
-  <div class="cQuote">“움직임이 아니라 회복을 설계하다”</div>
+  <div class="cQuote" data-edit="quote">“움직임이 아니라 회복을 설계하다”</div>
 
-  <div class="cBody">위 사람은 <b>올플라잉요가 송도점 본원</b>에서 진행된<br>‘김현정의 로우플라잉 원데이 워크숍’의 전 과정을 성실히<br>이수하였으므로 이 수료증을 수여합니다.</div>
+  <div class="cBody" data-edit="body">위 사람은 <b>올플라잉요가 송도점 본원</b>에서 진행된<br>‘김현정의 로우플라잉 원데이 워크숍’의 전 과정을 성실히<br>이수하였으므로 이 수료증을 수여합니다.</div>
 
-  <div class="cCurric">교육 내용 : 이론 + 핸즈온 실습 + 아로마 감각 체험</div>
+  <div class="cCurric" data-edit="curriculum">교육 내용 : 이론 + 핸즈온 실습 + 아로마 감각 체험</div>
 
   <div class="cDate">{{issued_date_ko}}</div>
 
   <div class="sig left">
-    <div class="nm" style="{{sig_style}}">Kim Hyunjung</div>
+    <div class="nm" data-edit="instructor" style="{{sig_style}}">Kim Hyunjung</div>
     <div class="ul"></div>
     <div class="rl">Instructor</div>
   </div>
   <div class="sig right">
-    <div class="nm" style="{{sig_style}}">Park Dahyun</div>
+    <div class="nm" data-edit="director" style="{{sig_style}}">Park Dahyun</div>
     <div class="ul"></div>
     <div class="rl">Director</div>
   </div>
