@@ -265,7 +265,7 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
 .cDate{position:absolute;left:0;right:0;top:836px;text-align:center;font-size:18px;color:#4a3f2e;letter-spacing:1px}
 .sig{position:absolute;bottom:112px;width:276px;text-align:center}
 .sig.left{left:107px}.sig.right{right:107px}
-.sig .nm{font-family:'Parisienne',cursive;font-size:33px;color:#2e2a22;line-height:1;height:30px;letter-spacing:.5px;white-space:nowrap}
+.sig .nm{font-family:'Parisienne',cursive;font-size:26px;color:#2e2a22;line-height:1;height:24px;letter-spacing:.5px;white-space:nowrap}
 .sig .ul{height:1px;background:#8d7a56;opacity:.6;margin:1px 20px 7px}
 .sig .rl{font-family:'Cinzel',serif;letter-spacing:2px;font-size:16px;color:#6f5c38}
 .cNo{position:absolute;left:46px;bottom:50px;font-family:'Noto Sans KR',sans-serif;font-size:11px;letter-spacing:.4px;color:#9a8a68}
