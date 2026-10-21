@@ -223,12 +223,100 @@ html,body{margin:0;padding:0;background:#ffffff;-webkit-print-color-adjust:exact
 </html>
 `;
 
+const WORKSHOP = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>워크숍 수료증</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&family=Marcellus&family=Nanum+Brush+Script&family=Nanum+Pen+Script&display=swap">
+<style>
+@page{size:A4 portrait;margin:0}
+html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.cert{position:relative;width:794px;height:1123px;overflow:hidden;margin:0 auto;
+  font-family:'Nanum Myeongjo','Noto Sans KR',serif;color:#4a3f2e;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  background:#f3ecd9 url('https://www.mjs.ai.kr/cert-assets/afy-cert-bg@300.jpg') no-repeat center/100% 100%}
+.wash{position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.35),rgba(255,255,255,0) 40%)}
+.swoosh{position:absolute}
+.frame-outer{position:absolute;inset:24px;border:2px solid #c9ad7a}
+.frame-inner{position:absolute;inset:34px;border:1px solid #c9ad7a}
+.corner{position:absolute;width:62px;height:62px;border:2px solid #b89b66}
+.c-tl{left:12px;top:12px;border-right:0;border-bottom:0}
+.c-tr{right:12px;top:12px;border-left:0;border-bottom:0}
+.c-bl{left:12px;bottom:12px;border-right:0;border-top:0}
+.c-br{right:12px;bottom:12px;border-left:0;border-top:0}
+.emblem{position:absolute;left:50%;top:50px;transform:translateX(-50%);width:174px;height:182px;object-fit:contain}
+.cTitle{position:absolute;left:0;right:0;top:252px;text-align:center;font-family:'Cinzel',serif;font-weight:600;font-size:62px;letter-spacing:2px;color:#6b4f2a;margin-right:-2px}
+.cSub{position:absolute;left:0;right:0;top:330px;text-align:center;display:flex;align-items:center;justify-content:center;gap:16px}
+.cSub .ln{width:120px;height:1px;background:#bfa06a}
+.cSub .tx{font-family:'Cinzel',serif;letter-spacing:6px;font-size:17px;color:#8a6d3f;margin-right:-6px}
+.cBlock{position:absolute;left:0;right:0;top:432px;text-align:center}
+.cBlock .wrap{display:inline-block;min-width:260px}
+.cBlock .nm{display:block;font-family:'Marcellus',serif;font-weight:400;font-size:38px;letter-spacing:2px;margin-right:-2px;color:#2f2718;white-space:nowrap;padding:0 18px 4px}
+.cBlock .divider{display:flex;align-items:center;gap:14px;width:100%}
+.cBlock .divider .ln{flex:1;height:1px;background:#b89b66}
+.cBlock .divider .d{flex:none;width:9px;height:9px;background:#b08d57;transform:rotate(45deg)}
+.cQuote{position:absolute;left:97px;width:600px;top:532px;text-align:center;font-weight:700;font-style:italic;font-size:27px;color:#5c4a2c;letter-spacing:.3px}
+.cBody{position:absolute;left:137px;width:520px;top:626px;text-align:center;font-size:17px;line-height:2.05;color:#4a3f2e;word-break:keep-all}
+.cBody b{color:#6b4f2a;font-weight:800}
+.cCurric{position:absolute;left:97px;width:600px;top:782px;text-align:center;font-size:15.5px;color:#8a6d3f;font-weight:700;letter-spacing:.3px}
+.cDate{position:absolute;left:0;right:0;top:836px;text-align:center;font-size:18px;color:#4a3f2e;letter-spacing:1px}
+.sig{position:absolute;bottom:150px;width:250px;text-align:center}
+.sig.left{left:120px}.sig.right{right:120px}
+.sig .nm{font-family:'Nanum Brush Script','Nanum Pen Script',cursive;font-size:50px;color:#2e2a22;line-height:.9;height:46px;letter-spacing:3px}
+.sig .ul{height:1px;background:#8d7a56;opacity:.6;margin:8px 20px 7px}
+.sig .rl{font-family:'Cinzel',serif;letter-spacing:2px;font-size:16px;color:#6f5c38}
+.cNo{position:absolute;left:46px;bottom:50px;font-family:'Noto Sans KR',sans-serif;font-size:11px;letter-spacing:.4px;color:#9a8a68}
+.silho{position:absolute;right:40px;bottom:150px;width:210px;height:430px;opacity:.5}
+</style>
+</head>
+<body>
+<div class="cert">
+  <img class="emblem" src="https://www.mjs.ai.kr/cert-assets/afy-logo.png" alt="ALL FLYING YOGA">
+
+  <div class="cTitle">CERTIFICATE</div>
+  <div class="cSub"><span class="ln"></span><span class="tx">OF COMPLETION</span><span class="ln"></span></div>
+
+  <div class="cBlock"><div class="wrap">
+    <div class="nm">{{holder_name}}</div>
+    <div class="divider"><span class="ln"></span></div>
+  </div></div>
+
+  <div class="cQuote">“움직임이 아니라 회복을 설계하다”</div>
+
+  <div class="cBody">위 사람은 <b>올플라잉요가 송도점 본원</b>에서 진행된<br>‘김현정의 로우플라잉 원데이 워크숍’의 전 과정을 성실히<br>이수하였으므로 이 수료증을 수여합니다.</div>
+
+  <div class="cCurric">교육 내용 : 이론 + 핸즈온 실습 + 아로마 감각 체험</div>
+
+  <div class="cDate">{{issued_date_ko}}</div>
+
+  <div class="sig left">
+    <div class="nm">김현정</div>
+    <div class="ul"></div>
+    <div class="rl">Instructor</div>
+  </div>
+  <div class="sig right">
+    <div class="nm">박다현</div>
+    <div class="ul"></div>
+    <div class="rl">Director</div>
+  </div>
+
+  <div class="cNo">발급번호 Issue No. &nbsp;{{cert_no}}</div>
+
+  </div>
+</body>
+</html>
+`;
+
 const CERT_SEEDS = [
   { name: "아로마 전문 지도사", issuer: "미사 제이스튜디오", template: AROMA_TEMPLATE },
   { name: "로우플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_LOW },
   { name: "하이플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_HIGH },
   { name: "플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_GEN },
   { name: "자격증 표지", issuer: "제이스튜디오", template: COVER },
+  { name: "워크숍 수료증", issuer: "올플라잉요가", template: WORKSHOP },
 ];
 
-module.exports = { AROMA_TEMPLATE, FLYING_LOW, FLYING_HIGH, FLYING_GEN, COVER, CERT_SEEDS };
+module.exports = { AROMA_TEMPLATE, FLYING_LOW, FLYING_HIGH, FLYING_GEN, COVER, WORKSHOP, CERT_SEEDS };
