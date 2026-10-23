@@ -247,7 +247,7 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
 .c-tr{right:12px;top:12px;border-left:0;border-bottom:0}
 .c-bl{left:12px;bottom:12px;border-right:0;border-top:0}
 .c-br{right:12px;bottom:12px;border-left:0;border-top:0}
-.emblem{position:absolute;left:50%;top:50px;transform:translateX(-50%);width:174px;height:182px;object-fit:contain}
+.emblem{position:absolute;left:50%;top:76px;transform:translateX(-50%);width:148px;height:155px;object-fit:contain}
 .cTitle{position:absolute;left:0;right:0;top:252px;text-align:center;font-family:'Cinzel',serif;font-weight:600;font-size:62px;letter-spacing:2px;color:#6b4f2a;margin-right:-2px}
 .cSub{position:absolute;left:0;right:0;top:330px;text-align:center;display:flex;align-items:center;justify-content:center;gap:16px}
 .cSub .ln{width:120px;height:1px;background:#bfa06a}
