@@ -264,11 +264,12 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
 .cCurric{position:absolute;left:97px;width:600px;top:782px;text-align:center;font-size:15.5px;color:#8a6d3f;font-weight:700;letter-spacing:.3px}
 .cDate{position:absolute;left:0;right:0;top:852px;text-align:center;font-size:18px;color:#4a3f2e;letter-spacing:1px}
 .sig{position:absolute;bottom:112px;width:276px;text-align:center}
+.sig:has(.nm:empty){display:none}
 .sig.left{left:107px}.sig.right{right:107px}
 .sig .nm{color:#2e2a22;line-height:1;height:0.92em;letter-spacing:.5px;white-space:nowrap}
 .sig .ul{height:1px;background:#8d7a56;opacity:.6;margin:1px 20px 7px}
 .sig .rl{font-family:'Cinzel',serif;letter-spacing:2px;font-size:16px;color:#6f5c38}
-.cNo{position:absolute;left:46px;bottom:50px;font-family:'Noto Sans KR',sans-serif;font-size:11px;letter-spacing:.4px;color:#9a8a68}
+.cNo{position:absolute;left:64px;bottom:66px;font-family:'Noto Sans KR',sans-serif;font-size:11px;letter-spacing:.4px;color:#9a8a68}
 .silho{position:absolute;right:40px;bottom:150px;width:210px;height:430px;opacity:.5}
 </style>
 </head>
@@ -303,7 +304,7 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
     <div class="rl">Director</div>
   </div>
 
-  <div class="cNo">발급번호 Issue No. &nbsp;{{cert_no}}</div>
+  <div class="cNo">발급번호 &nbsp;{{cert_no}}</div>
 
   </div>
 </body>
