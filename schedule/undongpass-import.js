@@ -44,11 +44,68 @@
     if (m) m.remove();
   }
 
-  function statCard(label, value, strong) {
-    var d = el('div', 'background:' + (strong ? '#fef3c7' : '#f8fafc') + ';border-radius:10px;padding:10px 8px;text-align:center');
-    d.appendChild(el('p', 'margin:0;font-size:11px;font-weight:800;color:' + (strong ? '#92400e' : '#64748b'), label));
-    d.appendChild(el('p', 'margin:2px 0 0;font-size:20px;font-weight:900;color:' + (strong ? '#78350f' : '#1e293b'), String(value)));
-    return d;
+  var STATUS = {
+    active:   { label: '활성', bg: '#ecfdf5', fg: '#047857' },
+    draft:    { label: '임시', bg: '#eff6ff', fg: '#1d4ed8' },
+    archived: { label: '보관', bg: '#f8fafc', fg: '#64748b' },
+  };
+
+  function badge(status) {
+    var st = STATUS[status] || { label: status || '', bg: '#f8fafc', fg: '#64748b' };
+    if (!st.label) return document.createTextNode('');
+    return el('span', 'font-size:11px;font-weight:900;padding:2px 8px;border-radius:999px;'
+      + 'background:' + st.bg + ';color:' + st.fg, st.label);
+  }
+
+  function monthCard(m, last) {
+    var box = el('div', 'padding:11px 13px' + (last ? '' : ';border-bottom:1px solid #f1f5f9')
+      + (m.isNew ? ';background:#eff6ff' : ''));
+
+    var head = el('div', 'display:flex;align-items:center;gap:7px;margin-bottom:3px;flex-wrap:wrap');
+    head.appendChild(el('span', 'font-size:13px;font-weight:900;color:#1e293b', m.label || m.key));
+    head.appendChild(badge(m.status));
+    if (m.isNew) head.appendChild(el('span', 'font-size:11px;font-weight:800;color:#1d4ed8', '새로 만듭니다'));
+    box.appendChild(head);
+
+    var n = m.stats.changed + m.stats.added + m.stats.removed;
+    box.appendChild(el('p', 'margin:0;font-size:12px;font-weight:700;color:#64748b',
+      m.isNew ? ('수업 ' + m.stats.added + '칸 · 지금 표 모양을 그대로 씁니다')
+              : (n ? ('그대로 ' + m.stats.same + ' · 바뀜 ' + m.stats.changed
+                      + (m.stats.added ? ' · 추가 ' + m.stats.added : '')
+                      + (m.stats.removed ? ' · 빠짐 ' + m.stats.removed : ''))
+                   : ('그대로 ' + m.stats.same + ' · 바꿀 내용 없음'))));
+
+    (m.changes || []).slice(0, 6).forEach(function (c) {
+      var line = el('p', 'margin:5px 0 0;font-size:12px;font-weight:700;color:#1e293b;line-height:1.5');
+      line.appendChild(el('span', 'color:#94a3b8;font-weight:800', c.day + ' ' + c.time + '  '));
+      line.appendChild(el('span', 'color:#94a3b8;text-decoration:line-through', c.before));
+      line.appendChild(el('span', 'color:#94a3b8', '  →  '));
+      line.appendChild(el('span', null, c.after));
+      box.appendChild(line);
+    });
+    if ((m.changes || []).length > 6) {
+      box.appendChild(el('p', 'margin:5px 0 0;font-size:11px;font-weight:700;color:#94a3b8',
+        '외 ' + (m.changes.length - 6) + '칸'));
+    }
+
+    if ((m.timeShifts || []).length) {
+      box.appendChild(el('p', 'margin:6px 0 0;font-size:11.5px;font-weight:800;color:#b45309;line-height:1.6',
+        '시간이 바뀝니다 — ' + m.timeShifts.map(function (t) {
+          return t.day + ' ' + t.before + '→' + t.after;
+        }).join(', ')));
+      box.appendChild(el('p', 'margin:2px 0 0;font-size:11px;font-weight:600;color:#a16207;line-height:1.6',
+        '줄 옆 안내 문구(예: "토 10:30")는 직접 고쳐 주세요. 잠겨 있지 않습니다.'));
+    }
+
+    (m.newSlots || []).forEach(function (sl) {
+      box.appendChild(el('p', 'margin:5px 0 0;font-size:11.5px;font-weight:700;color:#1d4ed8',
+        '표에 없는 시간대 — ' + sl.day + ' ' + sl.time + ' ' + sl.title + ' (반영 안 됨)'));
+    });
+    (m.conflicts || []).forEach(function (c) {
+      box.appendChild(el('p', 'margin:5px 0 0;font-size:11.5px;font-weight:800;color:#b91c1c',
+        '한 칸에 두 수업 — ' + c.day + ' ' + c.time + ' ' + c.title + ' (반영 안 됨)'));
+    });
+    return box;
   }
 
   function showModal(p) {
@@ -61,70 +118,37 @@
     var head = el('div', 'padding:16px 18px;border-bottom:1px solid #e2e8f0');
     head.appendChild(el('p', 'margin:0;font-size:15px;font-weight:900;color:#1e293b', '운동패스에서 불러오기'));
     head.appendChild(el('p', 'margin:3px 0 0;font-size:12px;font-weight:700;color:#64748b',
-      '운동패스 ' + (p.undongpassMonth || '?') + ' → 웹 시간표 ' + (p.monthLabel || '?')));
+      '미사 제이스튜디오 · 시간표 ' + p.months.length + '개'));
     card.appendChild(head);
 
-    if (p.monthMismatch) {
-      var warn = el('div', 'margin:14px 18px 0;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px');
-      warn.appendChild(el('p', 'margin:0;font-size:12px;font-weight:800;color:#b91c1c',
-        '운동패스는 ' + p.undongpassMonth + ', 웹 시간표는 ' + p.monthLabel + ' 입니다.'));
-      warn.appendChild(el('p', 'margin:4px 0 0;font-size:12px;font-weight:600;color:#991b1b;line-height:1.6',
-        '운동패스에서 이번 달 시간표를 발행했는지 확인해 주세요. 그대로 반영하면 다른 달 내용이 들어갑니다.'));
-      card.appendChild(warn);
+    var listWrap = el('div', 'padding:12px 18px 4px');
+    var list = el('div', 'border:1px solid #e2e8f0;border-radius:10px;overflow:hidden');
+    p.months.forEach(function (m, i) { list.appendChild(monthCard(m, i === p.months.length - 1)); });
+    listWrap.appendChild(list);
+    card.appendChild(listWrap);
+
+    if ((p.centerChanges || []).length) {
+      var cc = el('div', 'margin:12px 18px 0;padding:10px 12px;background:#f8fafc;border-radius:10px');
+      cc.appendChild(el('p', 'margin:0;font-size:12px;font-weight:800;color:#475569', '센터 정보'));
+      p.centerChanges.forEach(function (c) {
+        cc.appendChild(el('p', 'margin:4px 0 0;font-size:12px;font-weight:700;color:#1e293b',
+          c.field + ' : ' + c.before + ' → ' + c.after));
+      });
+      card.appendChild(cc);
     }
 
-    var stats = el('div', 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 18px');
-    stats.appendChild(statCard('그대로', p.stats.same, false));
-    stats.appendChild(statCard('바뀜', p.stats.changed, p.stats.changed > 0));
-    stats.appendChild(statCard('새 수업', p.stats.added, p.stats.added > 0));
-    stats.appendChild(statCard('빠짐', p.stats.removed, p.stats.removed > 0));
-    card.appendChild(stats);
-
-    var all = (p.changes || []).concat((p.centerChanges || []).map(function (c) {
-      return { kind: 'center', day: '', time: c.field, before: c.before, after: c.after };
-    }));
-
-    if (!all.length && !(p.newSlots || []).length) {
-      card.appendChild(el('p', 'margin:0 18px 14px;padding:12px;background:#ecfdf5;border-radius:10px;'
-        + 'font-size:13px;font-weight:700;color:#047857;text-align:center', '운동패스와 이미 같습니다. 바꿀 내용이 없습니다.'));
-    } else {
-      var listWrap = el('div', 'padding:0 18px');
-      listWrap.appendChild(el('p', 'margin:0 0 8px;font-size:11px;font-weight:800;color:#64748b', '바뀌는 내용'));
-      var list = el('div', 'border:1px solid #e2e8f0;border-radius:10px;overflow:hidden');
-      all.forEach(function (c, i) {
-        var tone = c.kind === 'removed' ? '#fef2f2' : (c.kind === 'added' ? '#eff6ff' : '#fff');
-        var row = el('div', 'padding:9px 11px;background:' + tone
-          + (i < all.length - 1 ? ';border-bottom:1px solid #f1f5f9' : ''));
-        var label = c.kind === 'center' ? ('센터 · ' + c.time) : (c.day + ' ' + c.time);
-        row.appendChild(el('p', 'margin:0;font-size:11px;font-weight:800;color:#94a3b8', label));
-        var line = el('p', 'margin:2px 0 0;font-size:12.5px;font-weight:700;color:#1e293b;line-height:1.5');
-        line.appendChild(el('span', 'color:#94a3b8;text-decoration:line-through', c.before));
-        line.appendChild(el('span', 'color:#94a3b8', '  →  '));
-        line.appendChild(el('span', null, c.after));
-        row.appendChild(line);
-        list.appendChild(row);
-      });
-      listWrap.appendChild(list);
-      card.appendChild(listWrap);
-
-      if ((p.newSlots || []).length) {
-        var ns = el('div', 'margin:12px 18px 0;padding:10px 12px;background:#eff6ff;border-radius:10px');
-        ns.appendChild(el('p', 'margin:0;font-size:12px;font-weight:800;color:#1d4ed8',
-          '웹 시간표 표에 없는 시간대 ' + p.newSlots.length + '건 — 반영되지 않습니다'));
-        p.newSlots.forEach(function (s) {
-          ns.appendChild(el('p', 'margin:4px 0 0;font-size:12px;font-weight:600;color:#1e40af',
-            '· ' + s.day + ' ' + s.time + ' ' + s.title + (s.level ? ' / ' + s.level : '')));
-        });
-        ns.appendChild(el('p', 'margin:6px 0 0;font-size:11px;font-weight:600;color:#3b82f6;line-height:1.6',
-          '표에 줄을 먼저 만들어 두면 다음 불러오기 때 들어옵니다.'));
-        card.appendChild(ns);
-      }
+    if ((p.orphans || []).length) {
+      var orp = el('div', 'margin:12px 18px 0;padding:10px 12px;background:#fffbeb;border-radius:10px');
+      orp.appendChild(el('p', 'margin:0;font-size:12px;font-weight:800;color:#92400e', '운동패스에 없는 달'));
+      orp.appendChild(el('p', 'margin:4px 0 0;font-size:12px;font-weight:700;color:#78350f;line-height:1.6',
+        p.orphans.map(function (o) { return o.label; }).join(' · ') + ' — 그대로 둡니다. 지우지 않습니다.'));
+      card.appendChild(orp);
     }
 
     var keep = el('div', 'margin:12px 18px;padding:10px 12px;background:#f0fdfa;border-radius:10px');
     keep.appendChild(el('p', 'margin:0;font-size:12px;font-weight:800;color:#0f766e', '건드리지 않는 것'));
     keep.appendChild(el('p', 'margin:4px 0 0;font-size:12px;font-weight:600;color:#115e59;line-height:1.6',
-      '표의 줄 구조 · 디자인 · 글꼴 · 색 · 배너 · Notice 띠 · 안내문 · 프로그램 소개 설명표 · 지난 달 시간표'));
+      '디자인 · 글꼴 · 색 · 배너 · Notice 띠 · 안내문 · 프로그램 소개 설명표'));
     card.appendChild(keep);
 
     var logoBox = null;
@@ -142,15 +166,16 @@
     }
 
     card.appendChild(el('p', 'margin:0 18px 10px;font-size:11px;font-weight:600;color:#94a3b8;line-height:1.6',
-      '반영하면 곧바로 저장되고 화면을 다시 불러옵니다. 따로 저장 버튼을 누르지 않아도 됩니다.'));
+      '반영하면 곧바로 저장되고 ' + (p.activeLabel || '') + ' 시간표를 펼친 채 화면을 다시 불러옵니다.'));
 
     var foot = el('div', 'display:flex;gap:8px;padding:0 18px 18px');
     var cancel = el('button', BTN + ';flex:1;background:#fff;border:1px solid #e2e8f0;color:#64748b', '취소');
     cancel.onclick = closeModal;
+    var hasWork = p.totalChanges > 0 || p.newMonths > 0;
     var ok = el('button', BTN + ';flex:2;background:#3b82f6;color:#fff',
-      all.length ? (all.length + '건 반영하기') : '확인');
+      hasWork ? (p.months.length + '개 달 반영하기') : '확인');
     ok.onclick = function () {
-      if (!all.length) return closeModal();
+      if (!hasWork) return closeModal();
       ok.disabled = true;
       ok.textContent = '반영하는 중…';
       post('undongpass_apply', { applyLogo: !!(logoBox && document.getElementById('undongpass-logo').checked) })
@@ -172,30 +197,6 @@
     wrap.appendChild(card);
     wrap.addEventListener('click', function (ev) { if (ev.target === wrap) closeModal(); });
     document.body.appendChild(wrap);
-  }
-
-  /* ── 버튼 ────────────────────────────────────────────── */
-  function onClick(btn) {
-    var label = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = '불러오는 중…';
-    post('undongpass_preview', {})
-      .then(function (r) {
-        if (!r || !r.success) throw new Error((r && r.error) || '불러오지 못했습니다.');
-        showModal(r.preview);
-      })
-      .catch(function (e) { alert(e.message); })
-      .finally(function () { btn.disabled = false; btn.textContent = label; });
-  }
-
-  function makeButton() {
-    var b = document.createElement('button');
-    b.id = BTN_ID;
-    b.className = 'flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-sm border transition-all print:hidden';
-    b.style.cssText = 'border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8';
-    b.textContent = '⬇ 운동패스에서 불러오기';
-    b.onclick = function () { onClick(b); };
-    return b;
   }
 
   /* ── 수업 칸 잠금 ───────────────────────────────────────
@@ -310,6 +311,68 @@
     return b;
   }
 
+  /* ── 불러오기 버튼 ─────────────────────────────────── */
+  function onClick(btn) {
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '불러오는 중…';
+    post('undongpass_preview', {})
+      .then(function (r) {
+        if (!r || !r.success) throw new Error((r && r.error) || '불러오지 못했습니다.');
+        showModal(r.preview);
+      })
+      .catch(function (e) { alert(e.message); })
+      .finally(function () { btn.disabled = false; btn.textContent = label; });
+  }
+
+  function makeButton() {
+    var b = document.createElement('button');
+    b.id = BTN_ID;
+    b.className = 'flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-sm border transition-all print:hidden';
+    b.style.cssText = 'border-color:#bfdbfe;background:#eff6ff;color:#1d4ed8';
+    b.textContent = '⬇ 운동패스에서 불러오기';
+    b.onclick = function () { onClick(b); };
+    return b;
+  }
+
+  /* ── 달 상태 배지 ──────────────────────────────────────
+     지금 펼쳐 둔 달이 운동패스에서 활성인지 임시인지 보관인지 알려 준다.
+     상태는 저장해 두지 않고 운동패스에서 그때그때 읽는다(앱이 상태를 저장할 때
+     우리가 끼워 넣은 값은 사라지므로, 들고 있어 봐야 어긋난다).
+     화면에서만 보이고 인쇄물에는 나오지 않는다.
+  ───────────────────────────────────────────────────── */
+  var monthStatus = null;   /* { '10월': 'active', … } */
+
+  function loadStatuses() {
+    var base = 'https://young-gym.vercel.app/api/timetable-view/data?studioId=ST001&scope=all';
+    return fetch(base).then(function (r) { return r.json(); }).then(function (d) {
+      var out = {};
+      Object.keys((d && d.months) || {}).forEach(function (k) {
+        var label = ((d.monthsData || {})[k] || {}).monthLabel || '';
+        if (label) out[label] = d.months[k].status;
+      });
+      monthStatus = out;
+    }).catch(function () { monthStatus = {}; });
+  }
+
+  function paintBadge() {
+    if (!monthStatus) return;
+    var box = document.querySelector('[class*="min-w-[120px]"]');
+    if (!box) return;
+    var label = (box.innerText || '').match(/(\d{1,2}월)/);
+    var old = document.getElementById('undongpass-month-badge');
+    if (!label) { if (old) old.remove(); return; }
+    var st = STATUS[monthStatus[label[1]]];
+    if (!st) { if (old) old.remove(); return; }
+    if (old && old.dataset.for === label[1]) return;
+    if (old) old.remove();
+    var b = badge(monthStatus[label[1]]);
+    b.id = 'undongpass-month-badge';
+    b.dataset.for = label[1];
+    b.className = 'print:hidden';
+    box.appendChild(b);
+  }
+
   /* 탭 줄(시간표 / 프로그램 소개)의 오른쪽 묶음에 끼워 넣는다 */
   function place() {
     if (!document.getElementById(BTN_ID)) {
@@ -323,8 +386,9 @@
         right.insertBefore(makeLockButton(), right.firstChild);
       }
     }
-    /* 앱이 화면을 다시 그리면 입력칸이 새로 생기므로 잠금을 다시 입힌다 */
+    /* 앱이 화면을 다시 그리면 입력칸·배지가 새로 생기므로 다시 입힌다 */
     applyLock();
+    paintBadge();
   }
 
   function isAdmin() {
@@ -345,6 +409,7 @@
   function arm() {
     if (armed) return;
     armed = true;
+    loadStatuses().then(paintBadge);
     place();
     /* 앱이 화면을 다시 그리면 버튼이 사라지므로 계속 지켜본다 */
     var pending = false;
@@ -360,7 +425,7 @@
     if (!armed) return;
     armed = false;
     if (watcher) { watcher.disconnect(); watcher = null; }
-    [BTN_ID, LOCK_ID].forEach(function (id) {
+    [BTN_ID, LOCK_ID, 'undongpass-month-badge'].forEach(function (id) {
       var b = document.getElementById(id);
       if (b) b.remove();
     });

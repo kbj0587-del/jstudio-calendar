@@ -53,19 +53,10 @@ async function getJson(url) {
 async function fetchUndongpass() {
   const sid = encodeURIComponent(studioId());
   const [timetable, studio] = await Promise.all([
-    getJson(`${baseUrl()}/api/timetable-view/data?studioId=${sid}`),
+    getJson(`${baseUrl()}/api/timetable-view/data?studioId=${sid}&scope=all`),
     getJson(`${baseUrl()}/api/studio-settings?studioId=${sid}`).catch(() => null),
   ]);
   return { timetable, studio };
-}
-
-/* 운동패스가 내려준 달 — 공개되는 건 "발행(active)"된 한 달뿐이다 */
-function pickMonth(timetable) {
-  const months = (timetable && timetable.monthsData) || {};
-  const keys = Object.keys(months);
-  if (!keys.length) return null;
-  const key = keys.sort()[keys.length - 1];
-  return { key, label: months[key].monthLabel || '', schedule: months[key].schedule || [] };
 }
 
 /* 웹 시간표 한 줄에서 "이 요일은 몇 시" 인지 뽑는다 (칸에 없으면 그 줄의 대표 시각) */
@@ -81,89 +72,152 @@ function rowExpect(row, days) {
 
 const cellText = (c) => [c.title, c.level, c.teacher].filter(Boolean).join(' / ') || '(빈칸)';
 
+/* 줄을 찾는 기준은 "몇 시대인가" 다.
+   요일마다 시작 시각이 조금씩 다르고(토요일만 10:30), 달이 바뀌면 그 시각도
+   달라지기 때문에(11월은 토요일이 10:10) 분까지 맞추면 들어갈 자리를 잃는다.
+   10시대 수업은 10시대 줄로 보내고, 칸에 적히는 시각은 운동패스 값을 쓴다. */
+const hourOf = (t12) => parseInt(String(t12).split(':')[0], 10);
+
+/* 새로 생기는 달은 기존 달의 줄 구조(디자인·안내문 포함)를 그대로 물려받는다 */
+function cloneFrame(rows) {
+  return rows.map((r) => {
+    const days = {};
+    for (const [d, c] of Object.entries(r.days || {})) {
+      days[d] = Object.assign({}, c, { title: '', level: '', teacher: '' });
+    }
+    return Object.assign({}, r, { days });
+  });
+}
+
 /*
  * 병합 계산 — 실제로 쓰지는 않고 "이렇게 바뀐다" 를 돌려준다.
  * state 는 건드리지 않는다(복사본을 만들어 돌려줌).
+ *
+ * 운동패스가 들고 있는 달을 모두(활성·임시·보관) 웹 시간표에 비춘다.
+ *   이미 있는 달 → 그 달의 줄 구조를 그대로 두고 칸 내용만 갈아끼운다
+ *   없는 달     → 기준 달의 줄 구조를 복사해 새로 만든다
  */
 function buildPlan(state, incoming) {
-  const month = pickMonth(incoming.timetable);
-  if (!month) {
-    const err = new Error('운동패스에 발행된 시간표가 없습니다. 운동패스에서 시간표를 발행한 뒤 다시 시도해 주세요.');
-    err.code = 'NO_ACTIVE_TIMETABLE';
+  const tt = incoming.timetable || {};
+  const monthsData = tt.monthsData || {};
+  const statuses = tt.months || {};
+  const keys = Object.keys(monthsData).sort();
+  if (!keys.length) {
+    const err = new Error('운동패스에 시간표가 없습니다.');
+    err.code = 'NO_TIMETABLE';
     throw err;
   }
 
-  const monthKey = state.activeMonthKey;
-  const target = ((state.monthsData || {})[monthKey] || {});
-  const rows = Array.isArray(target.schedule) ? target.schedule : [];
-  if (!rows.length) {
-    const err = new Error('웹 시간표에 현재 달 표가 없습니다.');
-    err.code = 'NO_TARGET_MONTH';
+  /* 새 달을 만들 때 베낄 기준 틀 — 지금 보고 있는 달, 없으면 가장 최근 달 */
+  const webMonths = state.monthsData || {};
+  const refKey = webMonths[state.activeMonthKey] ? state.activeMonthKey
+               : Object.keys(webMonths).sort().pop();
+  const refRows = refKey && Array.isArray(webMonths[refKey].schedule) ? webMonths[refKey].schedule : null;
+  if (!refRows || !refRows.length) {
+    const err = new Error('웹 시간표에 기준이 될 표가 없습니다.');
+    err.code = 'NO_FRAME';
     throw err;
   }
 
-  /* 웹 시간표가 쓰는 요일 목록을 그대로 따른다 (일요일 운영 여부도 웹 표 기준) */
-  const days = Object.keys(rows[0].days || {});
-  const order = ['월', '화', '수', '목', '금', '토', '일'];
-  days.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  const months = [];
+  const nextMonths = Object.assign({}, webMonths);
 
-  /* (요일, 12시간제 시각) → 줄 번호 */
-  const lut = new Map();
-  const expects = rows.map((r) => rowExpect(r, days));
-  expects.forEach((exp, i) => {
-    for (const d of days) {
-      const k = `${d}|${exp[d]}`;
-      if (!lut.has(k)) lut.set(k, i);
-    }
-  });
+  for (const key of keys) {
+    const src = monthsData[key];
+    const existing = webMonths[key];
+    const isNew = !existing;
+    const rows = isNew ? cloneFrame(refRows)
+                       : (Array.isArray(existing.schedule) ? existing.schedule : []);
+    if (!rows.length) continue;
 
-  /* 운동패스 수업을 틀에 꽂는다 */
-  const filled = rows.map(() => {
-    const o = {};
-    for (const d of days) o[d] = { title: '', level: '', teacher: '' };
-    return o;
-  });
-  const newSlots = [];
-  for (const r of month.schedule) {
-    for (const [d, c] of Object.entries(r.days || {})) {
-      if (!c || !c.title) continue;
-      const t = to12(c.startTime || r.mainTime || '');
-      const i = lut.get(`${d}|${t}`);
-      if (i === undefined) {
-        newSlots.push({ day: d, time: t, title: c.title, level: c.level || '', teacher: c.teacher || '' });
-        continue;
+    const days = Object.keys(rows[0].days || {});
+
+    /* (요일, 시간대) → 줄 번호 */
+    const lut = new Map();
+    rows.forEach((r, i) => {
+      const main = hourOf(to12(r.mainTime || ''));
+      for (const d of days) {
+        const c = (r.days || {})[d] || {};
+        const h = c.startTime ? hourOf(to12(c.startTime)) : main;
+        const k = d + '|' + h;
+        if (!lut.has(k)) lut.set(k, i);
       }
-      filled[i][d] = { title: c.title, level: c.level || '', teacher: c.teacher || '' };
+    });
+
+    /* 운동패스 수업을 줄에 꽂는다 */
+    const filled = rows.map(() => ({}));
+    const newSlots = [];
+    const conflicts = [];
+    for (const r of src.schedule || []) {
+      for (const [d, c] of Object.entries(r.days || {})) {
+        if (!c || !c.title) continue;
+        const t = to12(c.startTime || r.mainTime || '');
+        const i = lut.get(d + '|' + hourOf(t));
+        if (i === undefined) {
+          newSlots.push({ day: d, time: t, title: c.title, level: c.level || '' });
+          continue;
+        }
+        if (filled[i][d]) { conflicts.push({ day: d, time: t, title: c.title }); continue; }
+        filled[i][d] = { title: c.title, level: c.level || '', teacher: c.teacher || '', startTime: t };
+      }
     }
+
+    /* 달라지는 칸 모으기 */
+    const changes = [];
+    const timeShifts = [];
+    const stats = { same: 0, changed: 0, added: 0, removed: 0 };
+    const nextRows = rows.map((row, i) => {
+      const nextDays = Object.assign({}, row.days);
+      for (const d of days) {
+        const old = (row.days || {})[d] || {};
+        const neu = filled[i][d] || { title: '', level: '', teacher: '', startTime: old.startTime || '' };
+        const before = { title: old.title || '', level: old.level || '', teacher: old.teacher || '' };
+        const after = { title: neu.title, level: neu.level, teacher: neu.teacher };
+
+        /* 칸의 시각이 달라지면 줄 옆 표기 문구를 사람이 확인해야 한다 */
+        const oldT = to12(old.startTime || '');
+        const newT = neu.title ? to12(neu.startTime || '') : oldT;
+        if (neu.title && oldT && newT && oldT !== newT) {
+          timeShifts.push({ day: d, before: oldT, after: newT });
+        }
+
+        nextDays[d] = Object.assign({}, old, after, neu.title ? { startTime: neu.startTime } : {});
+
+        if (before.title === after.title && before.level === after.level && before.teacher === after.teacher) {
+          if (before.title) stats.same += 1;
+          continue;
+        }
+        const kind = !before.title ? 'added' : (!after.title ? 'removed' : 'changed');
+        stats[kind] += 1;
+        if (!isNew) {
+          changes.push({ kind, day: d, time: to12(row.mainTime || ''),
+                         before: cellText(before), after: cellText(after) });
+        }
+      }
+      return Object.assign({}, row, { days: nextDays });
+    });
+
+    nextMonths[key] = Object.assign({}, existing, {
+      monthLabel: (existing && existing.monthLabel) || src.monthLabel || '',
+      schedule: nextRows,
+    });
+
+    months.push({
+      key,
+      label: nextMonths[key].monthLabel,
+      status: (statuses[key] || {}).status || '',
+      isNew,
+      stats,
+      changes,
+      timeShifts,
+      newSlots,
+      conflicts,
+    });
   }
 
-  /* 달라지는 칸 모으기 + 반영된 새 표 만들기 */
-  const changes = [];
-  const stats = { same: 0, changed: 0, added: 0, removed: 0 };
-  const nextRows = rows.map((row, i) => {
-    const nextDays = Object.assign({}, row.days);
-    for (const d of days) {
-      const old = (row.days || {})[d] || {};
-      const neu = filled[i][d];
-      const before = { title: old.title || '', level: old.level || '', teacher: old.teacher || '' };
-      if (before.title === neu.title && before.level === neu.level && before.teacher === neu.teacher) {
-        if (before.title) stats.same += 1;
-        continue;
-      }
-      const kind = !before.title ? 'added' : (!neu.title ? 'removed' : 'changed');
-      stats[kind] += 1;
-      changes.push({
-        kind,
-        day: d,
-        time: to12(row.mainTime || ''),
-        before: cellText(before),
-        after: cellText(neu),
-      });
-      /* 칸의 나머지 값(startTime 등)은 그대로 두고 글자만 바꾼다 */
-      nextDays[d] = Object.assign({}, old, neu);
-    }
-    return Object.assign({}, row, { days: nextDays });
-  });
+  /* 웹에만 있고 운동패스에는 없는 달 — 알려만 주고 지우지 않는다 */
+  const orphans = Object.keys(webMonths).filter((k) => !monthsData[k])
+    .map((k) => ({ key: k, label: (webMonths[k] || {}).monthLabel || k }));
 
   /* 센터 정보 — 이름과, 안내줄 안의 전화번호만 맞춘다 */
   const brand = Object.assign({}, state.brandConfig || {});
@@ -183,22 +237,19 @@ function buildPlan(state, incoming) {
     }
   }
 
-  const logo = {
-    different: !!(st.logoUrl && st.logoUrl !== state.customLogo),
-    value: st.logoUrl || '',
-  };
+  /* 반영 뒤에는 운동패스가 쓰고 있는 달을 펼쳐 준다 */
+  const activeKey = (tt.activeMonthKey && nextMonths[tt.activeMonthKey])
+    ? tt.activeMonthKey
+    : (state.activeMonthKey || keys[keys.length - 1]);
 
   return {
-    monthKey,
-    monthLabel: target.monthLabel || state.month || '',
-    undongpassMonth: month.label,
-    monthMismatch: !!(month.label && target.monthLabel && month.label !== target.monthLabel),
-    stats,
-    changes,
-    newSlots,
+    months,
+    orphans,
     centerChanges,
-    logo,
-    nextRows,
+    activeKey,
+    activeLabel: (nextMonths[activeKey] || {}).monthLabel || '',
+    logo: { different: !!(st.logoUrl && st.logoUrl !== state.customLogo), value: st.logoUrl || '' },
+    nextMonths,
     nextBrand: brand,
   };
 }
@@ -213,12 +264,14 @@ function formatPhone(raw) {
 /* 계산된 결과를 상태에 반영한 새 상태를 돌려준다 (원본은 건드리지 않는다) */
 function applyPlan(state, plan, opts) {
   const next = Object.assign({}, state);
-  next.monthsData = Object.assign({}, state.monthsData || {});
-  next.monthsData[plan.monthKey] = Object.assign({}, next.monthsData[plan.monthKey], {
-    schedule: plan.nextRows,
-  });
-  /* 앱은 현재 달 표를 최상위 schedule 로도 들고 있다 — 둘 다 맞춰야 화면이 어긋나지 않는다 */
-  if (state.activeMonthKey === plan.monthKey) next.schedule = plan.nextRows;
+  next.monthsData = plan.nextMonths;
+  next.activeMonthKey = plan.activeKey;
+  /* 앱은 펼쳐 둔 달의 표를 최상위 schedule 로도 들고 있다 — 둘 다 맞춰야 화면이 어긋나지 않는다 */
+  const shown = plan.nextMonths[plan.activeKey];
+  if (shown) {
+    next.schedule = shown.schedule;
+    next.month = shown.monthLabel || next.month;
+  }
   next.brandConfig = plan.nextBrand;
   if (opts && opts.applyLogo && plan.logo.different && plan.logo.value) {
     next.customLogo = plan.logo.value;
@@ -228,16 +281,18 @@ function applyPlan(state, plan, opts) {
 
 /* 보여 주기용 요약 — 서버가 들고 있는 큰 값(표·로고)은 빼고 돌려준다 */
 function summarize(plan) {
+  const total = plan.months.reduce(function (n, m) {
+    return n + m.stats.changed + m.stats.added + m.stats.removed;
+  }, 0);
   return {
-    monthKey: plan.monthKey,
-    monthLabel: plan.monthLabel,
-    undongpassMonth: plan.undongpassMonth,
-    monthMismatch: plan.monthMismatch,
-    stats: plan.stats,
-    changes: plan.changes,
-    newSlots: plan.newSlots,
+    months: plan.months,
+    orphans: plan.orphans,
     centerChanges: plan.centerChanges,
+    activeKey: plan.activeKey,
+    activeLabel: plan.activeLabel,
     logoDifferent: plan.logo.different,
+    totalChanges: total + plan.centerChanges.length,
+    newMonths: plan.months.filter(function (m) { return m.isNew; }).length,
   };
 }
 
