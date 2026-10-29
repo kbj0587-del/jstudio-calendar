@@ -136,8 +136,11 @@ function needsStore(pathname) {
 // 해시 한 줄(수십 바이트)만 짧은 TTL로 따로 읽어 이 어긋남을 없앤다.
 let adminHashLoaded = 0;
 const ADMIN_HASH_TTL_MS = IS_SERVERLESS ? 10000 : Infinity;
+// ⚠️ "store를 이미 들고 있으면 건너뛴다"로 두면 안 된다. storeReady 는 한 번 켜지면
+//    계속 켜져 있고, /api/sms/* 만 때리는 인스턴스는 ensureStore 의 TTL 갱신을 못 받아
+//    비밀번호를 바꾸기 전의 낡은 해시를 영원히 들고 있게 된다. 그러면 로그인(/verify,
+//    store 로드함)은 되는데 이어지는 문자 API 는 403 → 로그인 창이 반복해서 뜬다.
 async function ensureAdminHash() {
-  if (storeReady) return;                        // store가 이미 있으면 그 값이 정답
   if (!(USE_DB && pool)) return;
   if (Date.now() - adminHashLoaded < ADMIN_HASH_TTL_MS) return;
   try {
