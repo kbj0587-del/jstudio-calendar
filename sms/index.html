@@ -214,22 +214,36 @@ async function boot(){
   window.addEventListener('resize', applyComposeWidth);
   window.addEventListener('paste', onGlobalPaste);
   await refreshBootstrap();
-  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadThreads(), loadGwContacts(), loadCallPending(), loadHeld()]);
+  // 7개를 한꺼번에 쏘면 그 순간 서버 인스턴스가 7개까지 깨어나 DB 연결을
+  // 하나씩 잡는다. 화면 체감은 거의 같으면서 동시 요청을 2~3개로 낮춘다.
+  await Promise.all([loadMembers(), loadGroups()]);
+  await Promise.all([loadTemplates(), loadThreads()]);
+  await Promise.all([loadGwContacts(), loadCallPending(), loadHeld()]);
   renderVarChips(); updateBytes(); updateSummary();
   applyPrefillRecipients();     // 연락처 페이지에서 "발송 대상으로 보내기"로 넘어온 수신자
   document.getElementById('tagInp').addEventListener('blur', ()=>setTimeout(hideSuggest, 200));
   // 화면이 보일 때만 폴링한다. 탭을 열어두고 방치하면 하루 수천 번 요청이
   // 나가므로(2026-08 Egress 한도 초과 사고), 숨겨진 탭에서는 건너뛰고
   // 다시 보이는 순간 한 번 즉시 갱신한다.
-  function pollWhenVisible(fn, ms) {
-    setInterval(() => { if (!document.hidden) fn(); }, ms);
+  // ⚠️ 같은 주기의 폴링을 한꺼번에 띄우면 요청이 동시에 몰린다. 서버리스에서는
+  //    동시 요청 수만큼 인스턴스가 깨어나 DB 연결을 하나씩 잡으므로, 풀러의
+  //    동시 접속 한도를 그만큼 빨리 먹는다(2026-10-29 전 서비스 중단 원인).
+  //    시작 시점을 어긋나게 해 같은 순간에 겹치지 않도록 한다.
+  function pollWhenVisible(fn, ms, offsetMs) {
+    setTimeout(() => {
+      setInterval(() => { if (!document.hidden) fn(); }, ms);
+    }, offsetMs || 0);
   }
-  pollWhenVisible(loadThreads,      30000);
-  pollWhenVisible(loadCallPending,  30000);
-  pollWhenVisible(loadHeld,         30000);
-  pollWhenVisible(refreshBootstrap, 120000); // 설정/템플릿류는 자주 안 바뀜
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) { loadThreads(); loadCallPending(); loadHeld(); }
+  pollWhenVisible(loadThreads,      30000, 0);
+  pollWhenVisible(loadCallPending,  60000, 7000);
+  pollWhenVisible(loadHeld,         60000, 14000);
+  pollWhenVisible(refreshBootstrap, 120000, 21000); // 설정/템플릿류는 자주 안 바뀜
+  // 탭이 다시 보일 때도 한꺼번에 쏘지 않고 차례로 부른다.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) return;
+    try { await loadThreads(); } catch (_) {}
+    try { await loadCallPending(); } catch (_) {}
+    try { await loadHeld(); } catch (_) {}
   });
 }
 window.onAuthReady = boot;
