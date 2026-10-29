@@ -246,6 +246,17 @@ async function boot(){
     try { await loadHeld(); } catch (_) {}
   });
 }
+// 새 문자 푸시가 오면 즉시 갱신 (폴링을 기다리지 않는다).
+// 연달아 와도 한 번만 처리되게 살짝 묶어준다.
+let _newMsgTimer = null;
+window.onNewMessage = () => {
+  clearTimeout(_newMsgTimer);
+  _newMsgTimer = setTimeout(() => {
+    loadThreads();
+    if (activeThread) refreshChat(false);
+  }, 400);
+};
+
 window.onAuthReady = boot;
 
 /* ── 리사이즈 ── */

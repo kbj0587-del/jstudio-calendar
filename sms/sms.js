@@ -249,6 +249,13 @@ if ('serviceWorker' in navigator) {
       .then(r => console.log('[J.SMS] SW 등록됨, scope=', r.scope))
       .catch(e => console.warn('[J.SMS] SW 등록 실패', e));
   });
+  // 새 문자가 오면 서비스워커가 알려준다 → 폴링을 기다리지 않고 즉시 갱신.
+  // 화면마다 할 일이 달라서, 각 페이지가 window.onNewMessage 를 정의해 받는다.
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'jsms:new-message' && window.onNewMessage) {
+      try { window.onNewMessage(); } catch (_) {}
+    }
+  });
 }
 
 /* ══ Web Push: 새 문자 알림 + 앱 배지 (윈도우·맥·아이폰 공용) ══

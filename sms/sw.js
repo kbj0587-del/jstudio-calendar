@@ -1,6 +1,6 @@
 // J.SMS 발송센터 서비스 워커 — 캐시 없음(항상 최신), 설치 가능(PWA) + 새 문자 푸시 알림·배지 담당.
 // ⚠️ 루트 sw.js(캘린더)와 별개. scope=/sms/ 로 등록되어 서로 간섭하지 않는다.
-const SW_VERSION = 2;
+const SW_VERSION = 3;
 
 self.addEventListener('install', () => {
   console.log('[J.SMS SW] install v' + SW_VERSION);
@@ -47,6 +47,12 @@ self.addEventListener('push', (event) => {
         await navigator.setAppBadge(notifs.length);
       } catch (_) {}
     }
+    // 열려 있는 발송센터 화면에 "새 문자 왔다"고 알려 즉시 갱신시킨다.
+    // 이것이 폴링을 대신한다 — 화면은 10~30초 기다리지 않고 바로 반영된다.
+    try {
+      const wins = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const c of wins) c.postMessage({ type: 'jsms:new-message' });
+    } catch (_) {}
   })());
 });
 
