@@ -26,7 +26,8 @@
     <div style="font-size:13.5px;color:var(--muted2);line-height:1.6">
       💡 <b>"수신거부"</b> 답장은 자동으로 수신거부 목록에 등록됩니다(항상 활성).<br>
       💡 <b>시간대 규칙</b>이 키워드 규칙보다 우선 적용되며, 메시지 1건당 응답은 1건만 나갑니다.<br>
-      🛡 같은 번호로 <b>같은 응답을 60분 내 재발송하지 않습니다</b> (무한 반복 발송 방지).
+      🛡 같은 번호로 <b>같은 응답을 60분 내 재발송하지 않습니다</b> (무한 반복 발송 방지).<br>
+      🛡 전화 자동응답은 <b>기능을 켜 둔 시점 이후의 통화</b>에만 작동합니다. 게이트웨이를 꺼 뒀던 동안 쌓인 통화에는 발송하지 않습니다.
     </div>
   </div>
 
@@ -39,6 +40,7 @@
       </div>
       <label class="sw"><input type="checkbox" id="mc_on" onchange="saveCall()"><span></span></label>
     </div>
+    <div id="mc_state" style="font-size:12.5px;line-height:1.6;margin-top:8px"></div>
     <div id="mc_body" style="margin-top:12px">
       <label class="lbl">회원·주소록에 있는 분께
         <span style="font-weight:400;color:var(--muted)">— <b>[*이름*]</b> 을 넣으면 회원 이름으로 바뀝니다</span>
@@ -68,6 +70,7 @@
       </div>
       <label class="sw"><input type="checkbox" id="pc_on" onchange="saveCall()"><span></span></label>
     </div>
+    <div id="pc_state" style="font-size:12.5px;line-height:1.6;margin-top:8px"></div>
     <div id="pc_body" style="margin-top:12px">
       <label class="lbl">발송 방식</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -83,6 +86,37 @@
           </div></div>
       </div>
       <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="saveCall()">저장</button>
+    </div>
+  </div>
+
+  <!-- ══ 안전장치 (과거 통화 일괄 발송 방지) ══ -->
+  <div id="haltBar" hidden class="card" style="margin-bottom:16px;padding:14px 18px;border-color:var(--red);background:color-mix(in srgb,var(--red) 8%,var(--surface))">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px;font-size:13.5px;line-height:1.6">
+        ⛔ <b>자동 발송이 중단되었습니다.</b><br>
+        <span id="haltInfo" style="color:var(--muted)"></span>
+      </div>
+      <button class="btn btn-sm" onclick="resumeCalls()">다시 켜기</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;padding:18px 20px">
+    <div style="font-size:15px;font-weight:600">안전장치</div>
+    <div style="font-size:12.5px;color:var(--muted);margin-top:2px">게이트웨이를 꺼 뒀던 동안 쌓인 과거 통화가 한꺼번에 발송되는 것을 막습니다.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div style="flex:1;min-width:140px"><label class="lbl">지난 통화 무시 기준(분)</label>
+        <input type="number" id="sg_age" class="inp" min="5" step="5"></div>
+      <div style="flex:1;min-width:140px"><label class="lbl">하루 최대 발송(건)</label>
+        <input type="number" id="sg_cap" class="inp" min="1" step="5"></div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:8px">
+      통화가 끝난 뒤 그 시간이 지나면 자동 발송하지 않습니다.<br>
+      하루 상한은 비상 차단기입니다 — 평소 사용량(하루 15건 이하)보다 넉넉하게 두세요.
+    </div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="saveCall()">저장</button>
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">차단 내역 <span style="font-weight:400;color:var(--muted)">— 최근 7일</span></div>
+      <div id="blockedList" style="font-size:12.5px;color:var(--muted);line-height:1.8"></div>
     </div>
   </div>
 
@@ -131,11 +165,61 @@ async function loadCall(){
   document.getElementById('pc_end').value    = hhmm(p.end,'21:00');
   const md = document.querySelector(`input[name=pcmode][value="${p.mode==='auto'?'auto':'manual'}"]`);
   if(md) md.checked = true;
+  document.getElementById('sg_age').value = callCfg.maxAgeMin ?? 30;
+  document.getElementById('sg_cap').value = callCfg.dailyCap  ?? 30;
   syncCallUi();
+  loadSafety();
 }
 function syncCallUi(){
   document.getElementById('mc_body').style.opacity = document.getElementById('mc_on').checked ? '1' : '.45';
   document.getElementById('pc_body').style.opacity = document.getElementById('pc_on').checked ? '1' : '.45';
+  document.getElementById('mc_state').innerHTML = stateLine(callCfg && callCfg.missed);
+  document.getElementById('pc_state').innerHTML = stateLine(callCfg && callCfg.postCall);
+}
+// 켜져 있는지 + 언제부터인지. "이 시각 이전 통화는 발송 안 함"이 핵심 정보.
+function stateLine(c){
+  if(!c) return '';
+  if(!c.enabled) return `<span style="color:var(--muted)">⚪ 꺼져 있음 — 켜는 순간부터 작동합니다</span>`;
+  const at = c.enabledAt ? new Date(c.enabledAt) : null;
+  const when = at ? `${at.getMonth()+1}월 ${at.getDate()}일 ${String(at.getHours()).padStart(2,'0')}:${String(at.getMinutes()).padStart(2,'0')}부터` : '';
+  return `🟢 <b>켜져 있음</b> ${when}` +
+    (at ? `<br><span style="color:var(--muted)">이 시각 이전의 통화에는 발송하지 않습니다</span>` : '');
+}
+
+/* ══ 안전장치 상태 ══ */
+const BLOCK_LABELS = {
+  stale:          ['지난 통화',     '무시 기준을 넘겨 발송하지 않음'],
+  before_enabled: ['켠 시각 이전',  '기능을 켜기 전에 있었던 통화'],
+  cooldown:       ['재발송 금지',   '최근에 이미 보낸 번호'],
+  recently_sent:  ['재발송 금지',   '최근에 이미 보낸 번호'],
+  daily_cap:      ['일일 상한',     '하루 한도 초과'],
+  halted:         ['비상 중단',     '중단 상태에서 들어온 통화'],
+};
+async function loadSafety(){
+  const halted = callCfg && callCfg.haltedAt;
+  const bar = document.getElementById('haltBar');
+  bar.hidden = !halted;
+  if(halted){
+    const t = new Date(callCfg.haltedAt);
+    document.getElementById('haltInfo').textContent =
+      `${t.toLocaleString('ko-KR')} · 짧은 시간에 발송이 몰려 자동으로 멈췄습니다. 원인을 확인한 뒤 다시 켜세요.`;
+  }
+  let s;
+  try { s = await api.get('/api/sms/call-blocked-summary?days=7'); } catch(_) { return; }
+  const rows = Object.entries(s.by || {})
+    .filter(([k])=>BLOCK_LABELS[k])
+    .map(([k,v])=>`• ${BLOCK_LABELS[k][0]} <b style="color:var(--fg)">${v}건</b> — ${BLOCK_LABELS[k][1]}`);
+  const ping = s.gatewayLastPing ? new Date(s.gatewayLastPing) : null;
+  const stale = ping ? (Date.now() - ping.getTime()) > 5*60*1000 : true;
+  const pingLine = `<div style="margin-top:6px;color:${stale?'var(--red)':'var(--muted)'}">📶 게이트웨이 마지막 신호 ` +
+    (ping ? ping.toLocaleString('ko-KR') : '없음') + (stale ? ' — 폰이 꺼져 있을 수 있습니다' : '') + `</div>`;
+  document.getElementById('blockedList').innerHTML =
+    (rows.join('<br>') || '차단된 건이 없습니다.') + pingLine;
+}
+async function resumeCalls(){
+  await api.post('/api/sms/call-resume', {});
+  await loadCall();
+  toast('자동 발송을 다시 켰습니다');
 }
 async function saveCall(){
   const body = {
@@ -155,6 +239,8 @@ async function saveCall(){
       start: document.getElementById('pc_start').value || '09:00',
       end:   document.getElementById('pc_end').value   || '21:00',
     },
+    maxAgeMin: Number(document.getElementById('sg_age').value) || 30,
+    dailyCap:  Number(document.getElementById('sg_cap').value) || 30,
   };
   // 켜는데 문구가 비어 있으면 막는다 (빈 문자 발송 방지)
   if(body.missed.enabled && !body.missed.memberText.trim() && !body.missed.guestText.trim()){
@@ -162,6 +248,7 @@ async function saveCall(){
   }
   callCfg = await api.post('/api/sms/call-config', body);
   syncCallUi();
+  loadSafety();
   toast('저장되었습니다');
 }
 

@@ -1220,10 +1220,15 @@ function registerSmsRoutes(app, deps) {
   //    반복 발송도 DB 기록 기준으로 확실히 막힌다(인메모리 스로틀 금지).
   // ══════════════════════════════════════════════════════════
   const CALL_DEFAULTS = {
-    missed:   { enabled: false, memberText: '', guestText: '', cooldownMin: 120, start: '09:00', end: '21:00' },
-    postCall: { enabled: false, mode: 'manual', minDurationSec: 30, blockDays: 10,
+    missed:   { enabled: false, enabledAt: null, memberText: '', guestText: '',
+                cooldownMin: 120, start: '09:00', end: '21:00' },
+    postCall: { enabled: false, enabledAt: null, mode: 'manual', minDurationSec: 30, blockDays: 10,
                 defaultTemplateId: null, start: '09:00', end: '21:00' },
-    dailyCap: 100,   // 업무 제한이 아니라 버그 대비 비상 차단기
+    dailyCap: 30,    // 업무 제한이 아니라 버그 대비 비상 차단기
+    // 폰이 꺼져 있던 동안 쌓인 과거 통화가 한꺼번에 발송되는 것을 막는 신선도 제한.
+    maxAgeMin: 30,
+    burstMin: 5, burstCap: 5,  // 짧은 시간에 몰리면 전면 중단
+    haltedAt: null,            // 중단된 시각(웹에서 [다시 켜기]로 해제)
   };
   async function loadCallConfig() {
     const cfg = await loadConfig();
@@ -1231,7 +1236,11 @@ function registerSmsRoutes(app, deps) {
     return {
       missed:   { ...CALL_DEFAULTS.missed,   ...(c.missed   || {}) },
       postCall: { ...CALL_DEFAULTS.postCall, ...(c.postCall || {}) },
-      dailyCap: Number.isFinite(c.dailyCap) ? c.dailyCap : CALL_DEFAULTS.dailyCap,
+      dailyCap:  Number.isFinite(c.dailyCap)  ? c.dailyCap  : CALL_DEFAULTS.dailyCap,
+      maxAgeMin: Number.isFinite(c.maxAgeMin) ? c.maxAgeMin : CALL_DEFAULTS.maxAgeMin,
+      burstMin:  Number.isFinite(c.burstMin)  ? c.burstMin  : CALL_DEFAULTS.burstMin,
+      burstCap:  Number.isFinite(c.burstCap)  ? c.burstCap  : CALL_DEFAULTS.burstCap,
+      haltedAt:  c.haltedAt || null,
     };
   }
   async function saveCallConfig(next) {
@@ -1290,6 +1299,20 @@ function registerSmsRoutes(app, deps) {
     return r.rows[0].c;
   }
 
+  // 최근 N분 자동 발송 건수 — 폭주 감지용
+  async function recentSentCount(min) {
+    const r = await q(
+      "SELECT count(*)::int c FROM js_call_events WHERE decision='sent' " +
+      "AND created_at > now() - ($1 || ' minutes')::interval", [String(min)]);
+    return r.rows[0].c;
+  }
+  // 비상 중단 — 관리자가 웹에서 [다시 켜기] 할 때까지 자동 발송을 멈춘다
+  async function haltCalls() {
+    const cfg = await loadConfig();
+    cfg.callConfig = { ...(cfg.callConfig || {}), haltedAt: new Date().toISOString() };
+    await saveConfig(cfg);
+  }
+
   async function pickTemplate(id) {
     if (id) {
       const r = await q('SELECT * FROM js_call_templates WHERE id=$1', [id]);
@@ -1310,8 +1333,21 @@ function registerSmsRoutes(app, deps) {
     if (ev.call_type === 'answered' && ev.direction !== 'in')
       return { decision: 'skipped', skip_reason: 'outgoing_call' };
 
+    // 게이트웨이를 꺼 뒀던 동안 쌓인 과거 통화가 재가동 순간 한꺼번에 발송되는 것을 막는다.
+    // 앱이 무엇을 보고하든 서버에서 최종 차단 — 앱 수정과 무관한 이중 안전장치.
+    // (occurred_at 이 미래거나 형식이 깨져도 차단되도록 !(ageMin >= 0) 으로 쓴다)
+    const ageMin = (Date.now() - new Date(ev.occurred_at).getTime()) / 60000;
+    if (!(ageMin >= 0) || ageMin > cfg.maxAgeMin)
+      return { decision: 'skipped', skip_reason: 'stale' };
+
+    if (cfg.haltedAt) return { decision: 'skipped', skip_reason: 'halted' };
     if (await todaySentCount() >= cfg.dailyCap)
       return { decision: 'skipped', skip_reason: 'daily_cap' };
+    // 짧은 시간에 몰리면(= 어딘가 고장난 것) 전면 중단하고 웹에 알린다.
+    if (await recentSentCount(cfg.burstMin) >= cfg.burstCap) {
+      await haltCalls();
+      return { decision: 'skipped', skip_reason: 'halted' };
+    }
 
     const { known, name: knownName } = await lookupKnown(ev.phone);
     // 문구 안의 [*이름*] 치환 (이름 없으면 호칭까지 제거 — renderWithName 참고)
@@ -1321,6 +1357,9 @@ function registerSmsRoutes(app, deps) {
     if (ev.call_type === 'missed') {
       const m = cfg.missed;
       if (!m.enabled) return { decision: 'skipped', skip_reason: 'missed_disabled', is_member: known };
+      // 기능을 켜 둔 시점 이후의 통화만 대상 (스위치를 올린 직후 과거 건이 나가지 않게)
+      if (m.enabledAt && new Date(ev.occurred_at) < new Date(m.enabledAt))
+        return { decision: 'skipped', skip_reason: 'before_enabled', is_member: known };
       if (!inTimeWindow(nowHM, m.start, m.end))
         return { decision: 'skipped', skip_reason: 'out_of_hours', is_member: known };
       const dup = await q(
@@ -1339,6 +1378,9 @@ function registerSmsRoutes(app, deps) {
     if (ev.call_type === 'answered') {
       const p = cfg.postCall;
       if (!p.enabled) return { decision: 'skipped', skip_reason: 'postcall_disabled', is_member: known };
+      // 기능을 켜 둔 시점 이후의 통화만 대상
+      if (p.enabledAt && new Date(ev.occurred_at) < new Date(p.enabledAt))
+        return { decision: 'skipped', skip_reason: 'before_enabled', is_member: known };
       if (known)      return { decision: 'skipped', skip_reason: 'already_member', is_member: true };
       if ((ev.duration_sec || 0) < p.minDurationSec)
         return { decision: 'skipped', skip_reason: 'too_short', is_member: known };
@@ -1404,13 +1446,47 @@ function registerSmsRoutes(app, deps) {
   app.post('/api/sms/call-config', requireSmsAccess, wrap(async (req, res) => {
     const cur = await loadCallConfig();
     const b = req.body || {};
+    // 꺼짐→켜짐으로 바뀌는 순간만 '켠 시각'을 새로 찍는다.
+    // (이미 켜진 상태에서 문구만 고칠 때는 기존 시각을 유지)
+    const stamp = (prev, next) =>
+      (!prev.enabled && next.enabled) ? new Date().toISOString() : (prev.enabledAt || null);
+    const missed   = { ...cur.missed,   ...(b.missed   || {}) };
+    const postCall = { ...cur.postCall, ...(b.postCall || {}) };
+    missed.enabledAt   = stamp(cur.missed,   missed);
+    postCall.enabledAt = stamp(cur.postCall, postCall);
     const next = {
-      missed:   { ...cur.missed,   ...(b.missed   || {}) },
-      postCall: { ...cur.postCall, ...(b.postCall || {}) },
-      dailyCap: Number.isFinite(b.dailyCap) ? b.dailyCap : cur.dailyCap,
+      missed, postCall,
+      dailyCap:  Number.isFinite(b.dailyCap)  ? b.dailyCap  : cur.dailyCap,
+      maxAgeMin: Number.isFinite(b.maxAgeMin) ? b.maxAgeMin : cur.maxAgeMin,
+      burstMin:  cur.burstMin,
+      burstCap:  cur.burstCap,
+      // haltedAt 은 전용 창구(/call-resume)에서만 지운다
+      haltedAt:  cur.haltedAt,
     };
     await saveCallConfig(next);
     res.json({ ok: true, ...next });
+  }));
+
+  // 비상 중단 해제
+  app.post('/api/sms/call-resume', requireSmsAccess, wrap(async (req, res) => {
+    const cfg = await loadConfig();
+    cfg.callConfig = { ...(cfg.callConfig || {}), haltedAt: null };
+    await saveConfig(cfg);
+    res.json({ ok: true });
+  }));
+
+  // 차단 내역 요약 — 과거 건이 실제로 걸러지고 있는지 웹에서 확인용
+  app.get('/api/sms/call-blocked-summary', requireSmsAccess, wrap(async (req, res) => {
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 7));
+    const r = await q(
+      "SELECT skip_reason, count(*)::int c FROM js_call_events " +
+      "WHERE decision='skipped' AND skip_reason IS NOT NULL " +
+      "AND created_at > now() - ($1 || ' days')::interval GROUP BY 1", [String(days)]);
+    const by = {};
+    for (const row of r.rows) by[row.skip_reason] = row.c;
+    // 게이트웨이 마지막 생존 신호 — "폰이 돌고 있나"를 같은 화면에서 보도록
+    const g = await q('SELECT max(last_ping) p FROM js_gateway_status');
+    res.json({ days, by, gatewayLastPing: g.rows[0]?.p || null });
   }));
 
   app.get('/api/sms/call-templates', requireSmsAccess, wrap(async (req, res) => {
