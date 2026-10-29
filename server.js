@@ -80,6 +80,12 @@ let storeLastLoaded = 0;
 const STORE_TTL_MS = IS_SERVERLESS ? 5000 : Infinity;
 
 function ensureStore() {
+  // 서버리스에선 scheduleReconnect 가 no-op 이라, DB가 한 번 삐끗해 pool 이 null 이
+  // 되면 그 인스턴스는 영원히 파일(/tmp) 모드로 남는다. 빈 store 를 들고 계속
+  // 응답하게 되므로(일정 0건) 매번 pool 을 되살릴 기회를 준다.
+  if (USE_DB && !pool && IS_SERVERLESS) {
+    try { pool = createPool(); } catch (e) { console.error('[pool] 재생성 실패', e.message); }
+  }
   const stale = (Date.now() - storeLastLoaded) > STORE_TTL_MS;
   if (storeReady && !stale) return Promise.resolve();
   if (storeInitPromise) return storeInitPromise;
@@ -1216,14 +1222,9 @@ app.get('/api/health', async (req, res) => {
 app.post('/api/db-reconnect', requireAdmin, async (req, res) => {
   if (!USE_DB) return res.json({ ok: false, message: 'DATABASE_URL이 설정되지 않음' });
   try {
-    const { Pool } = require('pg');
-    const newPool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    });
+    // createPool() 을 쓴다 — 서버리스는 max:1 이다. 여기서만 max:5 로 열면
+    // 인스턴스마다 풀러 슬롯을 5개씩 잡아먹어 "max clients reached" 를 키운다.
+    const newPool = createPool();
     await newPool.query('SELECT 1');
     pool = newPool;
     attachPoolErrorHandler();
