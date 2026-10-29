@@ -1038,9 +1038,11 @@ function registerSmsRoutes(app, deps) {
     const last = g.rows[0]?.p ? new Date(g.rows[0].p).getTime() : 0;
     const gapMin = (Date.now() - last) / 60000;
     if (gapMin < GW_GAP_MIN) return 0;   // 계속 돌고 있었다 → 평소대로 발송
-    // 멈춰 있던 동안 쌓인 것 = 지금 대기 중인 모든 queued
+    // 멈춰 있던 동안 쌓인 것 = 대기 중인 queued + 폰이 가져가 놓고 결과를
+    // 보고하지 못한 채 멈춘 sending(그대로 두면 영원히 떠 있는 유령이 된다)
     const r = await q(
-      "UPDATE js_message_logs SET status='held' WHERE dir='out' AND status='queued' RETURNING id");
+      "UPDATE js_message_logs SET status='held' " +
+      "WHERE dir='out' AND status IN ('queued','sending') RETURNING id");
     if (r.rows.length) {
       await sendPushToAll({
         title: '보류된 문자 ' + r.rows.length + '건',
