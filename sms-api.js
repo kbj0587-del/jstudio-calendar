@@ -1029,8 +1029,31 @@ function registerSmsRoutes(app, deps) {
     GW_STATUSES.includes(s) || /^failed:[A-Za-z0-9_\-:]{1,60}$/.test(String(s || ''));
 
   // 발송 큐 원자적 클레임: queued → sending 로 바꾸며 그 행들을 돌려준다(중복발송 방지).
+  // 게이트웨이가 멈춰 있던 동안 쌓인 메시지는 켜자마자 나가지 않는다.
+  // 'held'로 묶어 두고 웹에서 "N건 보낼까요?" 동의를 받은 뒤에만 발송한다.
+  // 기본은 '안 나감' — 승인하지 않으면 영원히 대기 상태로 남는다.
+  const GW_GAP_MIN = 10;   // 이만큼 신호가 없었으면 "멈춰 있었다"로 본다
+  async function holdBacklogOnResume() {
+    const g = await q("SELECT max(last_ping) p FROM js_gateway_status WHERE network_status LIKE 'FGT%'");
+    const last = g.rows[0]?.p ? new Date(g.rows[0].p).getTime() : 0;
+    const gapMin = (Date.now() - last) / 60000;
+    if (gapMin < GW_GAP_MIN) return 0;   // 계속 돌고 있었다 → 평소대로 발송
+    // 멈춰 있던 동안 쌓인 것 = 지금 대기 중인 모든 queued
+    const r = await q(
+      "UPDATE js_message_logs SET status='held' WHERE dir='out' AND status='queued' RETURNING id");
+    if (r.rows.length) {
+      await sendPushToAll({
+        title: '보류된 문자 ' + r.rows.length + '건',
+        body: '게이트웨이가 멈춰 있던 동안 쌓인 메시지입니다. 발송할지 확인해 주세요.',
+        url: '/sms/',
+      });
+    }
+    return r.rows.length;
+  }
+
   app.post('/api/sms/gw/claim-queue', requireGateway, wrap(async (req, res) => {
     const limit = Math.min(Math.max(Number(req.body?.limit) || 20, 1), 50);
+    await holdBacklogOnResume();
     const r = await q(
       "UPDATE js_message_logs SET status='sending' WHERE id IN " +
       "(SELECT id FROM js_message_logs WHERE dir='out' AND status='queued' ORDER BY created_at ASC LIMIT $1) " +
@@ -1465,6 +1488,30 @@ function registerSmsRoutes(app, deps) {
     };
     await saveCallConfig(next);
     res.json({ ok: true, ...next });
+  }));
+
+  // ── 보류된 문자(게이트웨이 재가동 시 쌓여 있던 것) 확인·승인·취소 ──
+  app.get('/api/sms/held', requireSmsAccess, wrap(async (req, res) => {
+    const r = await q(
+      "SELECT l.id, l.phone, l.content, l.image_url, l.created_at, " +
+      " (SELECT name FROM js_members m WHERE regexp_replace(m.phone,'\\D','','g') = l.phone LIMIT 1) name " +
+      "FROM js_message_logs l WHERE l.dir='out' AND l.status='held' ORDER BY l.created_at ASC");
+    res.json({ items: r.rows });
+  }));
+  // 승인 = 다시 큐로. ids 를 주면 그것만, 없으면 전부.
+  app.post('/api/sms/held/approve', requireSmsAccess, wrap(async (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
+    const r = ids
+      ? await q("UPDATE js_message_logs SET status='queued' WHERE status='held' AND id = ANY($1) RETURNING id", [ids])
+      : await q("UPDATE js_message_logs SET status='queued' WHERE status='held' RETURNING id");
+    res.json({ ok: true, approved: r.rows.length });
+  }));
+  app.post('/api/sms/held/cancel', requireSmsAccess, wrap(async (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
+    const r = ids
+      ? await q("UPDATE js_message_logs SET status='cancelled' WHERE status='held' AND id = ANY($1) RETURNING id", [ids])
+      : await q("UPDATE js_message_logs SET status='cancelled' WHERE status='held' RETURNING id");
+    res.json({ ok: true, cancelled: r.rows.length });
   }));
 
   // 비상 중단 해제

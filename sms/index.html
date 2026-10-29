@@ -22,6 +22,9 @@
     <!-- 왼쪽: 발송 패널 (B안 메신저 컴포저) -->
     <div class="compose" id="compose">
 
+      <!-- ⓪-a 보류된 문자 (게이트웨이가 멈춰 있던 동안 쌓인 것 · 승인해야 나감) -->
+      <div id="heldBox" class="hidden" style="margin-bottom:14px"></div>
+
       <!-- ⓪ 통화 후 발송 대기 (반자동 · 대기 건이 있을 때만 보임) -->
       <div id="callPending" class="hidden" style="margin-bottom:14px"></div>
 
@@ -211,7 +214,7 @@ async function boot(){
   window.addEventListener('resize', applyComposeWidth);
   window.addEventListener('paste', onGlobalPaste);
   await refreshBootstrap();
-  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadThreads(), loadGwContacts(), loadCallPending()]);
+  await Promise.all([loadMembers(), loadGroups(), loadTemplates(), loadThreads(), loadGwContacts(), loadCallPending(), loadHeld()]);
   renderVarChips(); updateBytes(); updateSummary();
   applyPrefillRecipients();     // 연락처 페이지에서 "발송 대상으로 보내기"로 넘어온 수신자
   document.getElementById('tagInp').addEventListener('blur', ()=>setTimeout(hideSuggest, 200));
@@ -223,9 +226,10 @@ async function boot(){
   }
   pollWhenVisible(loadThreads,      30000);
   pollWhenVisible(loadCallPending,  30000);
+  pollWhenVisible(loadHeld,         30000);
   pollWhenVisible(refreshBootstrap, 120000); // 설정/템플릿류는 자주 안 바뀜
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) { loadThreads(); loadCallPending(); }
+    if (!document.hidden) { loadThreads(); loadCallPending(); loadHeld(); }
   });
 }
 window.onAuthReady = boot;
@@ -996,6 +1000,55 @@ async function delThread(){
 
 /* ── 통화 후 발송 대기 목록 (반자동) ── */
 let pendingCalls=[], callTpls=[];
+/* ══ 보류된 문자 — 게이트웨이가 멈춰 있던 동안 쌓인 것 ══
+   기본은 "안 나감". 무엇이 몇 건 나갈지 보여주고 승인해야만 발송한다. */
+let heldItems = [];
+async function loadHeld(){
+  const box = document.getElementById('heldBox');
+  try{ heldItems = (await api.get('/api/sms/held')).items || []; }
+  catch(_){ return; }
+  if(!heldItems.length){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.classList.remove('hidden');
+  const rows = heldItems.slice(0,6).map(h=>{
+    const when = new Date(h.created_at);
+    const who = h.name ? `${esc(h.name)} · ${esc(fmtPhone(h.phone))}` : esc(fmtPhone(h.phone));
+    return `<div style="padding:7px 0;border-top:1px solid var(--line)">
+      <div style="font-size:12.5px;font-weight:600">${who}
+        <span style="font-weight:400;color:var(--muted)"> · ${when.getMonth()+1}/${when.getDate()} ${String(when.getHours()).padStart(2,'0')}:${String(when.getMinutes()).padStart(2,'0')} 대기</span></div>
+      <div style="font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        ${h.image_url?'🖼 ':''}${esc((h.content||'').replace(/\n/g,' ')) || '(내용 없음)'}</div>
+    </div>`;
+  }).join('');
+  const more = heldItems.length > 6 ? `<div style="font-size:12px;color:var(--muted);padding-top:7px">… 외 ${heldItems.length-6}건</div>` : '';
+  box.innerHTML = `
+    <div class="card" style="padding:14px 16px;border-color:var(--red);background:color-mix(in srgb,var(--red) 7%,var(--surface))">
+      <div style="font-size:13px;font-weight:600">⏸ 보류된 문자 ${heldItems.length}건</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px;line-height:1.6">
+        게이트웨이가 멈춰 있던 동안 쌓인 메시지입니다. <b>승인하기 전까지 발송되지 않습니다.</b><br>
+        지금 보내면 받는 분에게는 뒤늦게 도착합니다. 내용을 확인하고 정하세요.
+      </div>
+      <div style="margin-top:8px">${rows}${more}</div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="approveHeld()">${heldItems.length}건 발송</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="cancelHeld()">전부 취소</button>
+      </div>
+    </div>`;
+}
+async function approveHeld(){
+  const n = heldItems.length;
+  if(!confirm(`보류된 ${n}건을 지금 발송합니다.\n받는 분에게는 뒤늦게 도착합니다. 진행할까요?`)) return;
+  const r = await api.post('/api/sms/held/approve', {});
+  toast(`${r.approved}건을 발송 큐에 넣었습니다`);
+  loadHeld(); loadThreads();
+}
+async function cancelHeld(){
+  const n = heldItems.length;
+  if(!confirm(`보류된 ${n}건을 전부 취소합니다.\n발송되지 않으며 되돌릴 수 없습니다. 진행할까요?`)) return;
+  const r = await api.post('/api/sms/held/cancel', {});
+  toast(`${r.cancelled}건을 취소했습니다`);
+  loadHeld(); loadThreads();
+}
+
 async function loadCallPending(){
   try{
     const [list, tpl] = await Promise.all([

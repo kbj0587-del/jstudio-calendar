@@ -112,6 +112,8 @@ function smsStatusLabel(s){
   if (s === 'sending') return '전송중';
   if (s === 'success') return '전송됨';
   if (s === 'received') return '수신';
+  if (s === 'held') return '보류 · 승인 대기';
+  if (s === 'cancelled') return '발송 취소됨';
   if (s.startsWith('failed')) {
     // 형식: failed | failed:CODE | failed:CODE:설명 (구버전 호환)
     const parts = s.split(':');
