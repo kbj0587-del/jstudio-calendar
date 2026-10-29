@@ -4299,7 +4299,7 @@ async function changeAdminPassword() {
   const pw2 = document.getElementById('newAdminPw2')?.value || '';
   if (msgEl) msgEl.textContent = '';
 
-  if (pw1.length < 6) {
+  if (pw1.trim().length < 6) {
     if (msgEl) msgEl.textContent = '⚠️ 비밀번호는 6자 이상이어야 합니다.';
     return;
   }
@@ -4308,11 +4308,13 @@ async function changeAdminPassword() {
     return;
   }
   try {
-    const resp = await apiPost('/api/admin/change-password', { newPassword: pw1 });
+    // 서버는 trim 한 값을 저장하므로, 보관·전송도 같은 값으로 맞춘다.
+    const pw = pw1.trim();
+    const resp = await apiPost('/api/admin/change-password', { newPassword: pw });
     const data = await resp.json();
     if (resp.ok && data.ok) {
-      adminPw = pw1;
-      localStorage.setItem('cc_admin_pw', pw1);
+      adminPw = pw;
+      localStorage.setItem('cc_admin_pw', pw);
       document.getElementById('newAdminPw1').value = '';
       document.getElementById('newAdminPw2').value = '';
       showToast('비밀번호가 변경되었습니다.');

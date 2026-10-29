@@ -497,10 +497,15 @@ function ensureDefaultAdmin() {
 // 사용자가 관리자패널에서 변경하면 store.adminPasswordHash(해시)로 저장되어
 // 그 뒤로는 이 해시가 우선한다. /api/admin/verify(로그인)와 isAdmin() 둘 다
 // 반드시 이 함수 하나로 판정해야 변경 후에도 로그인이 어긋나지 않는다.
+// ⚠️ 저장할 때는 trim() 한 값을 해시하는데(아래 change-password), 로그인 때는
+//    trim 없이 해시해서 비교하고 있었다. 그래서 비밀번호 앞뒤에 공백이 하나라도
+//    섞이면 "바꾼 비밀번호인데 로그인이 안 되는" 상태가 된다. 양쪽을 trim 으로 맞춘다.
 function checkAdminPassword(pw) {
   if (!pw) return false;
-  if (store.adminPasswordHash) return hashPin(String(pw)) === store.adminPasswordHash;
-  return pw === ADMIN_PW;
+  const v = String(pw).trim();
+  if (!v) return false;
+  if (store.adminPasswordHash) return hashPin(v) === store.adminPasswordHash;
+  return v === String(ADMIN_PW).trim();
 }
 function isAdmin(req) {
   return checkAdminPassword(req.headers['x-admin-password']);
