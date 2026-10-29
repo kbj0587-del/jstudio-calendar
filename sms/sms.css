@@ -149,6 +149,10 @@ body.resizing{cursor:col-resize;user-select:none}
 .bubble-out{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:5px}
 .bubble-in{align-self:flex-start;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-bottom-left-radius:5px}
 .bubble-time{font-size:10.5px;color:var(--muted);padding:0 4px}
+/* 날짜 구분선 — 양옆 선 사이에 날짜를 얹는다 */
+.daysep{display:flex;align-items:center;gap:10px;margin:14px 2px 10px;color:var(--muted);font-size:11px}
+.daysep::before,.daysep::after{content:"";flex:1;height:1px;background:var(--line,var(--border2))}
+.daysep span{white-space:nowrap}
 .contact-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:var(--radius-xs);cursor:pointer}
 .contact-row:hover{background:var(--surface2)}
 .check{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border);display:flex;align-items:center;

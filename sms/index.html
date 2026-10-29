@@ -1262,15 +1262,23 @@ async function refreshChat(scroll){
   document.getElementById('chatName').textContent=t?t.name:fmtPhone(activeThread);
   document.getElementById('chatPhone').textContent=fmtPhone(activeThread);
   const dtb=document.getElementById('delThreadBtn'); if(dtb) dtb.style.display='';
-  document.getElementById('chatBody').innerHTML=msgs.map(m=>`
+  // 날짜가 바뀌는 지점마다 구분선을 끼운다. 말풍선에는 시각만 남긴다.
+  let lastDay = '';
+  document.getElementById('chatBody').innerHTML=msgs.map(m=>{
+    const day = dayKey(m.created_at);
+    const sep = day===lastDay ? '' :
+      `<div class="daysep"><span>${esc(fmtDayLabel(m.created_at))}</span></div>`;
+    lastDay = day;
+    return sep + `
     <div class="msgrow" style="display:flex;flex-direction:column;gap:3px;align-items:${m.dir==='out'?'flex-end':'flex-start'}">
       ${m.image_url?`<img src="${esc(m.image_url)}" style="max-width:200px;border-radius:12px;border:1px solid var(--border2)">`:''}
       ${m.content?`<div class="bubble ${m.dir==='out'?'bubble-out':'bubble-in'}">${esc(m.content)}</div>`:''}
       <div class="bubble-time">
-        ${fmtDateTime(m.created_at)}${m.dir==='out'?' · '+(m.status==='queued'?'전송대기':'전송됨'):''}
+        ${fmtTimeOnly(m.created_at)}${m.dir==='out'?' · '+esc(smsStatusLabel(m.status)):''}
         <button class="msgdel" title="이 메시지 기록 삭제" onclick="delMsg('${m.id}',${m.status==='queued'})">삭제</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const body=document.getElementById('chatBody'); if(scroll!==false) body.scrollTop=body.scrollHeight;
 }
 /* 오른쪽 답장 입력(replyInp)·onReplyKey()·sendReply() 는 입력창 통합으로 제거됨.

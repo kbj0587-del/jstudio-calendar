@@ -1075,11 +1075,26 @@ function registerSmsRoutes(app, deps) {
 
   // 로그 추가 (수신 dir=in / 삼성 발신함 동기화 dir=out / 인앱 발송 dir=out+queued).
   // dedupMin 지정 시 같은 번호+내용+방향이 그 분(min) 내 있으면 스킵(중복 방지).
+  // 아이폰 리액션(하트·엄지 등)은 갤럭시에 문자로 도착한다.
+  //   예) "네 이따 뵙겠습니다..." 메시지에 ❤을(를) 추가했어요.
+  // 실제 주고받은 말이 아니라 대화창만 어지럽히므로 기록에 넣지 않는다.
+  const REACTION_PATTERNS = [
+    /메시지에\s+.{1,12}을\(를\)\s*(추가|삭제)했어요/,
+    /메시지를\s+.{1,12}(으로)?\s*강조했어요/,
+    /^(Liked|Loved|Laughed at|Emphasized|Disliked|Questioned)\s+["“”']/i,
+  ];
+  const isReaction = (text) => {
+    const t = String(text || '').trim();
+    return t.length > 0 && REACTION_PATTERNS.some((re) => re.test(t));
+  };
+
   app.post('/api/sms/gw/log', requireGateway, wrap(async (req, res) => {
     const { phone, content, dir, image_url, dedupMin } = req.body || {};
     const status = req.body?.status || (dir === 'out' ? 'success' : 'received');
     const p = digits(phone);
     if (p.length < 8 || (dir !== 'in' && dir !== 'out')) return res.status(400).json({ error: 'bad_request' });
+    // 아이폰 리액션 알림은 기록하지 않는다(자동응답·푸시도 타지 않는다)
+    if (isReaction(content)) return res.json({ ok: true, skipped: 'reaction' });
     if (dedupMin) {
       const dup = await q(
         "SELECT 1 FROM js_message_logs WHERE phone=$1 AND content=$2 AND dir=$3 AND created_at > now() - ($4 || ' minutes')::interval LIMIT 1",

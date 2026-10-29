@@ -69,6 +69,29 @@ function fmtDateTime(iso){
   const p = (n)=>String(n).padStart(2,'0');
   return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+// 대화창용 — 날짜 구분선은 따로 두고 말풍선에는 시각만 붙인다.
+function fmtTimeOnly(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  const h = d.getHours();
+  return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+// 날짜 구간 라벨. 오늘·어제는 말로, 그 밖에는 날짜로.
+const DAY_KO = ['일','월','화','수','목','금','토'];
+function dayKey(iso){
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+function fmtDayLabel(iso){
+  const d = new Date(iso), now = new Date();
+  const k = dayKey(iso);
+  if (k === dayKey(now)) return '오늘';
+  const y = new Date(now); y.setDate(y.getDate() - 1);
+  if (k === dayKey(y)) return '어제';
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return (sameYear ? '' : `${d.getFullYear()}년 `) +
+    `${d.getMonth()+1}월 ${d.getDate()}일 (${DAY_KO[d.getDay()]})`;
+}
 const AVATAR_COLORS = ['#0071e3','#34c759','#ff9500','#af52de','#ff2d55','#5ac8fa','#ffcc00','#ff3b30'];
 function avatarColor(seed){
   let h = 0; for (const c of String(seed||'')) h = (h*31 + c.charCodeAt(0)) & 0xffff;
