@@ -129,10 +129,36 @@ function needsStore(pathname) {
   return !STORE_FREE_PREFIXES.some(p => pathname.startsWith(p));
 }
 
+// ── 관리자 비밀번호 해시만 따로 받아오기 ───────────────────────
+// /api/sms/ 는 162KB짜리 store를 안 불러오는데(egress 절감), 관리자 로그인은
+// store.adminPasswordHash를 본다. 그래서 비번을 바꾸면 store를 들고 있는
+// 인스턴스에선 되고 아닌 쪽에선 안 되는 "됐다 안 됐다" 현상이 생겼다.
+// 해시 한 줄(수십 바이트)만 짧은 TTL로 따로 읽어 이 어긋남을 없앤다.
+let adminHashLoaded = 0;
+const ADMIN_HASH_TTL_MS = IS_SERVERLESS ? 10000 : Infinity;
+async function ensureAdminHash() {
+  if (storeReady) return;                        // store가 이미 있으면 그 값이 정답
+  if (!(USE_DB && pool)) return;
+  if (Date.now() - adminHashLoaded < ADMIN_HASH_TTL_MS) return;
+  try {
+    const r = await pool.query("SELECT data->>'adminPasswordHash' AS h FROM jstudio_store WHERE id = 1");
+    const h = r.rows[0] ? r.rows[0].h : null;
+    if (h) store.adminPasswordHash = h;
+    else delete store.adminPasswordHash;         // 기본값(ENV)으로 돌아간 상태
+    adminHashLoaded = Date.now();
+  } catch (e) {
+    console.error('[adminHash] 조회 실패', e.message);
+  }
+}
+
 // 서버리스 환경: 첫 요청 시 DB/store 초기화 (정적파일·health check·store 무관 API 제외)
 if (IS_SERVERLESS) {
   app.use(async (req, res, next) => {
-    if (!needsStore(req.path)) return next();
+    if (!needsStore(req.path)) {
+      // store를 안 쓰는 경로라도 관리자 인증은 해시가 맞아야 한다
+      if (req.headers['x-admin-password']) { try { await ensureAdminHash(); } catch (_) {} }
+      return next();
+    }
     try { await ensureStore(); next(); }
     catch (err) {
       console.error('Store 초기화 실패:', err.message);
