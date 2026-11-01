@@ -125,7 +125,7 @@ app.use(express.static(__dirname, {
 // 이 경로에서 ensureStore()를 부르면 162KB짜리 jstudio_store를 통째로
 // DB에서 끌어오게 되어 Egress만 낭비된다 (2026-08 한도 초과 사고 원인).
 // sms-api.js / schedule-api.js / schedule-app-api.js 는 store 참조 0건이라 제외해도 안전하다.
-const STORE_FREE_PREFIXES = ['/api/sms/', '/api/schedule', '/api.php', '/s/', '/api/lecture'];
+const STORE_FREE_PREFIXES = ['/api/sms/', '/api/schedule', '/api.php', '/s/', '/api/lecture', '/api/site/'];
 function needsStore(pathname) {
   if (pathname === '/api/health') return false;
   // 강의 관리자 인증은 store.adminPasswordHash(캘린더 앱 관리자 비번)를 참조한다.
@@ -1404,6 +1404,10 @@ registerScheduleAppRoutes(app, { getPool: () => pool, checkAdminPassword });
 // ── 미사제이스튜디오 강의보기 백엔드 (/api/lecture/*) ──
 const { registerLectureRoutes } = require('./lecture-api');
 registerLectureRoutes(app, { getPool: () => pool, checkAdminPassword });
+
+// ── 미사제이스튜디오 사이트 회원 계정 (/api/site/*) — 가입 승인제·등급 ──
+const { registerSiteAuthRoutes } = require('./site-auth-api');
+registerSiteAuthRoutes(app, { getPool: () => pool });
 
 app.get('*', (req, res) => {
   // index.html은 절대 stale 캐시를 쓰지 않도록 항상 재검증 (구버전 캐시 문제 근본 차단)
