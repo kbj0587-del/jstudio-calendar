@@ -8,6 +8,7 @@ const { CERT_SEEDS } = require('./lecture-cert-seeds');
 
 const SECRET = process.env.LECTURE_SECRET || process.env.ADMIN_PASSWORD || 'mjs-lecture-dev';
 const TOKEN_TTL_SEC = 6 * 60 * 60; // 6시간
+const TOKEN_VER = 2;                // 토큰 형식 버전 — 올리면 이전에 발급된 강의 토큰이 모두 무효(2026-11-01: 로그아웃 후 잔존 토큰 정리)
 const WATCH_DONE_PCT = 98;         // 반올림·미세오차 감안, 98% 이상이면 완주로 인정
 const ALLOW_ORIGINS = ['https://www.mjs.ai.kr', 'https://mjs.ai.kr'];
 
@@ -56,6 +57,7 @@ function registerLectureRoutes(app, deps) {
     if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(exp))) return null;
     let p; try { p = JSON.parse(unb64u(body)); } catch (e) { return null; }
     if (!p || !p.sid || !p.exp || p.exp < Math.floor(Date.now() / 1000)) return null;
+    if (p.tv !== TOKEN_VER) return null;   // 옛 형식 토큰(계정 미연결 시절 발급분)은 무효
     return p;
   }
   function authStudent(req) {
@@ -106,7 +108,7 @@ function registerLectureRoutes(app, deps) {
 
   // 수강생 토큰 + 수강 가능한 강의 목록(+개인 진도) — 이름 인증·회원 로그인 공용
   async function studentPayload(s, siteUserId) {
-    const tp = { sid: s.id, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC };
+    const tp = { sid: s.id, tv: TOKEN_VER, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC };
     if (siteUserId) tp.su = siteUserId;   // 회원 로그인으로 입장한 경우 사이트 계정에 묶음
     const token = sign(tp);
     const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
