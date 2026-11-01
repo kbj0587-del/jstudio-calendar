@@ -1401,13 +1401,14 @@ registerScheduleRoutes(app, { getPool: () => pool, isAdmin, isSubAdmin });
 const { registerScheduleAppRoutes } = require('./schedule-app-api');
 registerScheduleAppRoutes(app, { getPool: () => pool, checkAdminPassword });
 
+// ── 미사제이스튜디오 사이트 회원 계정 (/api/site/*) — 가입 승인제·등급 ──
+//  강의 API 가 관리자·수강생 로그인을 알아볼 수 있도록 먼저 등록하고 확인 함수를 넘긴다.
+const { registerSiteAuthRoutes } = require('./site-auth-api');
+const siteAuth = registerSiteAuthRoutes(app, { getPool: () => pool });
+
 // ── 미사제이스튜디오 강의보기 백엔드 (/api/lecture/*) ──
 const { registerLectureRoutes } = require('./lecture-api');
-registerLectureRoutes(app, { getPool: () => pool, checkAdminPassword });
-
-// ── 미사제이스튜디오 사이트 회원 계정 (/api/site/*) — 가입 승인제·등급 ──
-const { registerSiteAuthRoutes } = require('./site-auth-api');
-registerSiteAuthRoutes(app, { getPool: () => pool });
+registerLectureRoutes(app, { getPool: () => pool, checkAdminPassword, siteAuth });
 
 app.get('*', (req, res) => {
   // index.html은 절대 stale 캐시를 쓰지 않도록 항상 재검증 (구버전 캐시 문제 근본 차단)

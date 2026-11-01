@@ -321,6 +321,21 @@ function registerSiteAuthRoutes(app, deps) {
     res.json({ ok: true });
   }));
 
+  // 내 수료증·자격증 (발급 기록의 연락처가 내 번호와 같은 것)
+  app.get('/api/site/my-certs', wrap(async (req, res) => {
+    const u = await requireRole(req, res, 'member'); if (!u) return;
+    let rows = [];
+    try {
+      rows = (await q(`SELECT c.cert_no, c.completion_date, c.issued_date, c.name_en, t.name AS cert_name
+                         FROM lecture_certs c LEFT JOIN lecture_cert_types t ON t.id = c.cert_type_id
+                        WHERE right(regexp_replace(coalesce(c.holder_phone,''), '\\D', '', 'g'), 11) = $1
+                        ORDER BY coalesce(c.completion_date, c.issued_date) DESC NULLS LAST`, [u.phone])).rows;
+    } catch (e) { rows = []; }
+    res.json({ ok: true, certs: rows.map((r) => ({
+      name: r.cert_name || '자격증', cert_no: r.cert_no || '', date: r.completion_date || r.issued_date || null, name_en: r.name_en || '',
+    })) });
+  }));
+
   // ════════ 관리 API (관리자+) ════════
 
   const canAssign = (actor, role) => {
@@ -441,6 +456,7 @@ function registerSiteAuthRoutes(app, deps) {
   }));
 
   console.log('✅ site-auth 라우트 등록 (/api/site/*)' + (OWNER_PHONE ? '' : ' — SITE_OWNER_PHONE 미설정'));
+  return { currentUser, RANK };
 }
 
 module.exports = { registerSiteAuthRoutes, RANK, ROLES };

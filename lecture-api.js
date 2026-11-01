@@ -13,6 +13,7 @@ const ALLOW_ORIGINS = ['https://www.mjs.ai.kr', 'https://mjs.ai.kr'];
 
 function registerLectureRoutes(app, deps) {
   const { getPool, checkAdminPassword } = deps;
+  const siteAuth = deps.siteAuth || null;   // 사이트 회원 로그인(mjs.ai.kr 쿠키) — 관리자·수강생 자동 인증
   const q = (sql, params) => {
     const pool = getPool();
     if (!pool) throw new Error('DB 연결 없음 (DATABASE_URL 필요)');
@@ -29,6 +30,15 @@ function registerLectureRoutes(app, deps) {
     res.setHeader('Cache-Control', 'no-store');
   }
   app.options('/api/lecture/*', (req, res) => { cors(req, res); res.status(204).end(); });
+  // 사이트 로그인 쿠키가 있으면 사용자 정보를 붙여 둔다(쿠키 없으면 DB 조회 없음)
+  if (siteAuth) {
+    app.use('/api/lecture', async (req, res, next) => {
+      if ((req.headers.cookie || '').indexOf('mjs_sid=') >= 0) {
+        try { req.siteUser = await siteAuth.currentUser(req); } catch (e) { req.siteUser = null; }
+      }
+      next();
+    });
+  }
 
   // ── 토큰(HMAC) ──
   const b64u = (b) => Buffer.from(b).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -54,6 +64,7 @@ function registerLectureRoutes(app, deps) {
     return verifyToken(tok);
   }
   function requireAdmin(req, res) {
+    if (req.siteUser && siteAuth && siteAuth.RANK[req.siteUser.eff_role] >= siteAuth.RANK.admin) return true;
     const pw = req.headers['x-admin-password'];
     if (!checkAdminPassword(pw)) { res.status(403).json({ error: 'forbidden' }); return false; }
     return true;
@@ -90,6 +101,28 @@ function registerLectureRoutes(app, deps) {
 
   // ════════ 수강생(방문자) ════════
 
+  // 수강생 토큰 + 수강 가능한 강의 목록(+개인 진도) — 이름 인증·회원 로그인 공용
+  async function studentPayload(s) {
+    const token = sign({ sid: s.id, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC });
+    const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
+    const pr = (await q('SELECT * FROM lecture_progress WHERE student_id = $1', [s.id])).rows;
+    const pmap = {}; pr.forEach(p => { pmap[p.course_id] = p; });
+    const qc = {}; (await q('SELECT course_id, count(*)::int AS n FROM lecture_quiz GROUP BY course_id')).rows.forEach(x => { qc[x.course_id] = Number(x.n) || 0; });
+    const courses = cs.map(c => ({
+      id: c.id, title: c.title, youtube_id: c.youtube_id, description: c.description,
+      has_quiz: (qc[c.id] || 0) > 0,
+      progress: pmap[c.id] ? {
+        watched_pct: pmap[c.id].watched_pct, passed: pmap[c.id].passed,
+        completed: !!pmap[c.id].completed_at,
+        attempted: pmap[c.id].quiz_total != null,
+        marks: Array.isArray(pmap[c.id].marks) ? pmap[c.id].marks : [],
+        bucket: pmap[c.id].bucket || 2,
+        last_pos: pmap[c.id].last_pos || 0
+      } : { watched_pct: 0, passed: false, completed: false, attempted: false, marks: [], bucket: 2, last_pos: 0 }
+    }));
+    return { ok: true, token, student: { name: s.name }, courses };
+  }
+
   // 인증(이름 + 연락처 뒤 4자리) → 토큰 + 수강 가능한 강의 목록(+개인 진도)
   //  관리자가 등록해 둔 수강생의 이름·전화번호와 대조. 코드 입력 방식은 폐지.
   app.post('/api/lecture/verify', wrap(async (req, res) => {
@@ -109,24 +142,22 @@ function registerLectureRoutes(app, deps) {
     if (s.expires_at && new Date(s.expires_at).getTime() < Date.now())
       return res.status(401).json({ error: 'expired', message: '수강 가능 기간이 지났습니다.' });
 
-    const token = sign({ sid: s.id, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC });
-    const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
-    const pr = (await q('SELECT * FROM lecture_progress WHERE student_id = $1', [s.id])).rows;
-    const pmap = {}; pr.forEach(p => { pmap[p.course_id] = p; });
-    const qc = {}; (await q('SELECT course_id, count(*)::int AS n FROM lecture_quiz GROUP BY course_id')).rows.forEach(x => { qc[x.course_id] = Number(x.n) || 0; });
-    const courses = cs.map(c => ({
-      id: c.id, title: c.title, youtube_id: c.youtube_id, description: c.description,
-      has_quiz: (qc[c.id] || 0) > 0,
-      progress: pmap[c.id] ? {
-        watched_pct: pmap[c.id].watched_pct, passed: pmap[c.id].passed,
-        completed: !!pmap[c.id].completed_at,
-        attempted: pmap[c.id].quiz_total != null,
-        marks: Array.isArray(pmap[c.id].marks) ? pmap[c.id].marks : [],
-        bucket: pmap[c.id].bucket || 2,
-        last_pos: pmap[c.id].last_pos || 0
-      } : { watched_pct: 0, passed: false, completed: false, attempted: false, marks: [], bucket: 2, last_pos: 0 }
-    }));
-    res.json({ ok: true, token, student: { name: s.name }, courses });
+    res.json(await studentPayload(s));
+  }));
+
+  // 회원 로그인으로 입장 — 로그인한 수강생(이상)의 휴대폰 번호로 수강생 명단을 찾아 토큰 발급
+  app.post('/api/lecture/site-auth', wrap(async (req, res) => {
+    const u = req.siteUser;
+    if (!u) return res.status(401).json({ error: 'login', message: '로그인이 필요합니다.' });
+    const { rows } = await q(
+      `SELECT * FROM lecture_students
+        WHERE right(regexp_replace(phone, '\\D', '', 'g'), 11) = $1
+        ORDER BY active DESC, created_at DESC`, [u.phone]);
+    const s = rows[0];
+    if (!s || !s.active) return res.status(404).json({ error: 'not_student', message: '강의 수강생 명단에서 회원님의 번호를 찾지 못했어요. 스튜디오로 문의해 주세요.' });
+    if (s.expires_at && new Date(s.expires_at).getTime() < Date.now())
+      return res.status(401).json({ error: 'expired', message: '수강 가능 기간이 지났습니다.' });
+    res.json(await studentPayload(s));
   }));
 
   // 세션 복원(새로고침 대비) — 토큰만으로 학생·강의목록 재조회(코드 재입력 불필요)
