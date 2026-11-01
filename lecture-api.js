@@ -61,7 +61,10 @@ function registerLectureRoutes(app, deps) {
   function authStudent(req) {
     const h = req.headers.authorization || '';
     const tok = h.startsWith('Bearer ') ? h.slice(7) : null;
-    return verifyToken(tok);
+    const p = verifyToken(tok);
+    // 회원 로그인으로 받은 토큰(su)은 그 회원이 지금도 로그인해 있을 때만 유효 — 로그아웃하면 즉시 무효
+    if (p && p.su && !(req.siteUser && req.siteUser.id === p.su)) return null;
+    return p;
   }
   function requireAdmin(req, res) {
     if (req.siteUser && siteAuth && siteAuth.RANK[req.siteUser.eff_role] >= siteAuth.RANK.admin) return true;
@@ -102,8 +105,10 @@ function registerLectureRoutes(app, deps) {
   // ════════ 수강생(방문자) ════════
 
   // 수강생 토큰 + 수강 가능한 강의 목록(+개인 진도) — 이름 인증·회원 로그인 공용
-  async function studentPayload(s) {
-    const token = sign({ sid: s.id, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC });
+  async function studentPayload(s, siteUserId) {
+    const tp = { sid: s.id, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC };
+    if (siteUserId) tp.su = siteUserId;   // 회원 로그인으로 입장한 경우 사이트 계정에 묶음
+    const token = sign(tp);
     const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
     const pr = (await q('SELECT * FROM lecture_progress WHERE student_id = $1', [s.id])).rows;
     const pmap = {}; pr.forEach(p => { pmap[p.course_id] = p; });
@@ -159,7 +164,7 @@ function registerLectureRoutes(app, deps) {
     if (!s || !s.active) return res.status(404).json({ error: 'not_student', message: '강의 수강생 명단에서 회원님의 번호를 찾지 못했어요. 스튜디오로 문의해 주세요.' });
     if (s.expires_at && new Date(s.expires_at).getTime() < Date.now())
       return res.status(401).json({ error: 'expired', message: '수강 가능 기간이 지났습니다.' });
-    res.json(await studentPayload(s));
+    res.json(await studentPayload(s, u.id));
   }));
 
   // 세션 복원(새로고침 대비) — 토큰만으로 학생·강의목록 재조회(코드 재입력 불필요)
