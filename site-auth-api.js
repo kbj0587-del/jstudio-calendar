@@ -58,6 +58,9 @@ function registerSiteAuthRoutes(app, deps) {
       created_at timestamptz NOT NULL DEFAULT now(),
       last_login_at timestamptz
     )`);
+    // 로그인 아이디 (2026-11-01: 휴대폰 번호 로그인 → 아이디 로그인으로 전환)
+    await q(`ALTER TABLE site_users ADD COLUMN IF NOT EXISTS login_id text`);
+    await q(`CREATE UNIQUE INDEX IF NOT EXISTS site_users_login_id_uq ON site_users (lower(login_id))`);
     await q(`CREATE TABLE IF NOT EXISTS site_role_log (
       id serial PRIMARY KEY,
       user_id integer NOT NULL,
@@ -75,6 +78,14 @@ function registerSiteAuthRoutes(app, deps) {
   const digits = (s) => String(s || '').replace(/\D/g, '');
   const validPhone = (p) => /^01[016789]\d{7,8}$/.test(p);
   const fmtPhone = (p) => p.length === 11 ? p.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3') : p.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+  // 아이디: 영문 소문자로 시작, 영문 소문자·숫자·밑줄 4~20자
+  const normId = (s) => String(s || '').trim().toLowerCase();
+  const validId = (s) => /^[a-z][a-z0-9_]{3,19}$/.test(s);
+  const ID_RULE = '아이디는 영문 소문자로 시작하는 4~20자(영문 소문자·숫자·밑줄)로 정해 주세요.';
+  async function idTaken(id, exceptUserId) {
+    const r = await q('SELECT id FROM site_users WHERE lower(login_id)=$1 AND id<>$2', [id, exceptUserId || 0]);
+    return r.rows.length > 0;
+  }
   const maskPhone = (p) => { const f = fmtPhone(p); return f.replace(/-(\d{3,4})-/, (m, mid) => '-' + '*'.repeat(mid.length) + '-'); };
 
   function hashPw(pw) {
@@ -186,11 +197,13 @@ function registerSiteAuthRoutes(app, deps) {
     await ensureTables();
     const b = req.body || {};
     const name = String(b.name || '').trim().slice(0, 40);
+    const loginId = normId(b.login_id);
     const phone = digits(b.phone);
     const pw = String(b.password || '');
     const email = String(b.email || '').trim().slice(0, 120) || null;
     const purpose = ['student', 'instructor', 'member'].includes(b.purpose) ? b.purpose : 'member';
     if (!b.agree_terms || !b.agree_privacy) return res.status(400).json({ error: 'agree', message: '필수 약관에 동의해 주세요.' });
+    if (!validId(loginId)) return res.status(400).json({ error: 'login_id', message: ID_RULE });
     if (!name) return res.status(400).json({ error: 'name', message: '이름을 입력해 주세요.' });
     if (!validPhone(phone)) return res.status(400).json({ error: 'phone', message: '휴대폰 번호를 정확히 입력해 주세요.' });
     if (pw.length < 8) return res.status(400).json({ error: 'password', message: '비밀번호는 8자 이상으로 정해 주세요.' });
@@ -203,6 +216,7 @@ function registerSiteAuthRoutes(app, deps) {
     const ex = (await q('SELECT * FROM site_users WHERE phone=$1', [phone])).rows[0];
     if (ex && ex.status === 'pending') return res.status(409).json({ error: 'pending', message: '이미 가입 요청이 접수되어 승인을 기다리고 있습니다.' });
     if (ex && ex.status !== 'rejected') return res.status(409).json({ error: 'exists', message: '이미 가입된 번호입니다. 로그인해 주세요.' });
+    if (await idTaken(loginId, ex ? ex.id : 0)) return res.status(409).json({ error: 'login_id_taken', message: '이미 사용 중인 아이디입니다. 다른 아이디를 정해 주세요.' });
 
     // 최종관리자 번호면 바로 활성화 (최종관리자가 아직 없을 때만)
     let role = 'member', status = 'pending';
@@ -215,13 +229,13 @@ function registerSiteAuthRoutes(app, deps) {
     if (ex) {
       saved = (await q(`UPDATE site_users SET name=$2, email=$3, password_hash=$4, role=$5, status=$6, signup_purpose=$7,
                           reject_reason=NULL, approved_by=NULL, approved_at=NULL, terms_ver=$8, privacy_ver=$9, marketing_opt=$10,
-                          agreed_at=now(), created_at=now(), token_version=token_version+1, fail_count=0, locked_until=NULL
+                          agreed_at=now(), created_at=now(), token_version=token_version+1, fail_count=0, locked_until=NULL, login_id=$11
                         WHERE id=$1 RETURNING id, status, role`,
-        [ex.id, name, email, ph, role, status, purpose, TERMS_VER, PRIVACY_VER, !!b.agree_marketing])).rows[0];
+        [ex.id, name, email, ph, role, status, purpose, TERMS_VER, PRIVACY_VER, !!b.agree_marketing, loginId])).rows[0];
     } else {
-      saved = (await q(`INSERT INTO site_users (phone, name, email, password_hash, role, status, signup_purpose, terms_ver, privacy_ver, marketing_opt, agreed_at)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now()) RETURNING id, status, role`,
-        [phone, name, email, ph, role, status, purpose, TERMS_VER, PRIVACY_VER, !!b.agree_marketing])).rows[0];
+      saved = (await q(`INSERT INTO site_users (phone, name, email, password_hash, role, status, signup_purpose, terms_ver, privacy_ver, marketing_opt, agreed_at, login_id)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now(),$11) RETURNING id, status, role`,
+        [phone, name, email, ph, role, status, purpose, TERMS_VER, PRIVACY_VER, !!b.agree_marketing, loginId])).rows[0];
     }
     if (role === 'owner') {
       await log({ id: saved.id, name }, { role: null, status: null }, { role: 'owner', status: 'active' }, null, '최종관리자 번호로 가입');
@@ -234,11 +248,16 @@ function registerSiteAuthRoutes(app, deps) {
     if (!originOk(req, res)) return;
     await ensureTables();
     const b = req.body || {};
-    const phone = digits(b.phone);
+    const loginId = normId(b.login_id);
     const pw = String(b.password || '');
-    const bad = () => res.status(401).json({ error: 'invalid', message: '휴대폰 번호 또는 비밀번호가 맞지 않습니다.' });
-    if (!validPhone(phone) || !pw) return bad();
-    const u = (await q('SELECT * FROM site_users WHERE phone=$1', [phone])).rows[0];
+    const bad = () => res.status(401).json({ error: 'invalid', message: '아이디 또는 비밀번호가 맞지 않습니다.' });
+    if (!loginId || !pw) return bad();
+    let u = validId(loginId) ? (await q('SELECT * FROM site_users WHERE lower(login_id)=$1', [loginId])).rows[0] : null;
+    // 전환 전에 만든 계정(아이디 없음)만 번호로 한 번 들어와 아이디를 정할 수 있음.
+    // 아이디가 생긴 계정은 번호로 로그인되지 않음.
+    if (!u && validPhone(digits(loginId))) {
+      u = (await q('SELECT * FROM site_users WHERE phone=$1 AND login_id IS NULL', [digits(loginId)])).rows[0];
+    }
     if (!u) return bad();
     if (u.locked_until && new Date(u.locked_until).getTime() > Date.now()) {
       return res.status(423).json({ error: 'locked', message: '비밀번호를 여러 번 틀려 10분간 로그인이 잠겼습니다. 잠시 후 다시 시도해 주세요.' });
@@ -255,7 +274,22 @@ function registerSiteAuthRoutes(app, deps) {
     if (u.status !== 'active') return res.status(403).json({ error: 'suspended', message: '이용이 정지된 계정입니다. 스튜디오로 문의해 주세요.' });
     await q('UPDATE site_users SET last_login_at=now() WHERE id=$1', [u.id]);
     setSession(res, u, !!b.remember);
-    res.json({ ok: true, must_change_pw: !!u.must_change_pw });
+    res.json({ ok: true, must_change_pw: !!u.must_change_pw, must_set_id: !u.login_id });
+  }));
+
+  // 아이디 정하기 (전환 전 계정만, 한 번만)
+  app.post('/api/site/login-id', wrap(async (req, res) => {
+    if (!originOk(req, res)) return;
+    const u = await requireRole(req, res, 'member'); if (!u) return;
+    if (u.login_id) return res.status(400).json({ error: 'has_id', message: '이미 아이디가 있습니다. 변경은 스튜디오에 요청해 주세요.' });
+    const b = req.body || {};
+    const loginId = normId(b.login_id);
+    if (!validId(loginId)) return res.status(400).json({ error: 'login_id', message: ID_RULE });
+    if (!checkPw(String(b.password || ''), u.password_hash)) return res.status(400).json({ error: 'current', message: '비밀번호가 맞지 않습니다.' });
+    if (await idTaken(loginId, u.id)) return res.status(409).json({ error: 'login_id_taken', message: '이미 사용 중인 아이디입니다. 다른 아이디를 정해 주세요.' });
+    await q('UPDATE site_users SET login_id=$2 WHERE id=$1 AND login_id IS NULL', [u.id, loginId]);
+    await log(u, { role: u.role, status: u.status }, { role: u.role, status: u.status }, u, '아이디 설정: ' + loginId);
+    res.json({ ok: true, login_id: loginId });
   }));
 
   app.post('/api/site/logout', wrap(async (req, res) => {
@@ -269,7 +303,7 @@ function registerSiteAuthRoutes(app, deps) {
     const u = await currentUser(req);
     if (!u) return res.json({ role: 'guest', rank: 0 });
     const out = {
-      id: u.id, name: u.name, phone: fmtPhone(u.phone), email: u.email || '',
+      id: u.id, login_id: u.login_id || '', must_set_id: !u.login_id, name: u.name, phone: fmtPhone(u.phone), email: u.email || '',
       role: u.eff_role, role_ko: ROLE_KO[u.eff_role], rank: RANK[u.eff_role],
       stored_role: u.role, must_change_pw: !!u.must_change_pw, marketing_opt: !!u.marketing_opt,
       created_at: u.created_at,
@@ -356,12 +390,12 @@ function registerSiteAuthRoutes(app, deps) {
     const st = ['pending', 'rejected'].includes(req.query.status) ? req.query.status : 'pending';
     // 거절 30일 지난 신청은 정리
     await q(`DELETE FROM site_users WHERE status='rejected' AND created_at < now() - interval '30 days'`);
-    const rows = (await q(`SELECT id, name, phone, email, signup_purpose, created_at, reject_reason
+    const rows = (await q(`SELECT id, login_id, name, phone, email, signup_purpose, created_at, reject_reason
                            FROM site_users WHERE status=$1 ORDER BY created_at ASC`, [st])).rows;
     const out = [];
     for (const r of rows) {
       out.push({
-        id: r.id, name: r.name, phone: fmtPhone(r.phone), email: r.email || '',
+        id: r.id, login_id: r.login_id || '', name: r.name, phone: fmtPhone(r.phone), email: r.email || '',
         purpose: r.signup_purpose || 'member', created_at: r.created_at, reject_reason: r.reject_reason || '',
         lecture: await lectureMatch(r.phone),
       });
@@ -396,7 +430,7 @@ function registerSiteAuthRoutes(app, deps) {
   // 회원 목록 (번호 가림)
   app.get('/api/site/admin/users', wrap(async (req, res) => {
     const a = await requireRole(req, res, 'admin'); if (!a) return;
-    const rows = (await q(`SELECT u.id, u.name, u.phone, u.role, u.status, u.created_at, u.last_login_at, u.must_change_pw,
+    const rows = (await q(`SELECT u.id, u.login_id, u.name, u.phone, u.role, u.status, u.created_at, u.last_login_at, u.must_change_pw,
                                   ab.name AS approved_by_name
                            FROM site_users u LEFT JOIN site_users ab ON ab.id = u.approved_by
                            WHERE u.status IN ('active','suspended')
@@ -404,7 +438,7 @@ function registerSiteAuthRoutes(app, deps) {
     res.json({
       ok: true, me: a.id, my_role: a.eff_role, can_assign_admin: a.eff_role === 'owner',
       users: rows.map((r) => ({
-        id: r.id, name: r.name, phone: maskPhone(r.phone), role: r.role, role_ko: ROLE_KO[r.role], status: r.status,
+        id: r.id, login_id: r.login_id || '', name: r.name, phone: maskPhone(r.phone), role: r.role, role_ko: ROLE_KO[r.role], status: r.status,
         created_at: r.created_at, last_login_at: r.last_login_at, approved_by: r.approved_by_name || '',
         must_change_pw: !!r.must_change_pw, editable: canTouch(a, r),
       })),
