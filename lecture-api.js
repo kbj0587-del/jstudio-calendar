@@ -54,7 +54,7 @@ function registerLectureRoutes(app, deps) {
     const [body, sig] = String(tok).split('.');
     if (!body || !sig) return null;
     const exp = b64u(crypto.createHmac('sha256', SECRET).update(body).digest());
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(exp))) return null;
+    if (sig.length !== exp.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(exp))) return null;   // 길이 다르면 비교 함수가 예외 → 500 방지
     let p; try { p = JSON.parse(unb64u(body)); } catch (e) { return null; }
     if (!p || !p.sid || !p.exp || p.exp < Math.floor(Date.now() / 1000)) return null;
     if (p.tv !== TOKEN_VER) return null;   // 옛 형식 토큰(계정 미연결 시절 발급분)은 무효
