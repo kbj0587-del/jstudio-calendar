@@ -149,6 +149,8 @@ function registerLectureRoutes(app, deps) {
   app.post('/api/lecture/site-auth', wrap(async (req, res) => {
     const u = req.siteUser;
     if (!u) return res.status(401).json({ error: 'login', message: '로그인이 필요합니다.' });
+    if (siteAuth.RANK[u.eff_role] < siteAuth.RANK.student)
+      return res.status(403).json({ error: 'grade', message: '수강생 등급 회원만 강의를 볼 수 있어요. 스튜디오로 문의해 주세요.' });
     const { rows } = await q(
       `SELECT * FROM lecture_students
         WHERE right(regexp_replace(phone, '\\D', '', 'g'), 11) = $1
