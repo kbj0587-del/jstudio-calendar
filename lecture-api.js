@@ -8,6 +8,10 @@ const { CERT_SEEDS } = require('./lecture-cert-seeds');
 
 const SECRET = process.env.LECTURE_SECRET || process.env.ADMIN_PASSWORD || 'mjs-lecture-dev';
 const TOKEN_TTL_SEC = 6 * 60 * 60; // 6시간
+// 이름+연락처 뒤 4자리 입장(옛 방식)은 전환 전에 등록된 수강생만, 그 수강생의 수강 기간까지만 허용.
+//  이 시각 이후 등록된 수강생은 아이디 로그인으로만 입장. 수강 기간이 비어 있는 기존 수강생은 LEGACY_END 까지.
+const LEGACY_CUTOFF_MS = Date.parse('2026-11-02T00:00:00+09:00');
+const LEGACY_END_MS = Date.parse('2026-12-01T00:00:00+09:00');
 const TOKEN_VER = 2;                // 토큰 형식 버전 — 올리면 이전에 발급된 강의 토큰이 모두 무효(2026-11-01: 로그아웃 후 잔존 토큰 정리)
 const WATCH_DONE_PCT = 98;         // 반올림·미세오차 감안, 98% 이상이면 완주로 인정
 const ALLOW_ORIGINS = ['https://www.mjs.ai.kr', 'https://mjs.ai.kr'];
@@ -107,8 +111,12 @@ function registerLectureRoutes(app, deps) {
   // ════════ 수강생(방문자) ════════
 
   // 수강생 토큰 + 수강 가능한 강의 목록(+개인 진도) — 이름 인증·회원 로그인 공용
-  async function studentPayload(s, siteUserId) {
-    const tp = { sid: s.id, tv: TOKEN_VER, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC };
+  async function studentPayload(s, siteUserId, capMs) {
+    // 토큰은 수강 기간(또는 이름 입장 마감)을 넘기지 않음
+    let exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_SEC;
+    if (s.expires_at) exp = Math.min(exp, Math.floor(new Date(s.expires_at).getTime() / 1000));
+    if (capMs) exp = Math.min(exp, Math.floor(capMs / 1000));
+    const tp = { sid: s.id, tv: TOKEN_VER, exp };
     if (siteUserId) tp.su = siteUserId;   // 회원 로그인으로 입장한 경우 사이트 계정에 묶음
     const token = sign(tp);
     const cs = (await q('SELECT * FROM lecture_courses ORDER BY sort, created_at')).rows.filter(courseOpen);
@@ -148,8 +156,12 @@ function registerLectureRoutes(app, deps) {
     if (!s || !s.active) return res.status(401).json({ error: 'invalid', message: '등록된 정보와 일치하지 않습니다. 이름과 연락처를 확인해 주세요.' });
     if (s.expires_at && new Date(s.expires_at).getTime() < Date.now())
       return res.status(401).json({ error: 'expired', message: '수강 가능 기간이 지났습니다.' });
+    // 옛 방식 입장 허용 범위: 전환 전 등록 + 수강 기간(없으면 LEGACY_END) 안
+    const legacyEnd = s.expires_at ? new Date(s.expires_at).getTime() : LEGACY_END_MS;
+    if (new Date(s.created_at).getTime() >= LEGACY_CUTOFF_MS || Date.now() >= legacyEnd)
+      return res.status(401).json({ error: 'account_only', message: '이름 입장은 종료되었어요. 회원가입 후 아이디와 비밀번호로 로그인해 주세요.' });
 
-    res.json(await studentPayload(s));
+    res.json(await studentPayload(s, null, legacyEnd));
   }));
 
   // 회원 로그인으로 입장 — 로그인한 수강생(이상)의 휴대폰 번호로 수강생 명단을 찾아 토큰 발급
