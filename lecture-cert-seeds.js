@@ -311,6 +311,117 @@ html,body{margin:0;padding:0;background:#e9e4d8;-webkit-print-color-adjust:exact
 </html>
 `;
 
+const BUNGEE_BASIC = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>번지피트니스 지도자 자격증</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+@page { size: A4 portrait; margin: 0; }
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 210mm; height: 297mm; }
+:root { --navy:#1f2f45; --gold:#b89a5e; --gold-d:#756033; --red:#b5534a; --gray:#596779; --text:#33404f; }
+body { font-family: "Nanum Myeongjo", "AppleMyungjo", serif; color: var(--navy); background: #fff; }
+.sans { font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Nanum Gothic", sans-serif; }
+.page { position: relative; width: 210mm; height: 297mm; overflow: hidden; background: #fff; }
+
+/* frame */
+.frame1 { z-index: 2; position: absolute; inset: 8mm; border: .7mm solid var(--gold); }
+.frame2 { z-index: 2; position: absolute; inset: 11.5mm; border: .25mm solid var(--gold); }
+.corner { z-index: 2; position: absolute; width: 9mm; height: 9mm; border: 0 solid var(--gold); }
+.c1 { top: 14mm; left: 14mm; border-top-width: .5mm; border-left-width: .5mm; }
+.c2 { top: 14mm; right: 14mm; border-top-width: .5mm; border-right-width: .5mm; }
+.c3 { bottom: 14mm; left: 14mm; border-bottom-width: .5mm; border-left-width: .5mm; }
+.c4 { bottom: 14mm; right: 14mm; border-bottom-width: .5mm; border-right-width: .5mm; }
+
+.bgfig { position: absolute; left: 50%; top: 8mm; height: 250mm; transform: translateX(-50%); z-index: 0;
+  opacity: .06; filter: grayscale(1); pointer-events: none; }
+
+/* registration no. (top-left) */
+.regno { z-index: 3; position: absolute; top: 19mm; left: 19mm; font-size: 8.5pt; letter-spacing: .06em; color: var(--navy); }
+.regno b { font-weight: 600; color: var(--gold-d); margin-right: 2.5mm; letter-spacing: .1em; }
+
+.content { z-index: 1; position: absolute; left: 26mm; right: 26mm; top: 54mm; bottom: 21mm;
+  display: flex; flex-direction: column; align-items: center; text-align: center; }
+.content > * { flex-shrink: 0; }
+
+.title { font-family: Georgia, "Times New Roman", serif; font-size: 48pt; letter-spacing: .1em; font-weight: 400; line-height: 1; }
+.subtitle { font-size: 10.5pt; letter-spacing: .5em; color: var(--gray); margin-top: 4mm; padding-left: .5em; }
+.rule { width: 30mm; height: .3mm; background: var(--gold); margin: 12mm 0 12mm; }
+.course { font-family: Georgia, "Times New Roman", serif; font-size: 21pt; letter-spacing: .02em; margin-top: 5mm; }
+.course .lv { font-family: "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; font-size: 10pt; letter-spacing: .32em; text-transform: uppercase; color: #a9786f; margin-left: 4.5mm; padding-left: 4.5mm; border-left: .25mm solid var(--gold); position: relative; top: -.3mm; }
+.course-ko { font-size: 10.5pt; color: var(--text); margin-top: 2mm; letter-spacing: .12em; }
+
+.name-label { font-family: Georgia, serif; font-style: italic; font-size: 10.5pt; color: var(--gray); margin-top: 30mm; }
+.name { font-family: Georgia, "Times New Roman", serif; font-size: 30pt; font-weight: 400; letter-spacing: .06em; margin-top: 3mm; padding: 0 3mm 2mm;
+  border-bottom: .3mm solid var(--navy); min-width: 80mm; }
+.statement { font-size: 12pt; line-height: 1.85; color: #0f1826; font-weight: 600; margin-top: 11mm; }
+.statement-en { font-family: Georgia, serif; font-style: italic; font-size: 8.5pt; line-height: 1.55; color: var(--gray); margin-top: 3mm; }
+
+/* curriculum table */
+.curri { width: 104mm; margin: auto 0; text-align: left; }
+.curri-t { font-size: 6.5pt; letter-spacing: .22em; color: var(--gold-d); font-weight: 600; padding-bottom: 1.6mm; border-bottom: .3mm solid var(--gold); }
+.curri-t span { letter-spacing: .12em; font-weight: 400; color: var(--gray); margin-left: 2mm; }
+.row { display: grid; grid-template-columns: 11mm 1fr auto; gap: 3mm; padding: 1.4mm 0; border-bottom: .18mm solid #ddd3bf; align-items: baseline; }
+.part { font-size: 6pt; letter-spacing: .12em; color: var(--gold-d); }
+.subj { font-size: 7pt; line-height: 1.35; color: var(--navy); }
+.en { font-family: Georgia, serif; font-style: italic; font-size: 6.2pt; color: var(--gray); text-align: right; white-space: nowrap; }
+
+/* footer */
+.footer { margin-top: 0; width: 100%; display: flex; flex-direction: column; align-items: center; }
+.date { font-size: 9pt; letter-spacing: .05em; color: var(--navy); }
+.date b { font-weight: 600; color: var(--gold-d); margin-right: 2.5mm; letter-spacing: .1em; }
+.signers { display: flex; gap: 14mm; justify-content: center; margin-top: 6mm; }
+.signer { width: 55mm; text-align: center; }
+.sig { height: 15mm; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 1mm; color: #1b2a55; white-space: nowrap; }
+.signer { position: relative; }
+.sigimg { position: absolute; display: block; max-width: none; pointer-events: none; }
+.nm { border-top: .25mm solid var(--navy); padding-top: 1.8mm; font-size: 8.5pt; color: var(--text); letter-spacing: .12em; }
+.org { margin-top: 9mm; font-size: 14pt; font-weight: 700; letter-spacing: .14em; }
+.org-en { font-size: 7.5pt; letter-spacing: .26em; color: var(--gray); margin-top: 1.2mm; }
+</style></head>
+<body><div class="page cert">
+  <div class="frame1"></div><div class="frame2"></div>
+  <div class="corner c1"></div><div class="corner c2"></div><div class="corner c3"></div><div class="corner c4"></div>
+  <img class="bgfig" src="https://www.mjs.ai.kr/cert-assets/bungee-cert-bg-figure.png" alt="">
+
+  <div class="regno sans"><b>등록번호 No.</b>2026-007939</div>
+
+  <div class="content">
+    <div class="title">CERTIFICATE</div>
+    <div class="course">Bungee Fitness Instructor <span class="lv">Basic</span></div>
+
+    <div class="name-label">This is to certify that</div>
+    <div class="name">{{holder_name}}</div>
+
+    <div class="statement">위 사람은 본 교육기관에서 준비한 번지피트니스 지도자 기본과정을<br>성실히 이수하고 소정의 평가에 합격하였으므로 이 자격증을 수여합니다.</div>
+    <div class="statement-en">has successfully completed the Bungee Fitness Instructor Basic Course<br>offered by this institution, passed the required assessment,<br>and is hereby awarded this certificate.</div>
+
+    <div class="curri sans">
+      <div class="curri-t">이수 과정<span>CURRICULUM</span></div>
+      <div class="row"><div class="part">PART 1</div><div class="subj">발의 해부학적 구조와 생체역학적 기능</div><div class="en">Foot Anatomy &amp; Biomechanics</div></div>
+      <div class="row"><div class="part">PART 2</div><div class="subj">주요 발 질환의 이해와 수업 적용</div><div class="en">Common Foot Conditions</div></div>
+      <div class="row"><div class="part">PART 3</div><div class="subj">발과 코어의 기능적 사슬 및 번지피트니스 트레이닝학</div><div class="en">Foot-to-Core Chain &amp; Training</div></div>
+      <div class="row"><div class="part">PART 4</div><div class="subj">번지 스킬 63 (동작 이론 및 실기)</div><div class="en">63 Bungee Skills</div></div>
+    </div>
+
+    <div class="footer sans">
+      <div class="date"><b>Date</b>{{issued_date}}</div>
+      <div class="signers">
+        <div class="signer"><div class="sig"></div><img class="sigimg" alt="Hyunjung Kim" src="https://www.mjs.ai.kr/cert-assets/bungee-sig-kim.png" style="left:11.25px;top:9.69px;width:185.36px;height:60px"><div class="nm">김현정 마스터</div></div>
+        <div class="signer"><div class="sig"></div><img class="sigimg" alt="Eunjin Jang" src="https://www.mjs.ai.kr/cert-assets/bungee-sig-jang.png" style="left:3.37px;top:-3.56px;width:201.71px;height:74.95px"><div class="nm">장은진 마스터</div></div>
+      </div>
+      <div class="org" style="font-family:'Nanum Myeongjo',serif">미사제이스튜디오</div>
+      <div class="org-en">MISA J STUDIO</div>
+    </div>
+  </div>
+</div></body></html>
+`;
+
 const CERT_SEEDS = [
   { name: "아로마 전문 지도사", issuer: "미사 제이스튜디오", template: AROMA_TEMPLATE },
   { name: "로우플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_LOW },
@@ -318,6 +429,7 @@ const CERT_SEEDS = [
   { name: "플라잉요가 자격증", issuer: "제이스튜디오", template: FLYING_GEN },
   { name: "자격증 표지", issuer: "제이스튜디오", template: COVER },
   { name: "워크숍 수료증", issuer: "올플라잉요가", template: WORKSHOP },
+  { name: "번지피트니스 지도자 자격증", issuer: "미사제이스튜디오", template: BUNGEE_BASIC },
 ];
 
-module.exports = { AROMA_TEMPLATE, FLYING_LOW, FLYING_HIGH, FLYING_GEN, COVER, WORKSHOP, CERT_SEEDS };
+module.exports = { AROMA_TEMPLATE, FLYING_LOW, FLYING_HIGH, FLYING_GEN, COVER, WORKSHOP, BUNGEE_BASIC, CERT_SEEDS };
