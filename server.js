@@ -124,8 +124,8 @@ app.use(express.static(__dirname, {
 // store(캘린더 통짜 JSON)를 전혀 참조하지 않는 API 경로들.
 // 이 경로에서 ensureStore()를 부르면 162KB짜리 jstudio_store를 통째로
 // DB에서 끌어오게 되어 Egress만 낭비된다 (2026-08 한도 초과 사고 원인).
-// sms-api.js / schedule-api.js / schedule-app-api.js 는 store 참조 0건이라 제외해도 안전하다.
-const STORE_FREE_PREFIXES = ['/api/sms/', '/api/schedule', '/api.php', '/s/', '/api/lecture', '/api/site/'];
+// schedule-api.js / schedule-app-api.js 는 store 참조 0건이라 제외해도 안전하다.
+const STORE_FREE_PREFIXES = ['/api/schedule', '/api.php', '/api/lecture', '/api/site/'];
 function needsStore(pathname) {
   if (pathname === '/api/health') return false;
   // 강의 관리자 인증은 store.adminPasswordHash(캘린더 앱 관리자 비번)를 참조한다.
@@ -1385,13 +1385,7 @@ app.get('/manifest.json', (req, res) => {
   res.sendFile(path.join(__dirname, 'manifest.json'));
 });
 
-// ── J.SMS 메시지 발송센터 라우트 (/api/sms/*, /s/:code) ──
-const { registerSmsRoutes } = require('./sms-api');
-registerSmsRoutes(app, {
-  getPool:    () => pool,
-  isAdmin,
-  isSubAdmin,
-});
+// ── J.SMS(문자 발송센터) 는 2026-11-25 전면 폐기 — 라우트·테이블·저장소 모두 삭제됨 ──
 
 // ── 수업 시간표 라우트 (/api/schedule/*) ──
 const { registerScheduleRoutes } = require('./schedule-api');
